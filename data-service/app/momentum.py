@@ -209,6 +209,34 @@ def sparkline_points(series: SymbolSeries, weeks: int = 12) -> list[float]:
     return [round(float(value) / base * 100, 2) for value in tail]
 
 
+def momentum_sparkline(series: SymbolSeries) -> dict | None:
+    """Adjusted-price path for the exact 12-1 momentum observation window."""
+    if not series.adjusted:
+        return None
+    frame = series.frame
+    end_index = len(frame) - 1 - TRADING_DAYS["1M"]
+    start_index = len(frame) - 1 - TRADING_DAYS["12M"]
+    if start_index < 0 or end_index <= start_index:
+        return None
+    window = frame["adj"].iloc[start_index:end_index + 1].dropna()
+    if len(window) < 2:
+        return None
+    base = float(window.iloc[0])
+    ending = float(window.iloc[-1])
+    if base <= 0 or ending <= 0:
+        return None
+    return {
+        "values": [round(float(value) / base * 100.0, 4) for value in window],
+        "startDate": window.index[0].strftime("%Y-%m-%d"),
+        "endDate": window.index[-1].strftime("%Y-%m-%d"),
+        "startAdjustedClose": round(base, 4),
+        "endAdjustedClose": round(ending, 4),
+        "returnPct": round((ending / base - 1.0) * 100.0, 4),
+        "startOffsetSessions": TRADING_DAYS["12M"],
+        "endOffsetSessions": TRADING_DAYS["1M"],
+    }
+
+
 def monthly_history(series: SymbolSeries, months: int = 12) -> list[dict]:
     """Month-end metrics for one symbol (no look-ahead)."""
     frame = series.frame

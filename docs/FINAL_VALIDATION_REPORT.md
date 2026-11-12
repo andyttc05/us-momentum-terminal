@@ -16,14 +16,14 @@ point-in-time market reconstruction and does not establish future investment per
 
 | Check | Command | Result |
 | --- | --- | --- |
-| Python unit tests | `npm run data:test` | 13 passed |
-| Frontend unit tests | `npm --prefix frontend run test:unit` | 23 passed |
+| Python unit tests | `npm run data:test` | 15 passed |
+| Frontend unit tests | `npm --prefix frontend run test:unit` | 26 passed |
 | Sites worker tests | `npm run test:sites` | 4 passed |
 | Production build | `npm run build` | Passed |
 | Live API verification | `npm run data:verify` | Passed |
 
 The frontend unit command includes the Sites worker tests in its standard glob, so the combined
-frontend result is 23 unique tests; the separate Sites command is shown for deployment verification.
+frontend result is 26 unique tests; the separate Sites command is shown for deployment verification.
 
 ## Live API Verification
 

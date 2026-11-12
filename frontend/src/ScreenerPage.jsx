@@ -17,6 +17,7 @@ import { Toast } from "./components/Toast.jsx";
 import { UpdateBar } from "./components/UpdateBar.jsx";
 import { useMarket } from "./api/MarketProvider.jsx";
 import { formatMarketCap } from "./utils/format.js";
+import { momentumSparklineDomain, momentumSparklineValues } from "./utils/sparkline.js";
 import { searchMatch } from "./utils/stockSearch.js";
 
 const emptyFilters = { sector: "", minPrice: "", maxPrice: "", minMomentum: "", minScore: "" };
@@ -130,6 +131,7 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
       })
       .map(({ stock }) => stock);
   }, [filters, mode, search, sort, stocks]);
+  const sparklineDomain = useMemo(() => momentumSparklineDomain(stocks), [stocks]);
 
   const totalPages = Math.max(1, Math.ceil(filteredStocks.length / rowsPerPage));
   const currentPage = Math.min(page, totalPages);
@@ -328,7 +330,12 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
                     <td className="stock-change-cell"><span className={stock.change >= 0 ? "change-pill is-positive" : "change-pill is-negative"}>{formatPercent(stock.change)}</span></td>
                     <td className="stock-momentum-cell">
                       <div className="stock-momentum-cell__content">
-                        <Sparkline values={stock.trend} label={`${stock.ticker} momentum`} className={stock.momentum >= 0 ? "" : "sparkline--negative"} />
+                        <Sparkline
+                          values={momentumSparklineValues(stock)}
+                          domain={sparklineDomain}
+                          label={`${stock.ticker} 12–1 momentum`}
+                          className={stock.momentum >= 0 ? "" : "sparkline--negative"}
+                        />
                         <strong className={stock.momentum >= 0 ? "momentum-value is-positive" : "momentum-value is-negative"}>{formatPercent(stock.momentum, 1)}</strong>
                       </div>
                     </td>

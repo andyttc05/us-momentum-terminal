@@ -40,6 +40,7 @@ from .momentum import (
     compute_daily_change,
     compute_snapshot,
     cross_section_at,
+    momentum_sparkline,
     monthly_history,
     sparkline_points,
 )
@@ -473,6 +474,7 @@ def _stock_rows(scored: list[dict], series_map: dict[str, SymbolSeries], quotes:
                 "cacheAgeSeconds": row["cache_age_seconds"],
                 "observations": row["observations"],
                 "trend": sparkline_points(series),
+                "sparkline12_1": momentum_sparkline(series),
             }
         )
     return rows

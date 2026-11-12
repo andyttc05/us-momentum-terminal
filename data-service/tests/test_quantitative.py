@@ -19,6 +19,7 @@ from app.momentum import (
     _window_metrics,
     _zscore,
     build_frame,
+    momentum_sparkline,
     momentum_score,
 )
 from app.portfolio import build_portfolio
@@ -78,6 +79,88 @@ class MomentumTests(unittest.TestCase):
             )
         ]
         self.assertIsNone(build_frame(bars))
+
+    def test_momentum_sparkline_uses_exact_adjusted_12_1_window(self):
+        days = 300
+        adjusted = np.linspace(40.0, 220.0, days)
+        raw_close = adjusted * 0.5
+        dates = pd.bdate_range("2025-01-02", periods=days)
+        frame = pd.DataFrame(
+            {
+                "adj": adjusted,
+                "close": raw_close,
+                "volume": np.full(days, 1_000_000.0),
+                "open": raw_close,
+                "high": raw_close,
+                "low": raw_close,
+                "dividends": 0.0,
+                "splits": 0.0,
+            },
+            index=dates,
+        )
+        series = SymbolSeries(
+            symbol="WINDOW",
+            frame=frame,
+            source="test",
+            source_label="Synthetic",
+            fetched_at="2026-01-01T00:00:00+00:00",
+            adjusted=True,
+            is_backup=False,
+        )
+        sparkline = momentum_sparkline(series)
+        start = days - 1 - 252
+        end = days - 1 - 21
+        expected_return = (adjusted[end] / adjusted[start] - 1.0) * 100.0
+        self.assertEqual(sparkline["startDate"], dates[start].strftime("%Y-%m-%d"))
+        self.assertEqual(sparkline["endDate"], dates[end].strftime("%Y-%m-%d"))
+        self.assertEqual(sparkline["startAdjustedClose"], round(float(adjusted[start]), 4))
+        self.assertEqual(sparkline["endAdjustedClose"], round(float(adjusted[end]), 4))
+        self.assertEqual(sparkline["values"][0], 100.0)
+        self.assertAlmostEqual(sparkline["values"][-1], round(float(adjusted[end] / adjusted[start] * 100.0), 4))
+        self.assertAlmostEqual(sparkline["returnPct"], expected_return, places=4)
+
+    def test_momentum_sparkline_is_ticker_specific_and_handles_missing_data(self):
+        def series_for(symbol, slope):
+            days = 300
+            adjusted = 100.0 + np.arange(days) * slope
+            dates = pd.bdate_range("2025-01-02", periods=days)
+            frame = pd.DataFrame(
+                {
+                    "adj": adjusted,
+                    "close": adjusted,
+                    "volume": np.full(days, 1_000_000.0),
+                    "open": adjusted,
+                    "high": adjusted,
+                    "low": adjusted,
+                    "dividends": 0.0,
+                    "splits": 0.0,
+                },
+                index=dates,
+            )
+            return SymbolSeries(
+                symbol=symbol,
+                frame=frame,
+                source="test",
+                source_label="Synthetic",
+                fetched_at="2026-01-01T00:00:00+00:00",
+                adjusted=True,
+                is_backup=False,
+            )
+
+        fast = momentum_sparkline(series_for("FAST", 0.5))
+        slow = momentum_sparkline(series_for("SLOW", 0.1))
+        self.assertGreater(fast["returnPct"], slow["returnPct"])
+        shorter = series_for("SHORT", 0.2).frame.iloc[-200:].copy()
+        short_series = SymbolSeries(
+            symbol="SHORT",
+            frame=shorter,
+            source="test",
+            source_label="Synthetic",
+            fetched_at="2026-01-01T00:00:00+00:00",
+            adjusted=True,
+            is_backup=False,
+        )
+        self.assertIsNone(momentum_sparkline(short_series))
 
 
 class PortfolioTests(unittest.TestCase):
