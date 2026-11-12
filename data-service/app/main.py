@@ -22,7 +22,7 @@ if __package__ in (None, ""):
 
 from app import cache  # noqa: E402
 from app.clock import market_state  # noqa: E402
-from app.config import DOCS_DIR, settings  # noqa: E402
+from app.config import DOCS_DIR, SEED_PATH, settings  # noqa: E402
 from app.providers.registry import registry  # noqa: E402
 from app.snapshot import (  # noqa: E402
     UNIVERSE_VERSION,
@@ -106,8 +106,26 @@ def _publication_state(payload: dict, cache_state: str) -> dict:
     result = deepcopy(payload)
     meta = result.setdefault("meta", {})
     meta["cache_state"] = cache_state
-    meta["refresh_in_progress"] = bool(_WARMING["active"])
+    meta["refresh_in_progress"] = _refresh_visible()
     return result
+
+
+def _refresh_timed_out() -> bool:
+    started = _WARMING.get("started_at")
+    return bool(_WARMING["active"] and started and time.time() - started >= settings.warm_timeout)
+
+
+def _refresh_visible() -> bool:
+    return bool(_WARMING["active"] and not _refresh_timed_out())
+
+
+def _seed_payload() -> dict | None:
+    try:
+        payload = json.loads(SEED_PATH.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+    value = payload.get("value", payload)
+    return value if _is_current(value) else None
 
 
 def _loading_payload(error: str | None = None) -> dict:
@@ -122,7 +140,7 @@ def _loading_payload(error: str | None = None) -> dict:
             "data_provider_id": registry.chain()[0],
             "connection_status": "error" if error else "warming",
             "cache_state": "error" if error else "warming",
-            "refresh_in_progress": bool(_WARMING["active"]),
+            "refresh_in_progress": _refresh_visible(),
             "market_state": clock["state"],
             "timeliness": clock["timeliness"],
             "timeliness_note": clock["timeliness_note"],
@@ -167,7 +185,7 @@ def health() -> dict:
         "clock": market_state(),
         "snapshot_ready": publication_ok,
         "snapshot_age_seconds": snapshot_age_seconds(),
-        "warming": _WARMING,
+        "warming": {**_WARMING, "timed_out": _refresh_timed_out()},
         "universe_version": UNIVERSE_VERSION,
         "providers": registry.status(),
         "configured_keys": settings.keys_present(),
@@ -203,13 +221,19 @@ def snapshot(force: bool = Query(default=False)) -> JSONResponse:
         )
     else:
         stale = cache.read_stale("publication", "snapshot")
+        seed = _seed_payload()
         _start_warm_up(force=force)
         if _is_current(payload):
             response_payload = _publication_state(payload, "cached")
         elif stale:
             response_payload = _publication_state(stale, "cached")
+        elif seed:
+            response_payload = _publication_state(seed, "cached")
         else:
-            response_payload = _loading_payload(_WARMING["error"])
+            error = _WARMING["error"] or (
+                "Data refresh timed out" if _refresh_timed_out() else None
+            )
+            response_payload = _loading_payload(error)
     response = JSONResponse(response_payload)
     response.headers["Cache-Control"] = "no-store"
     return response

@@ -16,6 +16,7 @@ DATA_DIR = ROOT / "data-service"
 _cache_override = os.environ.get("DATA_CACHE_DIR", "").strip()
 CACHE_DIR = Path(_cache_override) if _cache_override else DATA_DIR / "cache"
 DOCS_DIR = DATA_DIR / "docs"
+SEED_PATH = DATA_DIR / "seed" / "publication.json"
 
 
 def load_dotenv(path: Path | None = None) -> None:
@@ -75,6 +76,7 @@ class Settings:
     retry_attempts: int = _int("DATA_RETRY_ATTEMPTS", 2)
     retry_base_seconds: float = float(os.environ.get("DATA_RETRY_BASE_SECONDS", "0.75"))
     warm_error_cooldown: int = _int("DATA_WARM_ERROR_COOLDOWN", 30)
+    warm_timeout: int = _int("DATA_WARM_TIMEOUT", 180)
 
     # Cache TTLs in seconds.
     ttl_bars_intraday: int = _int("DATA_TTL_BARS_INTRADAY", 900)       # 15 min while the market is open

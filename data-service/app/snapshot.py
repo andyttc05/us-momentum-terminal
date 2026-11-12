@@ -24,7 +24,7 @@ from .backtest import (
     run_backtest,
 )
 from .clock import market_state
-from .config import settings
+from .config import SEED_PATH, settings
 from .models import (
     ProviderAuthError,
     ProviderBlocked,
@@ -776,6 +776,14 @@ def build_stock_detail(ticker: str) -> dict | None:
         return None
 
     publication = cache.read("publication", "snapshot", ttl=-1)
+    if not publication and SEED_PATH.exists():
+        try:
+            seeded = json.loads(SEED_PATH.read_text())
+            candidate = seeded.get("value", seeded)
+            if candidate.get("meta", {}).get("universe_version") == UNIVERSE_VERSION:
+                publication = candidate
+        except (OSError, json.JSONDecodeError):
+            publication = None
     if not publication:
         return None
     stock = next((row for row in publication["stocks"] if row["ticker"] == ticker), None)

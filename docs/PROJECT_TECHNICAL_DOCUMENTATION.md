@@ -143,6 +143,10 @@ lightweight `warming` payload when no cache exists. The browser polls during the
 Expired bar and quote caches are retained as fallback and are clearly marked rather than serving
 them as fresh.
 
+The release also includes a fully verified 306-stock publication seed. A new process with no disk
+cache returns that seed as cached data while refreshing, avoiding an empty cold-start screen without
+inventing live values.
+
 ## 3. Data Flow
 
 ```mermaid
@@ -505,6 +509,7 @@ preview server.
 | `DATA_QUOTE_WORKERS` | `4` | Quote metadata concurrency |
 | `DATA_RETRY_ATTEMPTS` | `2` | Transient retry limit |
 | `DATA_RETRY_BASE_SECONDS` | `0.75` | Exponential-backoff base |
+| `DATA_WARM_TIMEOUT` | `180` | Refresh spinner timeout seconds |
 | `DATA_CACHE_DIR` | `data-service/cache` | Cache root |
 | `DATA_TTL_BARS_INTRADAY` | `900` | Open-market bar TTL |
 | `DATA_TTL_BARS_CLOSED` | `21600` | Closed-market bar TTL |

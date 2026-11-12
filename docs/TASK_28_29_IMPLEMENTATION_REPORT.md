@@ -122,6 +122,9 @@ The current publication has no missing prices or market caps among its 306 eligi
 - Full float fundamentals are requested only for the best 140 portfolio candidates.
 - The browser receives stale/current cached data immediately while the server rebuilds in the
   background.
+- The release includes the last fully verified 306-stock publication as a seed. A new Render process
+  serves that seed with a `cached` label while its live refresh runs, so an empty disk cache no
+  longer produces a blank waiting screen.
 - With no cache, the API returns a lightweight warming payload with HTTP 200 instead of a technical
   503 error.
 - The frontend polls during warming and stops when the build succeeds or fails.
@@ -131,7 +134,7 @@ The current publication has no missing prices or market caps among its 306 eligi
 
 | State | Result |
 |---|---:|
-| First snapshot with stale cache during rebuild | ~0.04 s |
+| First snapshot with stale cache or bundled verified seed during rebuild | ~0.04 s |
 | Fully populated-cache rebuild of 308-stock scan | 5.3 s |
 | First expanded scan while downloading new bars/quotes | 241.6 s total background work |
 | Warm-cache intermediate rebuild before all fundamentals were populated | 96.2 s |

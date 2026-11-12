@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import unittest
 from datetime import datetime
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -19,6 +21,7 @@ from app.momentum import (
     momentum_score,
 )
 from app.portfolio import build_portfolio
+from app.snapshot import UNIVERSE_VERSION
 from app.universe import (
     EXPANDED_UNIVERSE,
     HISTORICAL_BACKTEST_TICKERS,
@@ -184,6 +187,13 @@ class UniverseTests(unittest.TestCase):
         added = {member.ticker for member in EXPANDED_UNIVERSE}
         self.assertFalse(core & added)
         self.assertTrue(all(member.instrument_type == "Common stock" for member in UNIVERSE if member.source != "core"))
+
+    def test_published_seed_matches_current_universe_contract(self):
+        seed_path = Path(__file__).resolve().parents[1] / "seed" / "publication.json"
+        payload = json.loads(seed_path.read_text())["value"]
+        self.assertEqual(payload["meta"]["universe_version"], UNIVERSE_VERSION)
+        self.assertEqual(len(payload["stocks"]), 306)
+        self.assertEqual(len({row["ticker"] for row in payload["stocks"]}), 306)
 
 
 if __name__ == "__main__":

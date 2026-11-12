@@ -177,10 +177,13 @@ sanity, and an AAPL price cross-check against Twelve Data.
 | `DATA_SERIES_FETCH_WORKERS` | `4` | per-symbol recovery concurrency |
 | `DATA_QUOTE_WORKERS` | `4` | quote metadata concurrency |
 | `DATA_RETRY_ATTEMPTS` | `2` | transient retries per symbol |
+| `DATA_WARM_TIMEOUT` | `180` | seconds before the UI stops showing an active refresh spinner |
 
-The publication endpoint returns current data, marked stale cache while a rebuild is in progress,
-or a lightweight warming payload when no cache exists. The browser never waits for a cold provider
-scan before rendering the application shell.
+The release includes `data-service/seed/publication.json`, the last fully verified 306-stock
+publication. A process with no local cache serves that seed as clearly labeled cached data while the
+live refresh runs. The publication endpoint otherwise returns current data, marked stale cache, or
+a lightweight warming payload. The browser never waits for a cold provider scan before rendering
+the application shell.
 | `DATA_HISTORY_YEARS` | `10` | history depth |
 | `DATA_REQUEST_TIMEOUT` | `25` | per-request timeout (s) |
 | `DATA_CACHE_DIR` | `data-service/cache` | cache location |
