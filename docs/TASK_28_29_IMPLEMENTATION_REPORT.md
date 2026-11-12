@@ -181,6 +181,17 @@ The semiannual signal months, next-session execution, adjusted closes, equal-wei
 | Desktop and 390px layouts | PASS |
 | Browser console | 0 errors/warnings |
 
+## Deployment
+
+- Commit: `282af4e` (`Serve verified publication during cold starts`)
+- GitHub Pages: <https://andyttc05.github.io/us-momentum-terminal/>
+- GitHub Actions Pages run: successful for commit `282af4e`
+- Render API: <https://us-momentum-data.onrender.com/api/snapshot>
+- Public page verification: Overview displayed 308 scanned, 306 eligible and 100 portfolio stocks.
+- Public search verification: `nv` returned only NVDA; FRT was not returned.
+- While Render's first live refresh is running, the UI labels the seed as `Cached data`, disables
+  refresh and automatically updates after the server publishes fresher data.
+
 ## Implementation Evidence
 
 - `frontend/src/utils/stockSearch.js`
