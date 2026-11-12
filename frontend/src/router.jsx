@@ -18,9 +18,23 @@ const PAGES = ["overview", "screener", "portfolio", "backtesting"];
 
 const RouterContext = createContext(null);
 
+// The site can be served from a repository subpath on GitHub Pages. Vite's base
+// (import.meta.env.BASE_URL) is "/" locally and "/us-momentum-terminal/" on
+// Pages. We keep the router's own paths base-free and only add the base back
+// when writing to the browser URL, so the same logic works in both places.
+const BASE_PATH = (import.meta.env.BASE_URL || "/").replace(/\/+$/, "");
+
+/** The browser-facing URL for an app-internal path (adds the base prefix). */
+export function publicPath(path) {
+  return `${BASE_PATH}${path}`;
+}
+
 export function normalizePath(path) {
   if (!path) return "/";
-  const withoutQuery = path.split("?")[0].split("#")[0];
+  let withoutQuery = path.split("?")[0].split("#")[0];
+  if (BASE_PATH && (withoutQuery === BASE_PATH || withoutQuery.startsWith(`${BASE_PATH}/`))) {
+    withoutQuery = withoutQuery.slice(BASE_PATH.length);
+  }
   const withSlash = withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
   return withSlash.length > 1 ? withSlash.replace(/\/+$/, "") : "/";
 }
@@ -66,8 +80,8 @@ export function RouterProvider({ children }) {
   const navigate = useCallback((to, { replace = false, state = null } = {}) => {
     const target = normalizePath(to);
     if (target === normalizePath(window.location.pathname) && !replace) return;
-    if (replace) window.history.replaceState(state, "", target);
-    else window.history.pushState(state, "", target);
+    if (replace) window.history.replaceState(state, "", publicPath(target));
+    else window.history.pushState(state, "", publicPath(target));
     setRoute({ path: target, state });
     window.scrollTo(0, 0);
   }, []);

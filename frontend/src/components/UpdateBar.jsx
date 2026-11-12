@@ -8,6 +8,7 @@ const FETCH_LABEL = {
   updated: "Updated",
   failed: "Update failed",
   empty: "No data",
+  static: "Static preview",
 };
 
 const TIMELINESS_LABEL = {
@@ -40,16 +41,20 @@ function formatDateLabel(iso) {
  * date style in the same place.
  */
 export function UpdateBar({ dateTime, ariaLabel = "Refresh data", onRefresh, busy = false }) {
-  const { data, meta, status, error, refreshing, refresh } = useMarket();
+  const { data, meta, status, error, refreshing, refresh, staticMode } = useMarket();
 
   const hasData = Boolean(data);
   const fetching = refreshing || busy;
-  const fetchState = !hasData
-    ? (status === "error" ? "empty" : "loading")
-    : fetching ? "updating" : error ? "failed" : "updated";
+  const fetchState = staticMode
+    ? "static"
+    : !hasData
+      ? (status === "error" ? "empty" : "loading")
+      : fetching ? "updating" : error ? "failed" : "updated";
 
   const timeliness = meta ? TIMELINESS_LABEL[meta.timeliness] ?? meta.timeliness : null;
-  const tooltip = meta ? [meta.data_provider, timeliness].filter(Boolean).join(" · ") : "Market data source";
+  const tooltip = staticMode
+    ? "Static preview: live market data needs the local Python backend"
+    : meta ? [meta.data_provider, timeliness].filter(Boolean).join(" · ") : "Market data source";
   const shownDate = hasData ? dateTime ?? "" : "";
 
   return (
@@ -65,7 +70,7 @@ export function UpdateBar({ dateTime, ariaLabel = "Refresh data", onRefresh, bus
         ariaLabel={ariaLabel}
         className="refresh-button"
         onClick={onRefresh ?? (() => refresh())}
-        disabled={fetching}
+        disabled={fetching || staticMode}
       />
     </div>
   );

@@ -118,6 +118,7 @@
 .update-bar--updating .update-bar__dot { background: #E3A85A; }
 .update-bar--failed .update-bar__dot { background: #C97C7C; }
 .update-bar--empty .update-bar__dot { background: #B8B5B1; }
+.update-bar--static .update-bar__dot { background: #E3A85A; }
 
 .update-bar__label {
   margin-right: 4px;
@@ -126,7 +127,8 @@
   font-weight: var(--font-weight-bold);
 }
 
-.update-bar--empty .update-bar__label { color: var(--color-text-secondary); }
+.update-bar--empty .update-bar__label,
+.update-bar--static .update-bar__label { color: var(--color-text-secondary); }
 
 .update-bar__date {
   color: var(--color-ink);

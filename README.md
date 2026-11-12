@@ -314,6 +314,27 @@ The detailed source inventory, verification evidence and unresolved issues are i
 - [Source Brief](docs/source-brief/README_AGENT_START_HERE.md) — original requirements, methodology and design blueprint.
 - [Development History](docs/development-history/README.md) — chronological record of the development and QA passes.
 
+## Deployment
+
+A static showcase of the frontend is published to GitHub Pages at
+<https://andyttc05.github.io/us-momentum-terminal/>.
+
+GitHub Pages can only host static files, so the Python data service does not run
+there. The public build therefore renders the full UI in a **static preview
+mode**: every page keeps its layout, but data-dependent areas show a clear
+"Static preview" state and empty placeholders rather than invented values.
+Live market data requires running the application locally:
+
+```bash
+npm run data:serve   # FastAPI data service on :8787
+npm run dev          # Vite dev server on :5173
+```
+
+The Pages build is produced by `.github/workflows/deploy-pages.yml`, which runs
+the frontend tests and builds with Vite's `base` set to the repository subpath
+and the static-mode flag enabled. GitHub Pages is configured to deploy from
+GitHub Actions.
+
 ## License
 
 The project's original code and documentation are distributed under the [MIT License](LICENSE).

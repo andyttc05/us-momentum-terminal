@@ -5,9 +5,15 @@ const MarketContext = createContext(null);
 
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
+// The GitHub Pages build sets VITE_STATIC_SHOWCASE=true. There is no Python
+// backend on Pages, so the app renders its full UI with clean "unavailable"
+// states instead of polling an API that can never respond. Local builds and
+// `npm run dev` leave this unset and keep the normal backend behaviour.
+const STATIC_SHOWCASE = import.meta.env.VITE_STATIC_SHOWCASE === "true";
+
 export function MarketProvider({ children }) {
   const [data, setData] = useState(null);
-  const [status, setStatus] = useState("loading"); // loading | ready | error
+  const [status, setStatus] = useState(STATIC_SHOWCASE ? "static" : "loading"); // loading | ready | error | static
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [lastLoadedAt, setLastLoadedAt] = useState(null);
@@ -19,6 +25,7 @@ export function MarketProvider({ children }) {
   }, []);
 
   const load = useCallback(async ({ isRefresh = false } = {}) => {
+    if (STATIC_SHOWCASE) return false;
     if (isRefresh) setRefreshing(true);
     try {
       const payload = await api.snapshot();
@@ -40,6 +47,7 @@ export function MarketProvider({ children }) {
   }, []);
 
   useEffect(() => {
+    if (STATIC_SHOWCASE) return undefined;
     load();
     const timer = window.setInterval(() => load({ isRefresh: true }), REFRESH_INTERVAL_MS);
     return () => window.clearInterval(timer);
@@ -47,6 +55,7 @@ export function MarketProvider({ children }) {
 
   // Ask the service to re-pull from the provider, then reload the payload.
   const refresh = useCallback(async () => {
+    if (STATIC_SHOWCASE) return false;
     setRefreshing(true);
     let pulled = true;
     try {
@@ -61,6 +70,7 @@ export function MarketProvider({ children }) {
 
   // Switch the primary source; the service rebuilds and we reload the payload.
   const selectProvider = useCallback(async (providerId) => {
+    if (STATIC_SHOWCASE) return { ok: false };
     setRefreshing(true);
     try {
       await api.setProvider(providerId);
@@ -82,6 +92,7 @@ export function MarketProvider({ children }) {
       error,
       refreshing,
       lastLoadedAt,
+      staticMode: STATIC_SHOWCASE,
       refresh,
       selectProvider,
       reload: load,
@@ -99,9 +110,10 @@ export function useMarket() {
 }
 
 export function useStockDetail(ticker) {
-  const [state, setState] = useState({ data: null, status: "idle", error: null });
+  const [state, setState] = useState({ data: null, status: STATIC_SHOWCASE ? "error" : "idle", error: null });
 
   useEffect(() => {
+    if (STATIC_SHOWCASE) return undefined;
     if (!ticker) return undefined;
     let cancelled = false;
     setState({ data: null, status: "loading", error: null });

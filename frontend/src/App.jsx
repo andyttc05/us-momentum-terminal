@@ -6,6 +6,7 @@ import { BacktestingPage } from "./BacktestingPage.jsx";
 import { StockAnalysisPage } from "./StockAnalysisPage.jsx";
 import { SidebarNav } from "./components/SidebarNav.jsx";
 import { StatusToast } from "./components/StatusToast.jsx";
+import { StaticNotice } from "./components/StaticNotice.jsx";
 import { RouterProvider, backLabelFor, backPathFor, useRouter, useStockNavigation } from "./router.jsx";
 
 function Shell() {
@@ -27,6 +28,8 @@ function Shell() {
   return (
     <div className="app-shell">
       <SidebarNav active={page} onNavigate={goToPage} />
+
+      <StaticNotice />
 
       <OverviewPage
         hidden={page !== "overview"}

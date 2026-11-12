@@ -1,5 +1,6 @@
 import { Briefcase, ChartLineUp, House, MagnifyingGlass } from "@phosphor-icons/react";
 import { MascotDuo } from "./Mascot.jsx";
+import { publicPath } from "../router.jsx";
 
 const mainItems = [
   { id: "overview", label: "Overview", icon: House },
@@ -30,7 +31,7 @@ export function SidebarNav({ active = "overview", onNavigate }) {
     <aside className="sidebar">
       <a
         className="brand-lockup"
-        href="/"
+        href={publicPath("/")}
         aria-label="US Momentum Terminal Overview"
         onClick={(event) => { event.preventDefault(); onNavigate?.("overview"); }}
       >

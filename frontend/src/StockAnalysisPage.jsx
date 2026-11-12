@@ -240,7 +240,7 @@ function RankingHistoryChart({ stock }) {
 
 export function StockAnalysisPage({ ticker = "NVDA", onBack, backLabel = "Screener" }) {
   const { data: stock, status, error } = useStockDetail(ticker);
-  const { data: market } = useMarket();
+  const { data: market, staticMode } = useMarket();
   const [range, setRange] = useState("12M");
 
   // The badge colour follows the stock's percentile inside the eligible
@@ -270,7 +270,7 @@ export function StockAnalysisPage({ ticker = "NVDA", onBack, backLabel = "Screen
               <p>
                 {stock
                   ? <>{stock.exchange}<span aria-hidden="true"> · </span>{stock.sector}</>
-                  : status === "error" ? "Symbol not available" : "Loading verified data…"}
+                  : staticMode ? "Static preview — no live data" : status === "error" ? "Symbol not available" : "Loading verified data…"}
               </p>
             </div>
             <div className="stock-profile__art" aria-hidden="true"><MascotDuo creamColor="var(--color-surface)" /></div>

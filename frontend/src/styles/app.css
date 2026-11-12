@@ -190,6 +190,28 @@
 
 @keyframes status-toast-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
+/* Static preview notice (GitHub Pages only): a slim, in-flow strip at the top
+   of the content column. In-flow (not fixed) so it can never cover a card or
+   chart; it simply pushes the page down a few pixels. */
+.static-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: var(--sidebar-width);
+  padding: 8px clamp(22px, 1.8vw, 30px);
+  border-bottom: 1px solid var(--color-badge-border);
+  background: var(--color-badge-surface);
+  color: var(--color-badge-text);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.4;
+}
+.static-notice svg { flex: 0 0 auto; }
+
+@media (max-width: 520px) {
+  .static-notice { margin-left: 0; padding: 8px 16px; }
+}
+
 .toast { position: fixed; right: var(--space-6); bottom: var(--space-6); z-index: 30; max-width: calc(100vw - 2rem); padding: var(--space-3) var(--space-5); border: 1px solid rgb(255 255 255 / 12%); border-radius: var(--radius-pill); background: var(--color-ink); color: #fff; box-shadow: var(--shadow-float); font-size: var(--font-size-sm); }
 
 /* Compact desktop ---------------------------------------------------------- */
