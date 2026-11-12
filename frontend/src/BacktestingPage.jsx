@@ -14,6 +14,7 @@ import { Mascot, MascotDuo } from "./components/Mascot.jsx";
 import { PageHeader } from "./components/PageHeader.jsx";
 import { useElementSize } from "./components/useElementSize.js";
 import { useMarket } from "./api/MarketProvider.jsx";
+import { buildDrawdownScale } from "./utils/drawdownScale.js";
 
 const ranges = ["1Y", "3Y", "5Y", "All"];
 const strategies = [
@@ -224,11 +225,10 @@ function DrawdownChart({ window, exactMin, exactIndex }) {
   const ready = width > 0 && height > 0;
 
   const values = window.drawdown;
-  const low = Math.min(-10, Math.floor(Math.min(...values) / 10) * 10);
+  const scale = buildDrawdownScale(values);
+  const low = scale.min;
   const left = 40;
   const top = 14;
-  // Phones draw fewer tick labels so the small chart stays readable.
-  const compact = width > 0 && width < 520;
   const plotWidth = Math.max(60, width - left - 10);
   const plotHeight = Math.max(50, height - top - 16);
   const points = values.map((value, index) => ({
@@ -244,8 +244,7 @@ function DrawdownChart({ window, exactMin, exactIndex }) {
   const minPoint = points[Math.min(Math.max(markerIndex, 0), points.length - 1)];
   const yMin = top + (-minValue / -low) * plotHeight;
   const troughPoint = { x: minPoint.x, y: yMin };
-  const tickStep = Math.max(10, Math.ceil(Math.abs(low) / 3 / 10) * 10);
-  const ticks = Array.from({ length: Math.ceil(Math.abs(low) / tickStep) + 1 }, (_, i) => -i * tickStep);
+  const ticks = scale.ticks;
 
   // The callout stays an HTML overlay, so its text is never scaled by the SVG.
   const calloutGap = 11;
@@ -260,7 +259,7 @@ function DrawdownChart({ window, exactMin, exactIndex }) {
         {ready && (
           <svg className="backtest-drawdown-svg" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" role="img" aria-label={`Strategy drawdown. Maximum drawdown ${formatPercent(minValue)}`}>
             <defs><linearGradient id="drawdown-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#FF7081" stopOpacity="0.32" /><stop offset="100%" stopColor="#FFB5C1" stopOpacity="0.08" /></linearGradient></defs>
-            {(compact ? ticks.filter((_, index) => index % 2 === 0 || index === ticks.length - 1) : ticks).map((tick) => {
+            {ticks.map((tick) => {
               const y = top + (Math.abs(tick) / Math.abs(low)) * plotHeight;
               return <g key={tick}><line x1={left} x2={left + plotWidth} y1={y} y2={y} className="backtest-gridline" /><text x={left - 8} y={y + 4} textAnchor="end" className="backtest-axis-label">{tick}%</text></g>;
             })}
@@ -356,9 +355,7 @@ export function BacktestingPage({ hidden = false }) {
   }
 
   async function refreshPreview() {
-    const ok = await refresh();
-    setToast(ok ? "Provider data re-checked" : "Update failed — keeping the last verified data");
-    window.setTimeout(() => setToast(""), 2400);
+    await refresh();
   }
 
   return (

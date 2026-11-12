@@ -16,6 +16,7 @@ import { Sparkline } from "./components/Sparkline.jsx";
 import { UpdateBar } from "./components/UpdateBar.jsx";
 import { useMarket } from "./api/MarketProvider.jsx";
 import { formatMarketCap } from "./utils/format.js";
+import { searchMatch } from "./utils/stockSearch.js";
 
 const rowsPerPage = 10;
 const emptyFilters = { sector: "", minPrice: "", maxPrice: "", minMomentum: "", minScore: "" };
@@ -91,18 +92,28 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
   }
 
   const filteredStocks = useMemo(() => {
-    const source = mode === "top20"
-      ? stocks.slice(0, Math.ceil(stocks.length * 0.2))
-      : stocks.slice(0, 100);
-    const query = search.trim().toLocaleLowerCase();
+    const query = search.trim();
+    // Search is a discovery tool across the full eligible universe. The Top
+    // 100 / Top 20% scopes still control the unfiltered table.
+    const source = query
+      ? stocks
+      : mode === "top20"
+        ? stocks.slice(0, Math.ceil(stocks.length * 0.2))
+        : stocks.slice(0, 100);
     return source
-      .filter((stock) => !query || stock.ticker.toLocaleLowerCase().includes(query) || stock.company.toLocaleLowerCase().includes(query))
-      .filter((stock) => !filters.sector || stock.sector === filters.sector)
-      .filter((stock) => filters.minPrice === "" || stock.price >= Number(filters.minPrice))
-      .filter((stock) => filters.maxPrice === "" || stock.price <= Number(filters.maxPrice))
-      .filter((stock) => filters.minMomentum === "" || stock.momentum >= Number(filters.minMomentum))
-      .filter((stock) => filters.minScore === "" || stock.score >= Number(filters.minScore))
-      .sort((a, b) => {
+      .map((stock) => ({ stock, searchPriority: searchMatch(stock, query) }))
+      .filter((entry) => entry.searchPriority !== null)
+      .filter(({ stock }) => !filters.sector || stock.sector === filters.sector)
+      .filter(({ stock }) => filters.minPrice === "" || stock.price >= Number(filters.minPrice))
+      .filter(({ stock }) => filters.maxPrice === "" || stock.price <= Number(filters.maxPrice))
+      .filter(({ stock }) => filters.minMomentum === "" || stock.momentum >= Number(filters.minMomentum))
+      .filter(({ stock }) => filters.minScore === "" || stock.score >= Number(filters.minScore))
+      .sort((aEntry, bEntry) => {
+        if (query && aEntry.searchPriority !== bEntry.searchPriority) {
+          return aEntry.searchPriority - bEntry.searchPriority;
+        }
+        const a = aEntry.stock;
+        const b = bEntry.stock;
         const left = a[sort.key];
         const right = b[sort.key];
         // A missing market cap is unknown, not zero: keep those rows last in
@@ -115,7 +126,8 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
         }
         const result = typeof left === "string" ? left.localeCompare(right) : left - right;
         return result * (sort.direction === "asc" ? 1 : -1);
-      });
+      })
+      .map(({ stock }) => stock);
   }, [filters, mode, search, sort, stocks]);
 
   const totalPages = Math.max(1, Math.ceil(filteredStocks.length / rowsPerPage));
@@ -197,7 +209,7 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
             <UpdateBar
               dateTime={snapshot?.asOf}
               ariaLabel="Refresh screener"
-              onRefresh={async () => { if (await refresh()) showToast("Provider data re-checked"); }}
+              onRefresh={refresh}
             />
           )}
         />
@@ -314,8 +326,10 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
                     <td className="stock-price-cell">{formatPrice(stock.price)}</td>
                     <td className="stock-change-cell"><span className={stock.change >= 0 ? "change-pill is-positive" : "change-pill is-negative"}>{formatPercent(stock.change)}</span></td>
                     <td className="stock-momentum-cell">
-                      <Sparkline values={stock.trend} label={`${stock.ticker} momentum`} className={stock.momentum >= 0 ? "" : "sparkline--negative"} />
-                      <strong className={stock.momentum >= 0 ? "momentum-value is-positive" : "momentum-value is-negative"}>{formatPercent(stock.momentum, 1)}</strong>
+                      <div className="stock-momentum-cell__content">
+                        <Sparkline values={stock.trend} label={`${stock.ticker} momentum`} className={stock.momentum >= 0 ? "" : "sparkline--negative"} />
+                        <strong className={stock.momentum >= 0 ? "momentum-value is-positive" : "momentum-value is-negative"}>{formatPercent(stock.momentum, 1)}</strong>
+                      </div>
                     </td>
                     <td className="stock-score-cell"><span>{stock.score.toFixed(2)}</span></td>
                     <td className="stock-sector-cell" title={stock.sector}>{stock.sector}</td>

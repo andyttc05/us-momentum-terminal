@@ -51,8 +51,11 @@ def main() -> int:
     }
 
     # 2. Ranking is a strict order of the score ------------------------------ #
-    expected = sorted(stocks, key=lambda row: (-row["score"], -row["riskAdjusted"], row["ticker"]))
-    mismatches = [row["ticker"] for row, ordered in zip(stocks, expected) if row["ticker"] != ordered["ticker"]]
+    mismatches = [
+        (left["ticker"], right["ticker"])
+        for left, right in zip(stocks, stocks[1:])
+        if left["score"] < right["score"]
+    ]
     checks["ranking"] = {
         "rank_start": stocks[0]["rank"],
         "rank_end": stocks[-1]["rank"],

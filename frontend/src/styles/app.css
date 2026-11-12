@@ -164,31 +164,41 @@
 
 .status-toast {
   position: fixed;
-  right: var(--space-6);
+  right: clamp(180px, 15vw, 220px);
   bottom: var(--space-6);
   z-index: 31;
   display: flex;
-  max-width: min(420px, calc(100vw - 2rem));
+  max-width: min(310px, calc(100vw - 2rem));
+  min-height: 40px;
   align-items: center;
-  gap: 9px;
-  padding: 9px 10px 9px 14px;
-  border: 1px solid rgb(255 255 255 / 12%);
+  gap: 8px;
+  padding: 6px 8px 6px 7px;
+  border: 1px solid var(--color-line);
   border-radius: var(--radius-pill);
-  background: var(--color-ink);
-  color: #fff;
-  box-shadow: var(--shadow-float);
-  font-size: var(--font-size-sm);
-  animation: status-toast-in 180ms ease-out;
+  background: rgb(255 254 252 / 96%);
+  color: var(--color-ink);
+  box-shadow: 0 10px 28px rgb(56 40 22 / 11%), 0 2px 7px rgb(56 40 22 / 5%);
+  font-size: 0.79rem;
+  font-weight: 700;
+  line-height: 1.25;
+  animation: status-toast-in 160ms ease-out;
 }
-.status-toast > svg { flex: 0 0 auto; color: #F2C078; }
-.status-toast__message { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.status-toast__action { display: inline-flex; min-height: 26px; flex: 0 0 auto; align-items: center; gap: 5px; padding: 0 11px; border: 0; border-radius: var(--radius-pill); background: rgb(255 255 255 / 14%); color: #fff; font-family: inherit; font-size: 0.74rem; font-weight: var(--font-weight-bold); cursor: pointer; }
-.status-toast__action:hover { background: rgb(255 255 255 / 22%); }
+.status-toast__icon { display: grid; width: 27px; height: 27px; flex: 0 0 27px; place-items: center; border-radius: 50%; background: var(--color-yellow-soft); color: var(--color-accent-text); }
+.status-toast--loading .status-toast__icon { background: var(--color-blue-soft); color: var(--color-blue-line); }
+.status-toast--partial .status-toast__icon { background: var(--color-warning-soft); color: var(--color-warning); }
+.status-toast--cached .status-toast__icon { background: var(--color-lavender-soft); color: var(--color-lavender-line); }
+.status-toast--updated .status-toast__icon { background: var(--color-positive-soft); color: var(--color-positive); }
+.status-toast--error .status-toast__icon { background: var(--color-negative-soft); color: var(--color-negative); }
+.status-toast--loading .status-toast__icon svg { animation: status-spin 900ms linear infinite; }
+.status-toast__message { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.status-toast__action { display: inline-flex; min-height: 27px; flex: 0 0 auto; align-items: center; gap: 4px; padding: 0 10px; border: 0; border-radius: var(--radius-pill); background: var(--color-ink); color: #fff; font-family: inherit; font-size: 0.69rem; font-weight: var(--font-weight-bold); cursor: pointer; }
+.status-toast__action:hover { background: #2A2927; }
 .status-toast__action:disabled { opacity: 0.6; cursor: default; }
-.status-toast__close { display: grid; width: 24px; height: 24px; flex: 0 0 auto; place-items: center; border: 0; border-radius: 50%; background: transparent; color: rgb(255 255 255 / 62%); cursor: pointer; }
-.status-toast__close:hover { background: rgb(255 255 255 / 12%); color: #fff; }
+.status-toast__close { display: grid; width: 25px; height: 25px; flex: 0 0 auto; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--color-text-secondary); cursor: pointer; }
+.status-toast__close:hover { background: var(--color-nav-hover); color: var(--color-ink); }
 
 @keyframes status-toast-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes status-spin { to { transform: rotate(360deg); } }
 
 /* Static preview notice (GitHub Pages only): a slim, in-flow strip at the top
    of the content column. In-flow (not fixed) so it can never cover a card or
@@ -212,7 +222,12 @@
   .static-notice { margin-left: 0; padding: 8px 16px; }
 }
 
-.toast { position: fixed; right: var(--space-6); bottom: var(--space-6); z-index: 30; max-width: calc(100vw - 2rem); padding: var(--space-3) var(--space-5); border: 1px solid rgb(255 255 255 / 12%); border-radius: var(--radius-pill); background: var(--color-ink); color: #fff; box-shadow: var(--shadow-float); font-size: var(--font-size-sm); }
+.toast { position: fixed; right: var(--space-6); bottom: var(--space-6); z-index: 30; max-width: calc(100vw - 2rem); min-height: 40px; padding: 8px 15px; border: 1px solid var(--color-line); border-radius: var(--radius-pill); background: rgb(255 254 252 / 97%); color: var(--color-ink); box-shadow: 0 10px 28px rgb(56 40 22 / 11%), 0 2px 7px rgb(56 40 22 / 5%); font-size: 0.79rem; font-weight: 700; }
+
+@media (max-width: 520px) {
+  .status-toast { right: 12px; bottom: 68px; max-width: calc(100vw - 24px); }
+  .toast { right: 12px; bottom: 12px; max-width: calc(100vw - 24px); }
+}
 
 /* Compact desktop ---------------------------------------------------------- */
 

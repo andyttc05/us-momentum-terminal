@@ -31,7 +31,7 @@ following issues were confirmed and corrected:
 |---|---|---|
 | 12-1 price window | PASS | `P(t-21) / P(t-252) - 1` verified from source and independent recomputation |
 | Adjusted-close convention | PASS | Missing adjusted closes are dropped; unadjusted closes are not substituted |
-| Universe eligibility | FAIL | The exchange, price, history and liquidity rules exist, but the candidate list remains a curated 109-symbol list rather than a full US common-stock scan |
+| Universe eligibility | WARNING | Rules remain enforced across a 308-symbol source list (108 core + 200 mid-cap additions), but this is still not a complete exchange master |
 | Ten-month versus 13-month history | PASS as handling | Universe eligibility begins at 210 observations; scoring requires 253 observations and no shorter momentum window is used |
 | Daily return volatility | PASS | Sample standard deviation over 252 daily adjusted returns |
 | Risk-adjusted momentum | PASS | Decimal 12-1 return divided by daily standard deviation |
@@ -96,9 +96,9 @@ Higher Momentum Scores correspond to better rankings.
 
 ### Live Integrity Results
 
-- Published universe: 109 scanned, 108 loaded, 106 eligible.
+- Published universe: 308 scanned, 308 loaded, 306 eligible.
 - Excluded: TSM for ADR security type; PARA for a sub-$5 reused ticker.
-- Unavailable: WBA.
+- Removed from the live source list: delisted WBA.
 - Published cross-sectional date: 11 November 2026.
 - Portfolio: 100 holdings, 100.000000% total weight.
 - Maximum stock: 9.000000%.
@@ -161,7 +161,7 @@ The base Top 100 backtest:
 |---|---|---|
 | Feature look-ahead | PASS for price inputs | Signals use observations through the signal date only and execute next session |
 | Historical market-cap look-ahead | PASS by avoidance | Historical cap weighting is not used |
-| Survivorship bias | FAIL | Universe begins from today's curated list; delisted and acquired names are incomplete |
+| Survivorship bias | FAIL | Live scan is broader, but historical tests intentionally remain on the audited 108-symbol core; delisted and acquired names are incomplete |
 | Point-in-time constituent bias | FAIL | No historical constituents or security master |
 | Ticker-change risk | FAIL | No stable historical security identifier; PARA exposed a reused-symbol collision |
 | Benchmark inclusion | PASS after correction | SPY and SPMO are excluded from candidate ranking |
@@ -244,7 +244,8 @@ paper-trading record. It is an academic research terminal, not a production port
 
 ## 7. Known Weaknesses
 
-- Current curated universe with survivorship and selection bias.
+- Current source universe is broader but remains curated; the historical core retains survivorship
+  and selection bias.
 - No point-in-time history for delisted securities or market constituents.
 - Equal-weight historical proxy instead of the live float-cap portfolio.
 - No historical float-adjusted market cap.

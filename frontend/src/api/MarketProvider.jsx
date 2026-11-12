@@ -17,7 +17,9 @@ export function MarketProvider({ children }) {
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [lastLoadedAt, setLastLoadedAt] = useState(null);
+  const [lastRefreshCompletedAt, setLastRefreshCompletedAt] = useState(null);
   const mounted = useRef(true);
+  const manualRefreshRequested = useRef(false);
 
   useEffect(() => {
     mounted.current = true;
@@ -27,13 +29,26 @@ export function MarketProvider({ children }) {
   const load = useCallback(async ({ isRefresh = false } = {}) => {
     if (STATIC_SHOWCASE) return false;
     if (isRefresh) setRefreshing(true);
+    let backgroundRefresh = false;
     try {
       const payload = await api.snapshot();
       if (!mounted.current) return false;
+      const meta = payload?.meta ?? {};
+      backgroundRefresh = Boolean(meta.refresh_in_progress || meta.cache_state === "warming");
       setData(payload);
-      setStatus("ready");
-      setError(null);
+      setStatus(backgroundRefresh && !(payload?.stocks?.length) ? "loading" : "ready");
+      if (meta.connection_status === "error") {
+        setError({ message: "Service unavailable", code: "service_unavailable" });
+        setStatus("error");
+      } else {
+        setError(null);
+      }
       setLastLoadedAt(new Date());
+      if (manualRefreshRequested.current && !backgroundRefresh) {
+        manualRefreshRequested.current = false;
+        setLastRefreshCompletedAt(new Date());
+      }
+      setRefreshing(backgroundRefresh);
       return true;
     } catch (requestError) {
       if (!mounted.current) return false;
@@ -42,7 +57,7 @@ export function MarketProvider({ children }) {
       setStatus((current) => (current === "ready" ? "ready" : "error"));
       return false;
     } finally {
-      if (mounted.current) setRefreshing(false);
+      if (mounted.current && !backgroundRefresh) setRefreshing(false);
     }
   }, []);
 
@@ -53,19 +68,26 @@ export function MarketProvider({ children }) {
     return () => window.clearInterval(timer);
   }, [load]);
 
+  useEffect(() => {
+    if (STATIC_SHOWCASE || (!refreshing && status !== "loading")) return undefined;
+    const timer = window.setInterval(() => load(), 4000);
+    return () => window.clearInterval(timer);
+  }, [load, refreshing, status]);
+
   // Ask the service to re-pull from the provider, then reload the payload.
   const refresh = useCallback(async () => {
     if (STATIC_SHOWCASE) return false;
     setRefreshing(true);
-    let pulled = true;
+    manualRefreshRequested.current = true;
     try {
       await api.refresh();
     } catch (requestError) {
-      pulled = false;
+      manualRefreshRequested.current = false;
       setError({ message: requestError.message, code: requestError.code ?? "request_failed" });
+      setRefreshing(false);
+      return false;
     }
-    const loaded = await load({ isRefresh: true });
-    return pulled && loaded;
+    return load();
   }, [load]);
 
   // Switch the primary source; the service rebuilds and we reload the payload.
@@ -92,12 +114,13 @@ export function MarketProvider({ children }) {
       error,
       refreshing,
       lastLoadedAt,
+      lastRefreshCompletedAt,
       staticMode: STATIC_SHOWCASE,
       refresh,
       selectProvider,
       reload: load,
     }),
-    [data, error, lastLoadedAt, load, refresh, refreshing, selectProvider, status],
+    [data, error, lastLoadedAt, lastRefreshCompletedAt, load, refresh, refreshing, selectProvider, status],
   );
 
   return <MarketContext.Provider value={value}>{children}</MarketContext.Provider>;

@@ -60,7 +60,7 @@ class Settings:
     provider_chain: tuple[str, ...] = field(
         default_factory=lambda: tuple(
             part.strip()
-            for part in os.environ.get("DATA_PROVIDER_CHAIN", "yahoo,stooq,twelvedata,fmp").split(",")
+            for part in os.environ.get("DATA_PROVIDER_CHAIN", "yahoo,twelvedata,fmp").split(",")
             if part.strip()
         )
     )
@@ -68,6 +68,13 @@ class Settings:
     request_timeout: int = _int("DATA_REQUEST_TIMEOUT", 25)
     history_years: int = _int("DATA_HISTORY_YEARS", 10)
     max_workers: int = _int("DATA_MAX_WORKERS", 8)
+    history_batch_size: int = _int("DATA_HISTORY_BATCH_SIZE", 40)
+    history_batch_workers: int = _int("DATA_HISTORY_BATCH_WORKERS", 2)
+    series_fetch_workers: int = _int("DATA_SERIES_FETCH_WORKERS", 4)
+    quote_fetch_workers: int = _int("DATA_QUOTE_WORKERS", 4)
+    retry_attempts: int = _int("DATA_RETRY_ATTEMPTS", 2)
+    retry_base_seconds: float = float(os.environ.get("DATA_RETRY_BASE_SECONDS", "0.75"))
+    warm_error_cooldown: int = _int("DATA_WARM_ERROR_COOLDOWN", 30)
 
     # Cache TTLs in seconds.
     ttl_bars_intraday: int = _int("DATA_TTL_BARS_INTRADAY", 900)       # 15 min while the market is open

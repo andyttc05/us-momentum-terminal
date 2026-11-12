@@ -17,10 +17,12 @@ class UniverseMember:
     name: str
     sector: str
     instrument_type: str = "Common stock"
+    exchange: str | None = None
+    source: str = "core"
 
 
 # Sector names follow the vocabulary already used by the UI.
-UNIVERSE: tuple[UniverseMember, ...] = (
+CORE_UNIVERSE: tuple[UniverseMember, ...] = (
     UniverseMember("NVDA", "NVIDIA", "Technology"),
     UniverseMember("AVGO", "Broadcom", "Technology"),
     UniverseMember("META", "Meta Platforms", "Communication"),
@@ -121,7 +123,6 @@ UNIVERSE: tuple[UniverseMember, ...] = (
     UniverseMember("VZ", "Verizon Communications", "Communication"),
     UniverseMember("T", "AT&T", "Communication"),
     UniverseMember("CAG", "Conagra Brands", "Consumer Staples"),
-    UniverseMember("WBA", "Walgreens Boots Alliance", "Consumer Staples"),
     UniverseMember("PARA", "Paramount Global", "Communication"),
     UniverseMember("NWSA", "News Corp", "Communication"),
     UniverseMember("FRT", "Federal Realty Investment Trust", "Real Estate"),
@@ -132,8 +133,13 @@ UNIVERSE: tuple[UniverseMember, ...] = (
     UniverseMember("KMI", "Kinder Morgan", "Energy"),
 )
 
+from .universe_expansion import EXPANDED_UNIVERSE  # noqa: E402
+
+UNIVERSE: tuple[UniverseMember, ...] = CORE_UNIVERSE + EXPANDED_UNIVERSE
+
 TICKERS: tuple[str, ...] = tuple(member.ticker for member in UNIVERSE)
 MEMBER_BY_TICKER: dict[str, UniverseMember] = {member.ticker: member for member in UNIVERSE}
+HISTORICAL_BACKTEST_TICKERS: tuple[str, ...] = tuple(member.ticker for member in CORE_UNIVERSE)
 
 # Benchmarks are tracked separately so they never enter the momentum ranking.
 BENCHMARKS: dict[str, str] = {

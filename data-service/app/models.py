@@ -43,6 +43,8 @@ class SeriesResult:
     fetched_at: str
     adjusted: bool
     is_backup: bool = False
+    cached: bool = False
+    cache_age_seconds: float | None = None
     warnings: list[str] = field(default_factory=list)
 
     @property
@@ -65,6 +67,9 @@ class QuoteSnapshot:
     float_shares: float | None = None
     average_daily_volume_3m: float | None = None
     regular_market_price: float | None = None
+    detail_level: str = "full"
+    cached: bool = False
+    cache_age_seconds: float | None = None
 
 
 class ProviderError(RuntimeError):

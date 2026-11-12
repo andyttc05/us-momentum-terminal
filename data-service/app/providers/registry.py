@@ -239,7 +239,7 @@ class ProviderRegistry:
                 continue
         return None
 
-    def quotes(self, symbols: list[str]) -> dict[str, dict]:
+    def quotes(self, symbols: list[str], progress=None) -> dict[str, dict]:
         """Fetch metadata concurrently for the given symbols."""
         from concurrent.futures import ThreadPoolExecutor
 
@@ -252,10 +252,50 @@ class ProviderRegistry:
             quote, provider_id = resolved
             return symbol, {**quote.__dict__, "provider": provider_id}
 
-        with ThreadPoolExecutor(max_workers=settings.max_workers) as pool:
+        completed = 0
+        with ThreadPoolExecutor(max_workers=max(1, settings.quote_fetch_workers)) as pool:
             for symbol, payload in pool.map(worker, symbols):
+                completed += 1
                 if payload:
                     out[symbol] = payload
+                if progress:
+                    progress(completed)
+        return out
+
+    def detailed_quote(self, symbol: str) -> tuple[QuoteSnapshot, str] | None:
+        """Resolve full fundamentals metadata, used only for portfolio candidates."""
+        for provider_id in self.chain():
+            adapter = self._adapters[provider_id]
+            try:
+                if hasattr(adapter, "fetch_detailed_quote"):
+                    quote = adapter.fetch_detailed_quote(symbol)
+                else:
+                    quote = adapter.fetch_quote(symbol)
+                return quote, provider_id
+            except Exception:  # noqa: BLE001 - detail metadata is best effort
+                continue
+        return None
+
+    def detailed_quotes(self, symbols: list[str], progress=None) -> dict[str, dict]:
+        from concurrent.futures import ThreadPoolExecutor
+
+        out: dict[str, dict] = {}
+
+        def worker(symbol: str):
+            resolved = self.detailed_quote(symbol)
+            if not resolved:
+                return symbol, None
+            quote, provider_id = resolved
+            return symbol, {**quote.__dict__, "provider": provider_id}
+
+        completed = 0
+        with ThreadPoolExecutor(max_workers=max(1, settings.quote_fetch_workers)) as pool:
+            for symbol, payload in pool.map(worker, symbols):
+                completed += 1
+                if payload:
+                    out[symbol] = payload
+                if progress:
+                    progress(completed)
         return out
 
 

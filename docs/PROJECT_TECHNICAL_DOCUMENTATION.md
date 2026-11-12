@@ -62,7 +62,8 @@ The FastAPI application is in `data-service/app`.
 - `momentum.py`: price metrics, Z-score and Momentum Score.
 - `portfolio.py`: raw weights, caps and infeasibility handling.
 - `backtest.py`: semiannual signal timing, execution, costs and performance metrics.
-- `universe.py`: curated ticker metadata and benchmark metadata.
+- `universe.py` and `universe_expansion.py`: audited core, 200 mid-cap additions and benchmark
+  metadata.
 - `clock.py`: NYSE session state and timeliness.
 - `cache.py`: atomic JSON cache with TTL support.
 - `models.py`: normalized bar, series and quote contracts.
@@ -75,9 +76,14 @@ selection. Each adapter implements:
 - `fetch_series(symbol, years)`: daily OHLCV, adjusted close and provenance.
 - `fetch_quote(symbol)`: name, sector, exchange, currency, market cap, float fields and quote type.
 
-The default chain is Yahoo, Stooq, Twelve Data, FMP. Providers requiring keys are skipped when the
-key is missing. A failed primary request can fail over per symbol. The result records whether backup
-data was used.
+The default chain is Yahoo, Twelve Data, FMP. Stooq remains available when explicitly configured but
+is omitted by default because its unadjusted response cannot feed the scoring engine. Providers
+requiring keys are skipped when the key is missing.
+
+Yahoo history requests are split into bounded 40-symbol batches with two concurrent batch workers.
+Unresolved symbols move to a separate four-worker recovery pool with two transient retries and
+exponential backoff. Missing adjusted closes invalidate the shallow batch result and trigger a
+single-symbol refetch. Fast quote metadata and full portfolio fundamentals are separate phases.
 
 The frontend never talks to a provider directly and never receives provider credentials.
 
@@ -131,6 +137,12 @@ There is no relational database. The service persists:
 Writes are atomic through a temporary file followed by `os.replace`. Cache entries include a
 `stored_at` timestamp and are considered expired according to the endpoint or data type TTL.
 
+`GET /api/snapshot` never waits for a cold rebuild. It returns fresh data immediately when current,
+returns stale data with a visible `cached` state while a background rebuild runs, or returns a
+lightweight `warming` payload when no cache exists. The browser polls during the background state.
+Expired bar and quote caches are retained as fallback and are clearly marked rather than serving
+them as fresh.
+
 ## 3. Data Flow
 
 ```mermaid
@@ -153,13 +165,13 @@ flowchart LR
 
 Publication assembly occurs once per cache window:
 
-1. Load stock and benchmark series.
+1. Load stock and benchmark series in bounded batches.
 2. Normalize and validate bars.
-3. Fetch quote metadata.
+3. Fetch fast quote metadata, then full float fundamentals for portfolio candidates.
 4. Apply common as-of and universe checks.
 5. Score momentum.
 6. Build current portfolio, ranks and backtests.
-7. Write the publication object.
+7. Write the publication object atomically.
 8. Return it to the browser.
 
 ## 4. Data Model
@@ -252,7 +264,13 @@ The implemented checks are:
 - At least $2 million average daily dollar volume over 63 sessions.
 - Latest observation equal to the common cross-sectional as-of date.
 
-The candidate universe itself is a curated 109-symbol list. It is not a complete market scan.
+The live candidate universe contains 308 unique symbols: 108 in the audited core and 200
+sector-balanced additions selected from an S&P MidCap 400 constituent snapshot. Exchange tags were
+checked against Nasdaq Trader listing files. It is broader than the prior scan but still not a
+complete exchange master.
+
+The historical backtest deliberately remains on the 108-symbol audited core rather than applying
+today's 200 additions retrospectively.
 
 ### Momentum
 
@@ -478,10 +496,15 @@ preview server.
 |---|---|---|
 | `DATA_SERVICE_HOST` | `127.0.0.1` | Bind host |
 | `DATA_SERVICE_PORT` | `8787` | Port |
-| `DATA_PROVIDER_CHAIN` | `yahoo,stooq,twelvedata,fmp` | Provider order |
+| `DATA_PROVIDER_CHAIN` | `yahoo,twelvedata,fmp` | Provider order |
 | `DATA_HISTORY_YEARS` | `10` | Requested history depth |
 | `DATA_REQUEST_TIMEOUT` | `25` | HTTP timeout seconds |
-| `DATA_MAX_WORKERS` | `8` | Metadata and fetch concurrency |
+| `DATA_HISTORY_BATCH_SIZE` | `40` | Symbols per history batch |
+| `DATA_HISTORY_BATCH_WORKERS` | `2` | Concurrent history batches |
+| `DATA_SERIES_FETCH_WORKERS` | `4` | Per-symbol recovery concurrency |
+| `DATA_QUOTE_WORKERS` | `4` | Quote metadata concurrency |
+| `DATA_RETRY_ATTEMPTS` | `2` | Transient retry limit |
+| `DATA_RETRY_BASE_SECONDS` | `0.75` | Exponential-backoff base |
 | `DATA_CACHE_DIR` | `data-service/cache` | Cache root |
 | `DATA_TTL_BARS_INTRADAY` | `900` | Open-market bar TTL |
 | `DATA_TTL_BARS_CLOSED` | `21600` | Closed-market bar TTL |
@@ -531,6 +554,8 @@ Secrets belong only in the root `.env`, which is ignored and loaded only by the 
 - Constraint feasibility.
 - NYSE holiday and early-close detection.
 - Semiannual execution and transaction costs.
+- 308-symbol live source uniqueness and 11-sector expansion coverage.
+- Separation of the expanded live scan from the historical backtest core.
 
 ### Live Integration Verification
 
@@ -562,6 +587,10 @@ Secrets belong only in the root `.env`, which is ignored and loaded only by the 
 - Screener and portfolio CSV downloads.
 - 390px responsive layout.
 - Browser console error check.
+- Search relevance, clearing and no-result behavior.
+- Static row/sparkline center alignment and compact row height.
+- Dynamic drawdown tick scales.
+- Compact loading, partial, cached and service-error notice states.
 
 ### Known Test Gaps
 
@@ -582,7 +611,7 @@ Secrets belong only in the root `.env`, which is ignored and loaded only by the 
 - Survivorship and listing-selection bias.
 - Unofficial primary provider.
 - No stable security master for ticker changes.
-- Existing batch cache without per-row corporate-action metadata.
+- Some older core cache entries without complete per-row corporate-action metadata.
 - 0% risk-free Sharpe assumption.
 
 ### Realistic Improvements

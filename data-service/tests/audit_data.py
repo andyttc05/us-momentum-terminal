@@ -166,7 +166,7 @@ def main() -> int:
         ),
         "known_limitations": [
             "Yahoo Finance is an unofficial provider and does not offer a point-in-time security master.",
-            "The cached batch bars do not retain per-row split and dividend fields, although adjusted closes are present.",
+            "Some older core cache entries may not retain complete per-row split and dividend fields.",
             "Float shares are current quote metadata, not historical point-in-time counts.",
             "Extreme moves are flagged, not automatically treated as errors.",
             "Cross-provider coverage is limited to AAPL and QQQ demo access without paid backup keys.",

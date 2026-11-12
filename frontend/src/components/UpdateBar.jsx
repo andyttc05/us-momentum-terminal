@@ -9,6 +9,8 @@ const FETCH_LABEL = {
   failed: "Update failed",
   empty: "No data",
   static: "Static preview",
+  partial: "Partial data",
+  cached: "Cached data",
 };
 
 const TIMELINESS_LABEL = {
@@ -45,8 +47,13 @@ export function UpdateBar({ dateTime, ariaLabel = "Refresh data", onRefresh, bus
 
   const hasData = Boolean(data);
   const fetching = refreshing || busy;
+  const cacheState = meta?.cache_state;
   const fetchState = staticMode
     ? "static"
+    : cacheState === "warming" ? "loading"
+    : cacheState === "error" ? "failed"
+    : cacheState === "cached" ? "cached"
+    : cacheState === "partial" ? "partial"
     : !hasData
       ? (status === "error" ? "empty" : "loading")
       : fetching ? "updating" : error ? "failed" : "updated";
@@ -54,7 +61,11 @@ export function UpdateBar({ dateTime, ariaLabel = "Refresh data", onRefresh, bus
   const timeliness = meta ? TIMELINESS_LABEL[meta.timeliness] ?? meta.timeliness : null;
   const tooltip = staticMode
     ? "Static preview: live market data needs the local Python backend"
-    : meta ? [meta.data_provider, timeliness].filter(Boolean).join(" · ") : "Market data source";
+    : meta ? [
+      meta.data_provider,
+      timeliness,
+      cacheState === "cached" ? "Showing cached data while refreshing" : null,
+    ].filter(Boolean).join(" · ") : "Market data source";
   const shownDate = hasData ? dateTime ?? "" : "";
 
   return (

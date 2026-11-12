@@ -11,7 +11,7 @@ Browser (React SPA)
    │  fetch /api/snapshot  (same origin, proxied by Vite)
    ▼
 FastAPI service :8787
-   ├── provider registry  ── Yahoo (primary) → Stooq → Twelve Data → FMP
+   ├── provider registry  ── Yahoo (primary) → Twelve Data → FMP
    ├── validation + dedupe + provenance
    ├── momentum engine (pandas/numpy)
    ├── portfolio builder (market-cap weights + caps)
@@ -69,23 +69,32 @@ Every bar, whatever the provider, is stored as:
 `data_source` and `last_updated` travel with the data all the way to the UI, so every number can be
 traced back to the provider and the moment it was fetched.
 
+## Universe
+
+The live source universe contains 308 unique US common stocks: 108 audited core symbols plus 200
+sector-balanced S&P MidCap 400 additions. The market-data service still applies the same exchange,
+security-type, currency, price, history and liquidity tests. The historical backtest remains on the
+108-symbol audited core so today's additions are not applied retrospectively.
+
 ## Providers
 
 | id | Role | Key | Notes |
 |---|---|---|---|
 | `yahoo` | primary | none | yfinance; adjusted close, market cap, splits, dividends |
-| `stooq` | backup | none | unadjusted CSV only; blocked by a bot wall in this network |
+| `stooq` | optional | none | unadjusted CSV only; blocked by a bot wall and excluded from the default scoring chain |
 | `twelvedata` | backup | `TWELVEDATA_API_KEY` | 8 req/min, 800/day; free plan is evaluation-only |
 | `fmp` | backup | `FMP_API_KEY` | 250 req/day; adjusted EOD |
 
-Configured order comes from `DATA_PROVIDER_CHAIN` (default `yahoo,stooq,twelvedata,fmp`); adapters
+Configured order comes from `DATA_PROVIDER_CHAIN` (default `yahoo,twelvedata,fmp`); adapters
 without a key are skipped automatically. Failover is per request: the first adapter that answers
 wins, and the payload records `is_backup` plus the symbols that needed it.
 
 ### Behaviour when a provider fails
 
+* **Bounded batches** — bar requests run in 40-symbol batches with controlled concurrency, and
+  per-symbol recovery uses a separate worker pool and limited exponential backoff.
 * **Circuit breaker** — after 3 consecutive hard failures a provider is benched for 180 s, so a
-  dead source cannot serialise a 112-symbol refresh into minutes (measured: 49 s vs 9+ min).
+  dead source cannot serialise a large-universe refresh.
 * **No silent substitution** — symbols that no provider can serve are dropped from the ranking and
   reported in `universe.unavailable`. Nothing is back-filled with a placeholder price.
 * **No stale promotion** — an expired cache entry is refetched; if the refetch fails the symbol is
@@ -162,7 +171,16 @@ sanity, and an AAPL price cross-check against Twelve Data.
 | Variable | Default | Meaning |
 |---|---|---|
 | `DATA_SERVICE_PORT` | `8787` | port |
-| `DATA_PROVIDER_CHAIN` | `yahoo,stooq,twelvedata,fmp` | failover order |
+| `DATA_PROVIDER_CHAIN` | `yahoo,twelvedata,fmp` | failover order |
+| `DATA_HISTORY_BATCH_SIZE` | `40` | symbols per primary batch |
+| `DATA_HISTORY_BATCH_WORKERS` | `2` | concurrent primary batches |
+| `DATA_SERIES_FETCH_WORKERS` | `4` | per-symbol recovery concurrency |
+| `DATA_QUOTE_WORKERS` | `4` | quote metadata concurrency |
+| `DATA_RETRY_ATTEMPTS` | `2` | transient retries per symbol |
+
+The publication endpoint returns current data, marked stale cache while a rebuild is in progress,
+or a lightweight warming payload when no cache exists. The browser never waits for a cold provider
+scan before rendering the application shell.
 | `DATA_HISTORY_YEARS` | `10` | history depth |
 | `DATA_REQUEST_TIMEOUT` | `25` | per-request timeout (s) |
 | `DATA_CACHE_DIR` | `data-service/cache` | cache location |

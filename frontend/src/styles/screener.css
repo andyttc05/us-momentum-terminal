@@ -122,12 +122,7 @@
 .screener-table-scroll { width: 100%; min-height: 0; flex: 1 1 0; overflow-x: auto; overscroll-behavior-x: contain; }
 /* A table height is a minimum for the browser, so the rows share the space
    the card has left over instead of leaving it blank under the last row. */
-.screener-table { width: 100%; height: 100%; min-width: 1140px; table-layout: fixed; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-/* On phones the list keeps compact rows instead of stretching to fill the
-   card height, so the stock list stays dense and readable. */
-@media (max-width: 767px) {
-  .screener-table { height: auto; }
-}
+.screener-table { width: 100%; height: auto; min-width: 1140px; table-layout: fixed; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 
 .stock-col-rank { width: 4.5%; }
 .stock-col-ticker { width: 9%; }
@@ -151,7 +146,7 @@
 .screener-table th.stock-heading--market-cap { text-align: right; }
 .screener-table tbody tr { height: var(--table-row-height); border-bottom: 1px solid var(--color-line); transition: background-color 140ms ease; }
 .screener-table tbody tr:hover { background: #FCFAF7; }
-.screener-table td { overflow: hidden; padding: 4px 8px; color: var(--color-ink); font-size: var(--font-size-table-cell); text-overflow: ellipsis; white-space: nowrap; }
+.screener-table td { overflow: hidden; padding: 4px 8px; color: var(--color-ink); font-size: var(--font-size-table-cell); text-overflow: ellipsis; vertical-align: middle; white-space: nowrap; }
 .stock-rank-cell { padding-left: 6px !important; text-align: center; }
 .stock-rank-cell span { display: inline-grid; width: 32px; height: 32px; place-items: center; border-radius: 50%; background: var(--color-yellow-soft); font-size: 1rem; font-weight: var(--font-weight-black); }
 .stock-ticker-cell { font-size: 1.15rem !important; font-weight: var(--font-weight-black); letter-spacing: -0.02em; }
@@ -181,7 +176,8 @@
 .change-pill { display: inline-flex; min-width: 86px; min-height: 31px; align-items: center; justify-content: center; padding: 0 10px; border-radius: var(--radius-pill); font-size: var(--font-size-table-cell); font-weight: var(--font-weight-black); }
 .change-pill.is-positive { background: var(--color-positive-soft); color: var(--color-positive); }
 .change-pill.is-negative { background: var(--color-negative-soft); color: #D74B5B; }
-.stock-momentum-cell { display: flex; align-items: center; justify-content: space-between; gap: 7px; }
+.stock-momentum-cell { text-align: center; }
+.stock-momentum-cell__content { display: flex; min-width: 0; height: 100%; align-items: center; justify-content: space-between; gap: 7px; }
 .stock-momentum-cell .sparkline { width: 70px; height: 22px; flex: 0 1 70px; }
 .stock-momentum-cell .sparkline polyline { stroke: #12A95B; stroke-width: 2; }
 .stock-momentum-cell .sparkline--negative polyline { stroke: #E45E6C; }

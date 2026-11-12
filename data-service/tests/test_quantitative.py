@@ -19,6 +19,12 @@ from app.momentum import (
     momentum_score,
 )
 from app.portfolio import build_portfolio
+from app.universe import (
+    EXPANDED_UNIVERSE,
+    HISTORICAL_BACKTEST_TICKERS,
+    TICKERS,
+    UNIVERSE,
+)
 
 
 class MomentumTests(unittest.TestCase):
@@ -163,6 +169,21 @@ class BacktestTests(unittest.TestCase):
             self.assertGreater(event["execution_date"], event["signal_date"])
             self.assertTrue(set(event["leaders"]).issubset({"AAA", "BBB", "CCC", "DDD", "EEE", "FFF"}))
         self.assertGreater(result["metrics"]["transaction_cost_pct"], 0.0)
+
+
+class UniverseTests(unittest.TestCase):
+    def test_live_universe_is_expanded_and_unique(self):
+        self.assertGreaterEqual(len(TICKERS), 300)
+        self.assertEqual(len(TICKERS), len(set(TICKERS)))
+        self.assertEqual(len(EXPANDED_UNIVERSE), 200)
+        self.assertEqual(len({member.sector for member in EXPANDED_UNIVERSE}), 11)
+
+    def test_historical_backtest_universe_stays_on_audited_core(self):
+        self.assertEqual(len(HISTORICAL_BACKTEST_TICKERS), 108)
+        core = set(HISTORICAL_BACKTEST_TICKERS)
+        added = {member.ticker for member in EXPANDED_UNIVERSE}
+        self.assertFalse(core & added)
+        self.assertTrue(all(member.instrument_type == "Common stock" for member in UNIVERSE if member.source != "core"))
 
 
 if __name__ == "__main__":

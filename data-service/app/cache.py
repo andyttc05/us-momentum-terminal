@@ -60,6 +60,11 @@ def stored_at(namespace: str, key: str) -> float | None:
         return None
 
 
+def age_seconds(namespace: str, key: str) -> float | None:
+    stored = stored_at(namespace, key)
+    return None if stored is None else round(max(0.0, time.time() - stored), 1)
+
+
 def read_stale(namespace: str, key: str) -> Any | None:
     """Return a cached value regardless of age (used only for diagnostics)."""
     return read(namespace, key, ttl=-1)

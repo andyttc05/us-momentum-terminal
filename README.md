@@ -37,13 +37,14 @@ The main pages are Overview, Screener, Portfolio, Backtesting and Stock Analysis
 | Styling | Plain CSS with a shared design-token layer (`frontend/src/styles/tokens.css`) |
 | Icons | Phosphor Icons (`@phosphor-icons/react`) |
 | Data service | Python 3.11+, FastAPI, Uvicorn |
-| Market data | `yfinance` (Yahoo Finance) with Stooq, Twelve Data, FMP, Alpha Vantage and Finnhub as optional backup providers |
+| Market data | `yfinance` (Yahoo Finance) with Twelve Data and FMP as configured backups; Stooq remains an optional unadjusted adapter |
 | Data processing | pandas, NumPy, `exchange-calendars` |
 | Tests | Python `unittest` for the data service, `node:test` for the frontend and edge worker |
 
 ## How The Strategy Works
 
-1. Start from the curated US equity universe in the data service.
+1. Start from 308 unique US common-stock candidates: the audited 108-symbol core plus 200
+   sector-balanced S&P MidCap 400 constituents.
 2. Keep common stocks listed on NYSE, NASDAQ or NYSE American, priced at least $5, with at least
    210 trading observations and a three-month average daily dollar volume of at least $2 million.
 3. Calculate 12-1 momentum from adjusted closing prices.
@@ -158,10 +159,9 @@ part of the current portfolio model.
 - Sharpe Ratio assumes a 0% risk-free rate. The rate is stored in the result payload.
 - Annualized turnover is reported with the backtest metrics.
 
-The backtest is not a point-in-time universe reconstruction. It starts from the current curated
-stock list, so delisted, acquired or previously unlisted companies are handled only where their
-history remains available. See [Strategy Validation](docs/STRATEGY_VALIDATION_REPORT.md) for the
-full reliability assessment.
+The backtest is not a point-in-time universe reconstruction. It continues to use the audited
+108-symbol core rather than retroactively applying today's 200 added mid-cap stocks to past dates.
+See [Strategy Validation](docs/STRATEGY_VALIDATION_REPORT.md) for the full reliability assessment.
 
 ## Application Features
 
@@ -172,8 +172,9 @@ top momentum names; and sector allocation.
 
 ### Screener
 
-Shows Top 100 and Top 20% views, search, filters, sorting, pagination and CSV export. The table's
-rank stays the strategy rank when the user sorts by another column.
+Shows Top 100 and Top 20% views, relevance-ranked ticker/company search across the full eligible
+universe, filters, sorting, pagination and CSV export. The table's rank stays the strategy rank
+when the user sorts by another column.
 
 ### Portfolio
 
@@ -295,14 +296,15 @@ US_Momentum_Terminal/
 
 ## Important Limitations
 
-- The investable list is a curated 109-ticker universe, not a complete daily scan of every US
-  common stock.
+- The investable source list contains 308 symbols, not a complete daily scan of every US common
+  stock. At the 12 November 2026 audit, 308 were scanned and 306 passed all eligibility rules.
 - The provider is Yahoo Finance through an unofficial `yfinance` client.
 - Current market cap and float shares are not point-in-time historical fundamentals.
 - The backtest uses equal weights rather than the live portfolio's float-cap weighting.
-- The current universe introduces survivorship and selection limitations in historical tests.
-- Per-bar dividend and split fields are absent from the existing cached batch data even though
-  adjusted closes are present.
+- The current live universe is broader, but the historical test still uses today's audited core and
+  therefore retains survivorship and selection limitations.
+- Some older cached core series retain adjusted closes without complete per-bar dividend and split
+  fields; refreshed series retain those actions.
 - Cross-provider confirmation without paid backup keys is limited to public demo symbols.
 - The Sharpe Ratio uses a 0% risk-free assumption.
 - A historical result is not evidence of future returns or investment suitability.
@@ -318,6 +320,8 @@ The detailed source inventory, verification evidence and unresolved issues are i
 - [Strategy Validation Report](docs/STRATEGY_VALIDATION_REPORT.md) — reliability assessment of the momentum method and backtest.
 - [Final Validation Report](docs/FINAL_VALIDATION_REPORT.md) — end-to-end validation results.
 - [Product UI Audit](docs/PRODUCT_UI_AUDIT.md) — interface and responsive review.
+- [Tasks 28 And 29 Report](docs/TASK_28_29_IMPLEMENTATION_REPORT.md) — search, drawdown,
+  universe-expansion and fetch-reliability details.
 - [Data Providers](data-service/docs/DATA_PROVIDERS.md) — provider chain, configuration and failover behaviour.
 - [Data Service README](data-service/README.md) — service-level detail and API reference.
 - [Frontend README](frontend/README.md) — frontend structure and component notes.
@@ -332,9 +336,9 @@ A live build of the dashboard is published to GitHub Pages at
 GitHub Pages hosts only the static frontend; the Python data service runs
 separately on Render at `https://us-momentum-data.onrender.com`. The Pages build
 sets `VITE_API_BASE_URL` to that backend, so the public site fetches live market
-data from it. Data-dependent areas show a clean "unavailable" state — never
-invented values — whenever the backend is cold, warming up, or its market-data
-providers are failing. The same application also runs fully locally:
+data from it. Data-dependent areas show compact loading, partial, cached or
+unavailable states — never invented values. Cached results remain usable while a
+background refresh runs. The same application also runs fully locally:
 
 ```bash
 npm run data:serve   # FastAPI data service on :8787

@@ -118,6 +118,8 @@
 .update-bar--updating .update-bar__dot { background: #E3A85A; }
 .update-bar--failed .update-bar__dot { background: #C97C7C; }
 .update-bar--empty .update-bar__dot { background: #B8B5B1; }
+.update-bar--partial .update-bar__dot { background: #E3A85A; }
+.update-bar--cached .update-bar__dot { background: #AA8BF2; }
 .update-bar--static .update-bar__dot { background: #E3A85A; }
 
 .update-bar__label {

@@ -13,6 +13,7 @@ import pandas as pd
 from app.backtest import run_backtest
 from app.models import NormalizedBar
 from app.momentum import SymbolSeries, build_frame
+from app.universe import HISTORICAL_BACKTEST_TICKERS
 
 ROOT = Path(__file__).resolve().parents[2]
 CACHE = ROOT / "data-service" / "cache"
@@ -91,7 +92,9 @@ def main() -> int:
         row["ticker"]: row.get("averageDailyDollarVolume3m") or 0
         for row in publication["stocks"]
     }
-    universe = set(eligible)
+    # Keep the historical test on the audited core rather than retroactively
+    # applying today's expanded scan universe.
+    universe = set(HISTORICAL_BACKTEST_TICKERS) & set(eligible)
     series = {
         symbol: loaded
         for symbol in [*eligible, "SPY", "SPMO"]

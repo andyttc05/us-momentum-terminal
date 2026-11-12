@@ -9,6 +9,8 @@ import json
 import sys
 import threading
 import time
+from copy import deepcopy
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import Body, FastAPI, HTTPException, Query
@@ -23,6 +25,7 @@ from app.clock import market_state  # noqa: E402
 from app.config import DOCS_DIR, settings  # noqa: E402
 from app.providers.registry import registry  # noqa: E402
 from app.snapshot import (  # noqa: E402
+    UNIVERSE_VERSION,
     build_bars,
     build_publication,
     build_stock_detail,
@@ -44,22 +47,115 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-_WARMING = {"active": False, "error": None, "started_at": None}
+_WARMING = {
+    "active": False,
+    "error": None,
+    "started_at": None,
+    "completed_at": None,
+    "phase": "idle",
+    "completed": 0,
+    "total": 0,
+}
+_WARMING_LOCK = threading.Lock()
 
 
-def _warm_up() -> None:
-    _WARMING.update(active=True, error=None, started_at=time.time())
+def _progress(phase: str, completed: int, total: int) -> None:
+    with _WARMING_LOCK:
+        _WARMING.update(phase=phase, completed=completed, total=total)
+
+
+def _warm_up(force: bool = False) -> None:
     try:
-        build_publication(force=False)
+        build_publication(force=force, progress=_progress)
     except Exception as exc:  # noqa: BLE001 - surfaced through /api/health
-        _WARMING["error"] = f"{type(exc).__name__}: {exc}"
+        with _WARMING_LOCK:
+            _WARMING["error"] = f"{type(exc).__name__}: {exc}"
     finally:
-        _WARMING["active"] = False
+        with _WARMING_LOCK:
+            _WARMING.update(active=False, completed_at=time.time(), phase="idle")
+
+
+def _start_warm_up(force: bool = False) -> bool:
+    with _WARMING_LOCK:
+        if _WARMING["active"]:
+            return False
+        if (
+            _WARMING["error"]
+            and _WARMING["completed_at"]
+            and time.time() - _WARMING["completed_at"] < settings.warm_error_cooldown
+        ):
+            return False
+        _WARMING.update(
+            active=True,
+            error=None,
+            started_at=time.time(),
+            completed_at=None,
+            phase="starting",
+            completed=0,
+            total=0,
+        )
+    threading.Thread(target=_warm_up, args=(force,), name="publication-refresh", daemon=True).start()
+    return True
+
+
+def _is_current(payload: dict | None) -> bool:
+    return bool(payload and payload.get("meta", {}).get("universe_version") == UNIVERSE_VERSION)
+
+
+def _publication_state(payload: dict, cache_state: str) -> dict:
+    result = deepcopy(payload)
+    meta = result.setdefault("meta", {})
+    meta["cache_state"] = cache_state
+    meta["refresh_in_progress"] = bool(_WARMING["active"])
+    return result
+
+
+def _loading_payload(error: str | None = None) -> dict:
+    clock = market_state()
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return {
+        "meta": {
+            "generated_at": now,
+            "as_of": clock["session_date"],
+            "as_of_label": None,
+            "data_provider": registry.adapter(registry.chain()[0]).label,
+            "data_provider_id": registry.chain()[0],
+            "connection_status": "error" if error else "warming",
+            "cache_state": "error" if error else "warming",
+            "refresh_in_progress": bool(_WARMING["active"]),
+            "market_state": clock["state"],
+            "timeliness": clock["timeliness"],
+            "timeliness_note": clock["timeliness_note"],
+            "new_york_time": clock["new_york_time"],
+            "degraded": True,
+            "warnings": [error] if error else [],
+            "universe_version": UNIVERSE_VERSION,
+            "providers": registry.status(),
+        },
+        "universe": {
+            "requested": 0,
+            "loaded": 0,
+            "scanned": 0,
+            "eligible": 0,
+            "universe_eligible": 0,
+            "momentum_eligible": 0,
+            "excluded": [],
+            "failures": [],
+            "unavailable": [],
+        },
+        "stocks": [],
+        "overview": {"snapshot": {}, "topMomentum": [], "sectorAllocation": [], "performance": {}},
+        "portfolio": {"available": False, "holdings": [], "constraints": []},
+        "backtest": {
+            "top100": {"available": False, "reason": "warming"},
+            "top20": {"available": False, "reason": "warming"},
+        },
+    }
 
 
 @app.on_event("startup")
 def startup() -> None:
-    threading.Thread(target=_warm_up, name="warm-up", daemon=True).start()
+    _start_warm_up(force=False)
 
 
 @app.get("/api/health")
@@ -72,6 +168,7 @@ def health() -> dict:
         "snapshot_ready": publication_ok,
         "snapshot_age_seconds": snapshot_age_seconds(),
         "warming": _WARMING,
+        "universe_version": UNIVERSE_VERSION,
         "providers": registry.status(),
         "configured_keys": settings.keys_present(),
         "provider_chain": registry.chain(),
@@ -99,14 +196,21 @@ def probe_report() -> dict:
 @app.get("/api/snapshot")
 def snapshot(force: bool = Query(default=False)) -> JSONResponse:
     payload = cache.read("publication", "snapshot", settings.ttl_snapshot)
-    if payload is None:
-        if _WARMING["active"]:
-            raise HTTPException(status_code=503, detail="warming up: first provider fetch in progress")
-        try:
-            payload = build_publication(force=force)
-        except Exception as exc:  # noqa: BLE001
-            raise HTTPException(status_code=502, detail=f"provider failure: {type(exc).__name__}: {exc}") from exc
-    response = JSONResponse(payload)
+    if _is_current(payload) and not force:
+        response_payload = _publication_state(
+            payload,
+            "partial" if payload.get("universe", {}).get("partial") else "fresh",
+        )
+    else:
+        stale = cache.read_stale("publication", "snapshot")
+        _start_warm_up(force=force)
+        if _is_current(payload):
+            response_payload = _publication_state(payload, "cached")
+        elif stale:
+            response_payload = _publication_state(stale, "cached")
+        else:
+            response_payload = _loading_payload(_WARMING["error"])
+    response = JSONResponse(response_payload)
     response.headers["Cache-Control"] = "no-store"
     return response
 
@@ -172,10 +276,13 @@ def choose_provider(payload: dict = Body(default={})) -> dict:
 
 @app.post("/api/refresh")
 def force_refresh() -> dict:
-    try:
-        return refresh(force=True)
-    except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=502, detail=f"refresh failed: {type(exc).__name__}: {exc}") from exc
+    started = _start_warm_up(force=True)
+    return {
+        "ok": True,
+        "refreshing": bool(_WARMING["active"]),
+        "started": started,
+        "phase": _WARMING["phase"],
+    }
 
 
 @app.get("/api/config")

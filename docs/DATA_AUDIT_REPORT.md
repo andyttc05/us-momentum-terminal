@@ -15,16 +15,15 @@ duplicate dates, no out-of-order series, no missing adjusted or raw closes, no w
 and no exchange-holiday observations. AAPL and QQQ prices matched the public Twelve Data demo
 endpoint exactly on 11 November 2026.
 
-The data is nonetheless not fully institutional-grade. The active universe is a hand-maintained
-109-ticker list, Yahoo Finance is an unofficial provider, market caps and float shares are current
-rather than point-in-time, and most backup providers were not usable without paid credentials. The
-existing cached batch bars also lack per-row dividend and split metadata, although the adjusted
-price field is present and is the series used by the strategy.
+The active scan contains 308 unique US common-stock candidates: the audited 108-symbol core plus 200
+sector-balanced S&P MidCap 400 constituents. Yahoo Finance returned 308 usable series and 306
+stocks passed all universe and momentum rules. The dataset is not fully institutional-grade:
+Yahoo Finance is an unofficial provider, market caps and float shares are current rather than
+point-in-time, and most backup providers were not usable without paid credentials.
 
 The cache contained a confirmed ticker-identity collision for `PARA`: historical Paramount-era
-prices were mixed with a later, unrelated company that reused the symbol. `PARA` is now excluded by
-the live price filter. `TSM` is excluded as an ADR, and `WBA` is unavailable because no provider
-returned a series.
+prices were mixed with a later, unrelated company that reused the symbol. `PARA` is excluded by the
+live price filter. `TSM` is excluded as an ADR. Delisted `WBA` was removed from the live scan.
 
 ## Source Inventory
 
@@ -43,27 +42,27 @@ quote metadata, 15 minutes for the publication and 15 minutes for stock detail.
 
 | Check | Result | Evidence |
 |---|---|---|
-| Historical OHLCV availability | PASS | 111 cached series; 273,750 rows |
+| Historical OHLCV availability | PASS | 311 cached series; 741,051 rows |
 | Audit coverage | PASS | 14 Nov 2016 through 11 Nov 2026 |
 | Duplicate dates | PASS | 0 duplicate date rows |
 | Date ordering | PASS | 0 unsorted series |
 | Missing close or adjusted close | PASS | 0 null price rows |
 | Weekend/holiday observations | PASS | 0 non-NYSE session dates in the cached bars |
-| Single cross-sectional as-of date | PASS | All 106 published stocks ended on 11 Nov 2026 |
+| Single cross-sectional as-of date | PASS | All 306 published stocks ended on 11 Nov 2026 |
 | Ticker uniqueness | PASS | No duplicate symbol in the published stock rows |
 | Ticker identity consistency | FAIL, corrected | `PARA` mixed two unrelated companies and extreme, implausible returns; current `PARA` is excluded by the $5 minimum-price rule |
-| Security-type filter | PASS after correction | ADR `TSM` is excluded; 106 common stocks remain |
+| Security-type filter | PASS after correction | ADR `TSM` is excluded; 306 common stocks remain |
 | Exchange filter | PASS | Published stocks map to NASDAQ or NYSE; exchange is provider-verified |
-| Currency consistency | PASS | 106 published stocks have USD market cap and quote currency |
-| Minimum history | PASS | Smallest published history is 1,209 observations, above the 253-session momentum requirement |
-| Three-month dollar-volume filter | PASS | Smallest published three-month average is approximately $98.5 million |
+| Currency consistency | PASS | 306 published stocks have USD market cap and quote currency |
+| Minimum history | PASS | Smallest published history is 694 observations, above the 253-session momentum requirement |
+| Three-month dollar-volume filter | PASS | Every published stock clears the existing $2 million threshold |
 | Stale prices | PASS at snapshot level | All published stocks share 11 Nov 2026 as-of date |
-| Volume anomalies | WARNING | 593 zero-volume rows across CCI, PARA and SPMO; 435 are in excluded PARA and 157 are early, thin SPMO trading |
-| Extreme return observations | WARNING | 21 adjusted daily moves of at least 35%; 16 belong to the excluded `PARA` identity collision |
-| Corporate-action metadata | NOT VERIFIED | Existing batch cache stores no per-row dividend or split fields |
+| Volume anomalies | WARNING | 664 zero-volume rows; most are concentrated in excluded PARA and early, thin SPMO trading |
+| Extreme return observations | WARNING | 92 adjusted daily moves of at least 35%; 16 belong to the excluded `PARA` identity collision |
+| Corporate-action metadata | WARNING | Refreshed series retain action rows; some older core entries remain incomplete |
 | Adjusted-price corporate actions | PASS for sampled securities | NVDA and AAPL split dates show continuous adjusted returns and provider-reported split factors |
 | Reverse splits | NOT VERIFIED | No confirmed reverse-split sample in the eligible cached universe |
-| Mergers and delistings | WARNING | No point-in-time security master; `WBA` is unavailable and formerly listed companies may be missing |
+| Mergers and delistings | WARNING | No point-in-time security master; delisted `WBA` is not in the live scan and other delistings may be missing |
 | Benchmark availability | PASS | SPY, SPMO and QQQ populated to 11 Nov 2026 |
 | Benchmark cross-check | PASS | QQQ open/high/low/close/volume and date matched Twelve Data exactly; AAPL also matched |
 | Trading calendar | PASS after correction | NYSE calendar now handles holidays and early closes |
@@ -80,10 +79,9 @@ The provider returned corporate actions for sampled securities:
 - AAPL: 4-for-1 split on 31 August 2020.
 - NVDA and AAPL adjusted daily returns remained continuous across the sampled split dates.
 
-The existing cached batch files have `null` values for per-row dividends and splits because they
-were not originally downloaded with actions. This does not invalidate the adjusted close, but it
-means the cache cannot independently explain every adjustment. Future bar downloads request actions
-explicitly.
+The refreshed cached batch files now retain dividend and split fields, while some older core cache
+entries still have `null` action fields. This does not invalidate the adjusted close, but action
+coverage is not uniform for every legacy row.
 
 Cash dividends are reflected through adjusted closes. Ticker changes, mergers and delistings cannot
 be fully reconstructed from the cache without a security master and stable security identifiers.
@@ -102,7 +100,7 @@ The same ordinary market-cap value from the shared snapshot feeds Screener and S
 those pages are internally consistent. All 100 published holdings had positive float caps and
 matched the ordinary market-cap field shown for the same ticker.
 
-Float-share basis warnings were found for GOOGL, GS, NWSA and TSM, where provider `floatShares`
+Float-share basis warnings were found for GEF, GOOGL, GS, NWSA and TSM, where provider `floatShares`
 exceeded `sharesOutstanding`. The difference is plausible for multi-class structures in some cases,
 but TSM's ratio was clearly inconsistent with its ADS structure and TSM is excluded as an ADR.
 Float shares are not independently verified against a second paid fundamentals provider.
@@ -120,11 +118,14 @@ Float shares are not independently verified against a second paid fundamentals p
 
 - Added provider security type, float shares, shares outstanding, three-month average volume and
   current quote price to quote records.
+- Added 200 sector-balanced S&P MidCap 400 common stocks, with exchange tags checked against Nasdaq
+  Trader's official listed-security files.
 - Added explicit universe eligibility checks for exchange, common-stock type, USD currency, $5
   minimum price, 210 observations and $2 million three-month average dollar volume.
 - Separated universe eligibility from the 253-observation momentum-history requirement.
 - Excluded ADR `TSM` from the common-stock universe.
 - Excluded reused-symbol `PARA` under the live price rule after identifying the data collision.
+- Removed delisted `WBA` from the live source universe.
 - Replaced ordinary market-cap portfolio weighting with float-adjusted market cap × Momentum Score.
 - Corrected the portfolio CSV to write the numeric float-adjusted cap rather than ordinary cap.
 - Replaced weekday-only market logic with the NYSE exchange calendar, including holidays and early
@@ -135,18 +136,18 @@ Float shares are not independently verified against a second paid fundamentals p
 
 ## Remaining Limitations
 
-- The universe is a curated list of 109 symbols, not a complete exchange master or a daily scan of
+- The universe is a source list of 308 symbols, not a complete exchange master or a daily scan of
   all eligible US common stocks.
 - Yahoo Finance is an unofficial provider without a service-level agreement.
 - Current market cap and float shares cannot be applied retrospectively without look-ahead bias.
 - The runtime has no point-in-time historical constituents, stable security IDs or delisting
   returns.
-- The existing bar cache has adjusted closes but no per-row corporate-action fields.
+- Some older bar-cache entries have adjusted closes but incomplete per-row corporate-action fields.
 - Cross-provider verification is limited to public demo symbols unless backup API keys are added.
 - The data service keeps historical symbols such as `PARA` in the raw cache. They are excluded from
   the live universe but were not deleted because the records document the provider defect.
-- The mobile layout intentionally omits the freshness bar; the payload still contains timeliness
-  metadata and the desktop interface displays it.
+- The mobile layout omits the full freshness bar; compact loading, partial, cached and error notices
+  remain visible in the viewport.
 
 ## Recommended Improvements
 

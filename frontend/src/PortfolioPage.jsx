@@ -119,11 +119,7 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
   }
 
   async function refreshSnapshot() {
-    const ok = await refresh();
-    if (!ok) return;
-    setToast("Portfolio re-valued from provider data");
-    window.clearTimeout(refreshSnapshot.timeout);
-    refreshSnapshot.timeout = window.setTimeout(() => setToast(""), 2400);
+    await refresh();
   }
 
   return (

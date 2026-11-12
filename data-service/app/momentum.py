@@ -27,6 +27,8 @@ class SymbolSeries:
     fetched_at: str
     adjusted: bool
     is_backup: bool
+    cached: bool = False
+    cache_age_seconds: float | None = None
     warnings: list[str] = field(default_factory=list)
 
     @property
@@ -158,6 +160,8 @@ def compute_snapshot(series_map: dict[str, SymbolSeries]) -> tuple[list[dict], l
                 "source_label": series.source_label,
                 "fetched_at": series.fetched_at,
                 "is_backup": series.is_backup,
+                "cached": series.cached,
+                "cache_age_seconds": series.cache_age_seconds,
                 "observations": series.rows,
                 "warnings": series.warnings,
             }

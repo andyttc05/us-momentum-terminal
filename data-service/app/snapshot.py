@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import math
 import threading
+import time
 from datetime import datetime, timezone
 
 import pandas as pd
@@ -24,7 +25,14 @@ from .backtest import (
 )
 from .clock import market_state
 from .config import settings
-from .models import ProviderError, SeriesResult, validate_bars
+from .models import (
+    ProviderAuthError,
+    ProviderBlocked,
+    ProviderError,
+    ProviderNoData,
+    SeriesResult,
+    validate_bars,
+)
 from .momentum import (
     MIN_OBSERVATIONS,
     SymbolSeries,
@@ -37,7 +45,13 @@ from .momentum import (
 )
 from .portfolio import build_portfolio
 from .providers.registry import registry
-from .universe import BENCHMARKS, MEMBER_BY_TICKER, TICKERS, normalize_sector
+from .universe import (
+    BENCHMARKS,
+    HISTORICAL_BACKTEST_TICKERS,
+    MEMBER_BY_TICKER,
+    TICKERS,
+    normalize_sector,
+)
 
 _WARM_LOCK = threading.Lock()
 _BUILD_LOCK = threading.Lock()
@@ -45,6 +59,7 @@ _BUILD_LOCK = threading.Lock()
 PERFORMANCE_PERIODS = ("1Y", "3Y", "5Y", "All")
 SERIES_COLORS = {"strategy": "#FFC83D", "spy": "#69A5F5", "spmo": "#AA8BF2"}
 SUPPORTED_EXCHANGES = {"NYSE", "NASDAQ", "NYSE American"}
+UNIVERSE_VERSION = "2026-11-12-sp400-v2"
 
 
 def _now() -> str:
@@ -62,57 +77,108 @@ def _label_date(iso: str) -> str:
 # Data loading                                                                #
 # --------------------------------------------------------------------------- #
 
-def load_series(symbols: list[str], years: int | None = None) -> tuple[dict[str, SeriesResult], list[dict]]:
-    """Fetch daily series for every symbol, primary provider first."""
+def load_series(
+    symbols: list[str],
+    years: int | None = None,
+    progress=None,
+) -> tuple[dict[str, SeriesResult], list[dict]]:
+    """Fetch daily series in bounded batches with partial-result recovery."""
     years = years or settings.history_years
+    symbols = list(dict.fromkeys(symbols))
     chain = registry.chain()
     primary_id = chain[0]
     primary = registry.adapter(primary_id)
 
     results: dict[str, SeriesResult] = {}
     failures: list[dict] = []
+    total = len(symbols)
 
-    try:
-        if hasattr(primary, "fetch_many"):
-            results.update(primary.fetch_many(symbols, years))
-    except Exception as exc:  # noqa: BLE001 - a batch failure must not abort the build
-        failures.append({"provider": primary_id, "stage": "batch", "error": str(exc)[:200]})
+    def report(phase: str, completed: int) -> None:
+        if progress:
+            progress(phase, completed, total)
 
-    missing = [symbol for symbol in symbols if symbol not in results]
+    report("checking_cache", 0)
+    batch_size = max(1, settings.history_batch_size)
+    batches = [symbols[index:index + batch_size] for index in range(0, len(symbols), batch_size)]
+
+    if hasattr(primary, "fetch_many") and batches:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        def fetch_batch(batch: list[str]):
+            try:
+                return batch, primary.fetch_many(batch, years), None
+            except Exception as exc:  # noqa: BLE001 - fallback handles this batch
+                return batch, {}, f"{type(exc).__name__}: {exc}"[:200]
+
+        completed = 0
+        with ThreadPoolExecutor(max_workers=max(1, settings.history_batch_workers)) as pool:
+            futures = [pool.submit(fetch_batch, batch) for batch in batches]
+            for future in as_completed(futures):
+                batch, batch_results, error = future.result()
+                results.update(batch_results)
+                completed += len(batch)
+                if error:
+                    failures.append({
+                        "provider": primary_id,
+                        "stage": "batch",
+                        "error": error,
+                        "symbols": len(batch),
+                    })
+                report("loading_bars", completed)
+
+    missing = [
+        symbol
+        for symbol in symbols
+        if symbol not in results or not results[symbol].adjusted
+    ]
 
     def fetch_one(symbol: str):
-        try:
-            return symbol, registry.series(symbol, years), None
-        except ProviderError as exc:
-            return symbol, None, ("provider", f"{exc} (tried: {', '.join(registry.chain())})")
-        except Exception as exc:  # noqa: BLE001
-            return symbol, None, ("unexpected", f"{type(exc).__name__}: {exc}"[:200])
+        attempts = max(0, settings.retry_attempts)
+        last_error = None
+        for attempt in range(attempts + 1):
+            try:
+                return symbol, registry.series(symbol, years), None
+            except (ProviderAuthError, ProviderBlocked, ProviderNoData) as exc:
+                return symbol, None, ("provider", f"{exc} (tried: {', '.join(registry.chain())})")
+            except ProviderError as exc:
+                last_error = exc
+                if attempt < attempts:
+                    time.sleep(settings.retry_base_seconds * (2 ** attempt))
+            except Exception as exc:  # noqa: BLE001
+                return symbol, None, ("unexpected", f"{type(exc).__name__}: {exc}"[:200])
+        return symbol, None, ("provider", f"{last_error} (tried: {', '.join(registry.chain())})")
 
     if missing:
         from concurrent.futures import ThreadPoolExecutor
 
-        with ThreadPoolExecutor(max_workers=min(4, settings.max_workers)) as pool:
-            fetched = list(pool.map(fetch_one, missing))
+        from concurrent.futures import as_completed
 
-    for symbol, resolved, error in (fetched if missing else []):
-        if error:
-            stage, message = error
-            failures.append({"provider": "none", "stage": "fetch", "symbol": symbol, "error": message})
-            continue
-        try:
-            results[symbol] = resolved.result
-            if resolved.used_backup:
-                failures.append(
-                    {
-                        "provider": resolved.result.source,
-                        "stage": "fallback",
-                        "symbol": symbol,
-                        "error": f"primary provider failed; served by {resolved.result.source_label}",
-                    }
-                )
-        except ProviderError as exc:
-            failures.append({"provider": "none", "stage": "fetch", "symbol": symbol, "error": str(exc)[:200]})
+        completed = total - len(missing)
+        with ThreadPoolExecutor(max_workers=max(1, settings.series_fetch_workers)) as pool:
+            futures = [pool.submit(fetch_one, symbol) for symbol in missing]
+            for future in as_completed(futures):
+                symbol, resolved, error = future.result()
+                completed += 1
+                report("recovering_symbols", completed)
+                if error:
+                    stage, message = error
+                    failures.append({"provider": "none", "stage": stage, "symbol": symbol, "error": message})
+                    continue
+                try:
+                    results[symbol] = resolved.result
+                    if resolved.used_backup:
+                        failures.append(
+                            {
+                                "provider": resolved.result.source,
+                                "stage": "fallback",
+                                "symbol": symbol,
+                                "error": f"primary provider failed; served by {resolved.result.source_label}",
+                            }
+                        )
+                except ProviderError as exc:
+                    failures.append({"provider": "none", "stage": "fetch", "symbol": symbol, "error": str(exc)[:200]})
 
+    report("bars_ready", len(results))
     return results, failures
 
 
@@ -129,6 +195,8 @@ def to_symbol_series(result: SeriesResult) -> SymbolSeries | None:
         fetched_at=result.fetched_at,
         adjusted=result.adjusted,
         is_backup=result.is_backup,
+        cached=result.cached,
+        cache_age_seconds=result.cache_age_seconds,
         warnings=[*result.warnings, *warnings],
     )
 
@@ -259,7 +327,13 @@ def _exchange_label(raw: str | None) -> str:
     lowered = value.lower()
     if lowered.startswith("nasdaq"):
         return "NASDAQ"
+    if lowered in {"nms", "ngm", "ncm"}:
+        return "NASDAQ"
+    if lowered in {"nyq", "nyse"}:
+        return "NYSE"
     if "nyse american" in lowered or lowered.startswith("amex"):
+        return "NYSE American"
+    if lowered in {"ase", "amx", "nyse american"}:
         return "NYSE American"
     if "nyse" in lowered:
         return "NYSE"
@@ -310,15 +384,19 @@ def _assess_universe(
         if member.instrument_type != "Common stock":
             exclude(f"security type {member.instrument_type} is outside the common-stock universe")
             continue
-        quote_type = str(quote.get("quote_type") or "").upper()
+        quote_type = str(
+            quote.get("quote_type")
+            or (member.instrument_type.upper().replace(" ", "_") if member.source != "core" else "")
+        ).upper()
         if quote_type not in {"EQUITY", "COMMON_STOCK"}:
             exclude("provider did not verify a common-stock security type")
             continue
-        exchange = _exchange_label(quote.get("exchange"))
+        exchange = _exchange_label(quote.get("exchange") or member.exchange)
         if exchange not in SUPPORTED_EXCHANGES:
             exclude(f"exchange {exchange} is outside NYSE, NASDAQ, and NYSE American")
             continue
-        if str(quote.get("currency") or "").upper() != "USD":
+        currency = str(quote.get("currency") or ("USD" if member.source != "core" else "")).upper()
+        if currency != "USD":
             exclude("provider did not verify USD currency")
             continue
         if series.rows < MIN_UNIVERSE_OBSERVATIONS:
@@ -385,6 +463,8 @@ def _stock_rows(scored: list[dict], series_map: dict[str, SymbolSeries], quotes:
                 "sourceLabel": row["source_label"],
                 "quoteSource": quote.get("provider") or quote.get("source"),
                 "isBackup": row["is_backup"],
+                "isCached": row["cached"],
+                "cacheAgeSeconds": row["cache_age_seconds"],
                 "observations": row["observations"],
                 "trend": sparkline_points(series),
             }
@@ -456,23 +536,26 @@ def _backtest_block(backtest: dict) -> dict:
 # Publication                                                                  #
 # --------------------------------------------------------------------------- #
 
-def build_publication(force: bool = False) -> dict:
+def build_publication(force: bool = False, progress=None) -> dict:
     """Assemble the full dashboard payload (cached on disk)."""
     ttl = 0 if force else settings.ttl_snapshot
     if not force:
         cached = cache.read("publication", "snapshot", ttl)
-        if cached:
+        if cached and cached.get("meta", {}).get("universe_version") == UNIVERSE_VERSION:
             return cached
 
     with _BUILD_LOCK:
         if not force:
             cached = cache.read("publication", "snapshot", ttl)
-            if cached:
+            if cached and cached.get("meta", {}).get("universe_version") == UNIVERSE_VERSION:
                 return cached
 
         started = _now()
+        build_started = time.perf_counter()
         symbols = list(TICKERS) + list(BENCHMARKS)
-        results, failures = load_series(symbols)
+        if progress:
+            progress("loading_bars", 0, len(symbols))
+        results, failures = load_series(symbols, progress=progress)
 
         series_map: dict[str, SymbolSeries] = {}
         for symbol, result in results.items():
@@ -480,32 +563,60 @@ def build_publication(force: bool = False) -> dict:
             if converted:
                 series_map[symbol] = converted
 
-        quotes = registry.quotes(list(TICKERS))
+        loaded_tickers = [symbol for symbol in TICKERS if symbol in series_map]
+        if progress:
+            progress("loading_quotes", 0, len(loaded_tickers))
+        quotes = registry.quotes(
+            loaded_tickers,
+            progress=(lambda completed: progress("loading_quotes", completed, len(loaded_tickers))) if progress else None,
+        )
+        if progress:
+            progress("loading_quotes", len(quotes), len(loaded_tickers))
+        if progress:
+            progress("scoring", len(quotes), len(loaded_tickers))
         universe_map, universe_excluded, dollar_volumes = _assess_universe(series_map, quotes)
         scored, momentum_excluded = compute_snapshot(universe_map)
         for row in momentum_excluded:
             row["stage"] = "momentum"
         excluded = [*universe_excluded, *momentum_excluded]
 
-        # Attach quote metadata used by the portfolio builder.
+        # Fast quote data supplies display metadata. Full float-share data is
+        # fetched only for the best portfolio candidates, avoiding hundreds of
+        # unnecessary .info requests on every scan.
         for row in scored:
             quote = quotes.get(row["symbol"], {})
             row["market_cap"] = quote.get("market_cap")
+            row["average_daily_dollar_volume_3m"] = dollar_volumes.get(row["symbol"])
+            row["company"] = quote.get("name") or row["symbol"]
+            row["sector"] = normalize_sector(quote.get("sector"), row["symbol"])
+
+        detail_candidates = [row["symbol"] for row in scored[:140]]
+        if progress:
+            progress("loading_fundamentals", 0, len(detail_candidates))
+        detailed_quotes = registry.detailed_quotes(
+            detail_candidates,
+            progress=(lambda completed: progress("loading_fundamentals", completed, len(detail_candidates))) if progress else None,
+        )
+        quotes.update(detailed_quotes)
+        if progress:
+            progress("loading_fundamentals", len(detail_candidates), len(detail_candidates))
+        for row in scored:
+            quote = quotes.get(row["symbol"], {})
             float_shares = quote.get("float_shares")
+            row["market_cap"] = quote.get("market_cap")
             row["float_market_cap"] = (
                 float(float_shares) * row["price"]
                 if isinstance(float_shares, (int, float)) and float_shares > 0
                 else None
             )
-            row["average_daily_dollar_volume_3m"] = dollar_volumes.get(row["symbol"])
-            row["company"] = quote.get("name") or row["symbol"]
+            row["company"] = quote.get("name") or row["company"]
             row["sector"] = normalize_sector(quote.get("sector"), row["symbol"])
 
         stocks = _stock_rows(scored, series_map, quotes)
         benchmark_map = {symbol: series_map[symbol] for symbol in BENCHMARKS if symbol in series_map}
         backtest_map = {**{symbol: series_map[symbol] for symbol in TICKERS if symbol in series_map}, **benchmark_map}
 
-        backtest_universe = set(universe_map)
+        backtest_universe = set(HISTORICAL_BACKTEST_TICKERS) & set(universe_map)
         top100 = run_backtest(backtest_map, top_n=100, universe_symbols=backtest_universe)
         top20 = run_backtest(backtest_map, top_fraction=0.2, universe_symbols=backtest_universe)
 
@@ -524,10 +635,22 @@ def build_publication(force: bool = False) -> dict:
             sources[row["source"]] = sources.get(row["source"], 0) + 1
         backup_rows = sum(1 for row in stocks if row["isBackup"])
         backups_used = [row["ticker"] for row in stocks if row["isBackup"]]
-        symbol_failures = [failure["symbol"] for failure in failures if failure.get("symbol") and failure.get("stage") == "fetch"]
+        symbol_failures = [failure["symbol"] for failure in failures if failure.get("symbol") and failure.get("stage") in {"fetch", "provider"}]
+        scanned_count = sum(1 for symbol in TICKERS if symbol in series_map)
+        cached_count = sum(1 for symbol in TICKERS if symbol in series_map and series_map[symbol].cached)
+        fresh_count = max(0, scanned_count - cached_count)
         # "Degraded" means the screen is running on backup data or not at all;
         # a single unavailable symbol is reported separately.
         degraded = backup_rows > 0 or not stocks
+        partial = bool(symbol_failures or failures)
+        if not stocks:
+            cache_state = "empty"
+        elif partial:
+            cache_state = "partial"
+        elif cached_count == scanned_count and cached_count:
+            cache_state = "cached"
+        else:
+            cache_state = "fresh"
 
         active_chain = registry.chain()
         configured_primary = settings.provider_chain[0] if settings.provider_chain else "yahoo"
@@ -570,18 +693,26 @@ def build_publication(force: bool = False) -> dict:
                 "degraded": degraded,
                 "warnings": warnings,
                 "history_years": settings.history_years,
+                "universe_version": UNIVERSE_VERSION,
+                "cache_state": cache_state,
+                "refresh_in_progress": False,
+                "scan_duration_seconds": round(time.perf_counter() - build_started, 1),
                 "providers": registry.status(),
             },
             "universe": {
                 "requested": len(TICKERS),
-                "loaded": sum(1 for symbol in TICKERS if symbol in series_map),
-                "scanned": len(TICKERS),
+                "loaded": scanned_count,
+                "scanned": scanned_count,
+                "fresh": fresh_count,
+                "cached": cached_count,
+                "partial": partial,
                 "eligible": len(stocks),
                 "universe_eligible": len(universe_map),
                 "momentum_eligible": len(stocks),
                 "excluded": excluded,
                 "failures": failures,
                 "unavailable": sorted(symbol_failures),
+                "source": "109 core symbols plus 200 sector-balanced US common stocks from the S&P MidCap 400 constituent snapshot",
                 "min_universe_observations": MIN_UNIVERSE_OBSERVATIONS,
                 "min_momentum_observations": MIN_OBSERVATIONS,
                 "filters": {
@@ -598,7 +729,7 @@ def build_publication(force: bool = False) -> dict:
                 "snapshot": {
                     "asOfDate": _label_date(as_of),
                     "asOf": as_of,
-                    "scannedStocks": f"{len(TICKERS):,}",
+                    "scannedStocks": f"{scanned_count:,}",
                     "eligibleStocks": f"{len(stocks):,}",
                     "portfolioStocks": f"{portfolio.get('summary', {}).get('totalHoldings', 0):,}",
                 },
@@ -644,7 +775,9 @@ def build_stock_detail(ticker: str) -> dict | None:
     if ticker not in MEMBER_BY_TICKER and ticker not in BENCHMARKS:
         return None
 
-    publication = build_publication()
+    publication = cache.read("publication", "snapshot", ttl=-1)
+    if not publication:
+        return None
     stock = next((row for row in publication["stocks"] if row["ticker"] == ticker), None)
     if stock is None:
         return None
