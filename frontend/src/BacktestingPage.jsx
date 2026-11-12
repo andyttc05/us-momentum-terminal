@@ -364,21 +364,37 @@ export function BacktestingPage({ hidden = false }) {
         />
 
         <section className="backtest-controls" aria-label="Backtest controls">
-          <label className="backtest-date-field"><span>Start Date</span><input type="date" min={block?.start ?? ""} max={block?.end ?? ""} value={startDate} onInput={(event) => setStartDate(event.target.value)} onChange={(event) => setStartDate(event.target.value)} /></label>
+          {/* Each date is one field group: label, input and — when the range is
+              invalid — a message that occupies the input's own column. The grid
+              gives the message the input's exact left edge without a
+              hand-measured offset, and it wraps inside that column. */}
+          <div className="backtest-date-group">
+            <label className="backtest-date-label" htmlFor="backtest-start-date">Start Date</label>
+            <input
+              className="backtest-date-input"
+              id="backtest-start-date"
+              type="date"
+              min={block?.start ?? ""}
+              max={block?.end ?? ""}
+              value={startDate}
+              onInput={(event) => setStartDate(event.target.value)}
+              onChange={(event) => setStartDate(event.target.value)}
+            />
+          </div>
           <div className={`backtest-date-group${dateError ? " is-invalid" : ""}`}>
-            <label className="backtest-date-field">
-              <span>End Date</span>
-              <input
-                type="date"
-                min={block?.start ?? ""}
-                max={block?.end ?? ""}
-                value={endDate}
-                aria-invalid={Boolean(dateError)}
-                aria-describedby={dateError ? "backtest-date-error" : undefined}
-                onInput={(event) => setEndDate(event.target.value)}
-                onChange={(event) => setEndDate(event.target.value)}
-              />
-            </label>
+            <label className="backtest-date-label" htmlFor="backtest-end-date">End Date</label>
+            <input
+              className="backtest-date-input"
+              id="backtest-end-date"
+              type="date"
+              min={block?.start ?? ""}
+              max={block?.end ?? ""}
+              value={endDate}
+              aria-invalid={Boolean(dateError)}
+              aria-describedby={dateError ? "backtest-date-error" : undefined}
+              onInput={(event) => setEndDate(event.target.value)}
+              onChange={(event) => setEndDate(event.target.value)}
+            />
             {dateError && (
               <p className="backtest-date-error" id="backtest-date-error" role="alert">
                 <WarningCircle size={15} weight="fill" aria-hidden="true" />
