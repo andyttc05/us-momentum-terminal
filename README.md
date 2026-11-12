@@ -8,6 +8,16 @@ The project is intended for students, project evaluators and developers who need
 of the strategy and its data. It is not a live trading system and it does not provide investment
 advice.
 
+## Live Demo
+
+**[Open US Momentum Terminal](https://andyttc05.github.io/us-momentum-terminal/)** — a publicly
+accessible build of the dashboard.
+
+The public site connects to a hosted Python backend, so live market data, screening, portfolio
+construction and backtesting work in the browser. Those features require the backend to be running;
+on the free-tier host it may take a moment to start after inactivity, and the pages show a clean
+"unavailable" state rather than invented values until it responds.
+
 ## What The Application Does
 
 - Screens US common stocks by 12-1 momentum and risk-adjusted momentum.
@@ -316,14 +326,15 @@ The detailed source inventory, verification evidence and unresolved issues are i
 
 ## Deployment
 
-A static showcase of the frontend is published to GitHub Pages at
+A live build of the dashboard is published to GitHub Pages at
 <https://andyttc05.github.io/us-momentum-terminal/>.
 
-GitHub Pages can only host static files, so the Python data service does not run
-there. The public build therefore renders the full UI in a **static preview
-mode**: every page keeps its layout, but data-dependent areas show a clear
-"Static preview" state and empty placeholders rather than invented values.
-Live market data requires running the application locally:
+GitHub Pages hosts only the static frontend; the Python data service runs
+separately on Render at `https://us-momentum-data.onrender.com`. The Pages build
+sets `VITE_API_BASE_URL` to that backend, so the public site fetches live market
+data from it. Data-dependent areas show a clean "unavailable" state — never
+invented values — whenever the backend is cold, warming up, or its market-data
+providers are failing. The same application also runs fully locally:
 
 ```bash
 npm run data:serve   # FastAPI data service on :8787
@@ -331,9 +342,8 @@ npm run dev          # Vite dev server on :5173
 ```
 
 The Pages build is produced by `.github/workflows/deploy-pages.yml`, which runs
-the frontend tests and builds with Vite's `base` set to the repository subpath
-and the static-mode flag enabled. GitHub Pages is configured to deploy from
-GitHub Actions.
+the frontend tests and builds with Vite's `base` set to the repository subpath.
+GitHub Pages is configured to deploy from GitHub Actions.
 
 ## License
 

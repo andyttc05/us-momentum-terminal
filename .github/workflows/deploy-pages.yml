@@ -37,7 +37,7 @@ jobs:
         run: npm run build
         env:
           VITE_BASE_PATH: /us-momentum-terminal/
-          VITE_STATIC_SHOWCASE: "true"
+          VITE_API_BASE_URL: https://us-momentum-data.onrender.com/api
 
       - name: Run frontend tests
         run: npm --prefix frontend run test:unit

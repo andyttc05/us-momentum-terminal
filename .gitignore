@@ -112,3 +112,11 @@ desktop.ini
 # Agent / assistant workspace state (local only)
 # ---------------------------------------------------------------------------
 .workbuddy/
+
+# ---------------------------------------------------------------------------
+# Course-provided and third-party source material (not for redistribution)
+# ---------------------------------------------------------------------------
+# Removed from the public repository (Task 27). The originals are kept locally
+# for the owner's own reference but must never be committed again.
+docs/source-brief/SOURCE_DOCUMENTS/
+docs/source-brief/UI_REFERENCES/

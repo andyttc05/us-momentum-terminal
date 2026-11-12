@@ -33,7 +33,13 @@ from app.snapshot import (  # noqa: E402
 app = FastAPI(title="US Momentum Terminal Data Service", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:4173", "http://127.0.0.1:4173", "http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=[
+        "http://localhost:4173",
+        "http://127.0.0.1:4173",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://andyttc05.github.io",
+    ],
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )

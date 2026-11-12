@@ -18,28 +18,20 @@ Before writing or changing code, read these files in this order:
 8. `OPEN_DECISIONS.md` — decisions that must be confirmed or clearly configured rather than guessed.
 9. `COURSE_DELIVERABLES.md` — constraints from the IEDA 1180 course brief.
 
-Keep the original source documents in `SOURCE_DOCUMENTS/`. They are retained for traceability and take precedence when a summary omits detail.
+The original source documents (`SOURCE_DOCUMENTS/`) and the visual reference
+images (`UI_REFERENCES/`) are course-provided or third-party material and are
+**not redistributed** in this public repository. They are kept locally only.
 
 ## UI references
 
-Open the images in `UI_REFERENCES/`. The numbered screenshots are the approved conceptual blueprint:
-
-- `00_Miyama_Graphics_Visual_Reference.jpg` — visual inspiration only.
-- `01_Overview.png`
-- `02_Screener.png`
-- `03_Portfolio.png`
-- `04_Backtesting.png`
-- `05_Stock_Analysis.png`
-- `06_Settings_Stock.png`
-- `07_Settings_Portfolio.png`
-- `08_Settings_Backtest.png`
-- `09_Settings_General.png`
-
-The screenshots contain illustrative placeholder figures. Do not hard-code those values or present them as current market data.
+The numbered screenshot references and the Miyama visual-reference image were
+third-party design material and have been removed from this public repository
+for redistribution reasons. The written design direction they supported is
+preserved in `UI_DESIGN_BLUEPRINT.md`.
 
 ## Recommended first instruction to the coding agent
 
-> You are the lead engineering agent for US Momentum Terminal. Read the complete handoff package and inspect every file in `SOURCE_DOCUMENTS/` and `UI_REFERENCES/` before making implementation decisions. First produce a concise architecture and task plan, identify the open decisions that block reliable implementation, and propose the project skeleton. Do not start by implementing the entire application in one pass. Follow `AGENT_RULES.md`, `DEVELOPMENT_ROADMAP.md`, and the quantitative rules exactly. Build in small, testable phases and report files changed, tests run, results, assumptions and unresolved issues after each task.
+> You are the lead engineering agent for US Momentum Terminal. Read the complete handoff package before making implementation decisions. First produce a concise architecture and task plan, identify the open decisions that block reliable implementation, and propose the project skeleton. Do not start by implementing the entire application in one pass. Follow `AGENT_RULES.md`, `DEVELOPMENT_ROADMAP.md`, and the quantitative rules exactly. Build in small, testable phases and report files changed, tests run, results, assumptions and unresolved issues after each task.
 
 ## Source hierarchy
 

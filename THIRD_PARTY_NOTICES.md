@@ -46,12 +46,15 @@ distribution for the authoritative terms.
 
 ## Documentation and design references
 
-Material under `docs/` that was produced by a third party — including the
-conceptual UI blueprint and visual reference images in
-`docs/source-brief/UI_REFERENCES/` — remains subject to the rights of its
-respective owner and is not covered by the MIT License. Screenshots of the
-application itself under `docs/audit-screenshots/` and
-`docs/reference-screenshots/` are project documentation.
+Screenshots of the application itself under `docs/audit-screenshots/` and
+`docs/reference-screenshots/` are project documentation and are covered by the
+MIT License.
 
-The reference material in `docs/source-brief/` is retained for traceability of
-the original project brief and academic-integrity requirements.
+Course-provided documents (the IEDA 1180 course guidelines, the original project
+proposal and the original full project guide) and third-party design material
+(the Miyama Graphics visual reference and the conceptual UI blueprint images)
+are **not redistributed** in this repository. They were removed from the public
+repository because redistribution is not clearly permitted; the originals are
+kept locally only. The written design direction derived from them is preserved
+in `docs/source-brief/UI_DESIGN_BLUEPRINT.md`, which remains project-authored
+documentation.

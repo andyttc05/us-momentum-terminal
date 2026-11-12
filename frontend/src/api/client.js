@@ -1,5 +1,12 @@
-// Thin fetch wrapper for the local data service. The browser only ever talks to
-// this origin (/api/...); provider API keys stay on the server.
+// Thin fetch wrapper for the data service. The browser only ever talks to one
+// base URL (/api/...); provider API keys stay on the server.
+//
+// Local development leaves VITE_API_BASE_URL unset, so requests keep using the
+// Vite proxy (`/api` -> the local FastAPI service). The GitHub Pages build sets
+// it to the hosted Render backend. Either way the base is resolved once here,
+// never hardcoded across components.
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
 
 const TIMEOUT_MS = 30_000;
 
@@ -16,7 +23,7 @@ async function request(path, { method = "GET", timeout = TIMEOUT_MS, body } = {}
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), timeout);
   try {
-    const response = await fetch(`/api${path}`, {
+    const response = await fetch(`${API_BASE}${path}`, {
       method,
       headers: { Accept: "application/json", ...(body ? { "Content-Type": "application/json" } : {}) },
       body: body ? JSON.stringify(body) : undefined,

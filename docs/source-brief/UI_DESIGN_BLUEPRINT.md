@@ -1,5 +1,10 @@
 # UI Design Blueprint — Approved Visual Direction
 
+> Note: the reference screenshot images in `UI_REFERENCES/` (including the Miyama
+> visual reference) are third-party design material and are not redistributed in
+> this repository. This document preserves the written design direction they
+> supported; the image file names below are retained for traceability only.
+
 ## 1. Product visual identity
 
 The approved design direction combines Miyama Graphics-inspired Japanese graphic design with an approachable premium finance dashboard and Apple-style simplicity.

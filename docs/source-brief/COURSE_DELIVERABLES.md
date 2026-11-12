@@ -1,6 +1,6 @@
 # IEDA 1180 Course Deliverables and Academic Constraints
 
-This file summarises the uploaded `IEDA_1180_Course_Project_Guidelines_Fall_2026.pdf`. The original PDF is retained in `SOURCE_DOCUMENTS/` and is the authority for course requirements.
+This file summarises the uploaded `IEDA_1180_Course_Project_Guidelines_Fall_2026.pdf`. The original PDF is a course-provided document and is therefore **not redistributed** in this repository (it is kept locally only).
 
 ## 1. Course project principles
 

@@ -116,7 +116,7 @@ class _BatchMixin:
 
             fetched_at = _now()
             bars = []
-            adjusted = (
+            adjusted = bool(
                 "Adj Close" in series_frame.columns
                 and series_frame["Adj Close"].notna().all()
             )
@@ -209,7 +209,7 @@ class YahooProvider(_BatchMixin, ProviderAdapter):
 
         fetched_at = _now()
         bars: list[NormalizedBar] = []
-        adjusted = "Adj Close" in frame.columns and frame["Adj Close"].notna().all()
+        adjusted = bool("Adj Close" in frame.columns and frame["Adj Close"].notna().all())
         for index, row in frame.iterrows():
             try:
                 date = index.strftime("%Y-%m-%d")
