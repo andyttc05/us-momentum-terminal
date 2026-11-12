@@ -60,7 +60,12 @@ function useTableScrollHint(ref, dependencies) {
 
     const update = () => {
       const max = node.scrollWidth - node.clientWidth;
-      setState({ scrollable: max > 1, atEnd: max > 1 && node.scrollLeft >= max - 1 });
+      setState((current) => {
+        const next = { scrollable: max > 1, atEnd: max > 1 && node.scrollLeft >= max - 1 };
+        // Reuse the previous object when nothing changed, so React can bail out
+        // instead of re-rendering on every scroll and resize notification.
+        return current.scrollable === next.scrollable && current.atEnd === next.atEnd ? current : next;
+      });
     };
 
     update();
@@ -113,7 +118,10 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
   );
 
   const tableScrollRef = useRef(null);
-  const tableScroll = useTableScrollHint(tableScrollRef, [visibleHoldings, sort]);
+  // Only primitive values are depended on: the visible page and the sort order.
+  // Depending on the sliced array itself would re-run the effect on every
+  // render, because `.slice()` returns a new array each time.
+  const tableScroll = useTableScrollHint(tableScrollRef, [currentPage, sort.key, sort.direction, sortedHoldings.length]);
 
   function toggleSort(key) {
     setSort((current) => current.key === key
