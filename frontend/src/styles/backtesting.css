@@ -17,15 +17,24 @@
   align-items: center;
   gap: var(--card-gap);
   min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
   padding: 7px 18px;
   border: 1px solid rgb(234 228 220 / 78%);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
   box-shadow: var(--shadow-card);
 }
+.backtest-date-group { min-width: 0; max-width: 100%; }
 .backtest-date-field { display: flex; min-width: 0; align-items: center; gap: 10px; color: var(--color-ink); font-size: var(--font-size-sm); font-weight: var(--font-weight-bold); white-space: nowrap; }
-.backtest-date-field input { width: 100%; min-width: 0; height: 42px; padding: 0 12px; border: 1px solid var(--color-line); border-radius: var(--radius-pill); background: var(--color-surface-soft); color: var(--color-ink); font-size: 0.82rem; font-weight: 700; }
+.backtest-date-field input { box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; min-inline-size: 0; max-inline-size: 100%; height: 42px; padding: 0 12px; border: 1px solid var(--color-line); border-radius: var(--radius-pill); background: var(--color-surface-soft); color: var(--color-ink); font-size: 0.82rem; font-weight: 700; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; overflow: hidden; }
+.backtest-date-field input::-webkit-datetime-edit,
+.backtest-date-field input::-webkit-date-and-time-value { min-width: 0; max-width: 100%; overflow: hidden; }
 .backtest-date-field input:hover { border-color: #D8D0C6; }
+.backtest-date-group.is-invalid .backtest-date-field input { border-color: #D8848B; }
+.backtest-date-error { display: flex; min-width: 0; align-items: flex-start; gap: 6px; margin: 6px 0 0 calc(84px + 10px); color: #A84D57; font-size: 0.72rem; font-weight: 700; line-height: 1.3; }
+.backtest-date-error svg { flex: 0 0 auto; margin-top: 1px; }
+.backtest-date-error span { min-width: 0; overflow-wrap: anywhere; }
 .backtest-control-separator { width: 1px; height: 32px; background: var(--color-line); }
 .backtest-segmented { display: inline-flex; min-width: 0; gap: 3px; padding: 4px; border: 1px solid var(--color-line); border-radius: var(--radius-pill); background: var(--color-surface-soft); }
 .backtest-segmented button { min-width: 0; min-height: 38px; flex: 1 1 0; padding: 0 10px; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--color-ink); cursor: pointer; font-size: 0.88rem; font-weight: var(--font-weight-bold); white-space: nowrap; transition: background-color 180ms ease, color 180ms ease; }
@@ -33,7 +42,6 @@
 .backtest-segmented button[aria-pressed="true"] { background: var(--color-yellow); }
 .backtest-run-button { min-height: 44px; gap: 12px; font-size: 0.9rem; white-space: nowrap; }
 .backtest-run-button svg { fill: currentColor; }
-.backtest-date-error { position: absolute; right: 18px; bottom: -23px; z-index: 4; margin: 0; padding: 2px 10px; border-radius: var(--radius-pill); background: var(--color-negative-soft); color: var(--color-negative); font-size: 0.73rem; font-weight: 800; }
 
 .backtest-kpis { display: grid; min-width: 0; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--card-gap); }
 .backtest-kpis .kpi-card:nth-child(1) .kpi-card__value,

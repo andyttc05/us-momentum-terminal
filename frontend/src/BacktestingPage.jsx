@@ -5,6 +5,7 @@ import {
   Play,
   Scales,
   Stack,
+  WarningCircle,
 } from "@phosphor-icons/react";
 import { AppButton } from "./components/AppButton.jsx";
 import { DashboardCard } from "./components/DashboardCard.jsx";
@@ -379,13 +380,32 @@ export function BacktestingPage({ hidden = false }) {
 
         <section className="backtest-controls" aria-label="Backtest controls">
           <label className="backtest-date-field"><span>Start Date</span><input type="date" min={block?.start ?? ""} max={block?.end ?? ""} value={startDate} onInput={(event) => setStartDate(event.target.value)} onChange={(event) => setStartDate(event.target.value)} /></label>
-          <label className="backtest-date-field"><span>End Date</span><input type="date" min={block?.start ?? ""} max={block?.end ?? ""} value={endDate} onInput={(event) => setEndDate(event.target.value)} onChange={(event) => setEndDate(event.target.value)} /></label>
+          <div className={`backtest-date-group${dateError ? " is-invalid" : ""}`}>
+            <label className="backtest-date-field">
+              <span>End Date</span>
+              <input
+                type="date"
+                min={block?.start ?? ""}
+                max={block?.end ?? ""}
+                value={endDate}
+                aria-invalid={Boolean(dateError)}
+                aria-describedby={dateError ? "backtest-date-error" : undefined}
+                onInput={(event) => setEndDate(event.target.value)}
+                onChange={(event) => setEndDate(event.target.value)}
+              />
+            </label>
+            {dateError && (
+              <p className="backtest-date-error" id="backtest-date-error" role="alert">
+                <WarningCircle size={15} weight="fill" aria-hidden="true" />
+                <span>{dateError}</span>
+              </p>
+            )}
+          </div>
           <div className="backtest-control-separator" aria-hidden="true" />
           <div className="backtest-segmented backtest-portfolio-choice" role="group" aria-label="Portfolio selection">
             {[["top100", "Top 100"], ["top20", "Top 20%"]].map(([value, label]) => <button key={value} type="button" aria-pressed={portfolio === value} onClick={() => setPortfolio(value)}>{label}</button>)}
           </div>
           <AppButton variant="primary" icon={Play} className="backtest-run-button" disabled={Boolean(dateError) || isRunning || !available} onClick={runBacktest}>{isRunning ? "Running…" : "Run Backtest"}</AppButton>
-          {dateError && <p className="backtest-date-error" role="alert">{dateError}</p>}
         </section>
 
         <section className="backtest-kpis" aria-label="Backtest summary">
