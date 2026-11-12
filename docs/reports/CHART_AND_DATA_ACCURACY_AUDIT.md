@@ -150,6 +150,12 @@ across roughly half the band while a `+8%` name stays flat, which is the honest 
 This changed scaling only. The line colour, stroke, 70 × 22 cell and 100 × 26 viewBox are unchanged,
 and no observation was added, removed, resampled or smoothed.
 
+Before and after, same snapshot and same rows:
+
+| Before | After |
+| --- | --- |
+| ![Screener sparklines before](../screenshots/screener-sparklines-before.png) | ![Screener sparklines after](../screenshots/screener-sparklines-after.png) |
+
 ### 4.3 Backtesting KPIs were derived in JavaScript (corrected)
 
 **Symptom.** `BacktestingPage.jsx` carried its own `computeMetrics()` that recomputed cumulative

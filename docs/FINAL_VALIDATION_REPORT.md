@@ -1,6 +1,6 @@
 # Final Validation Report
 
-Validation date: 12 November 2026
+Validation date: 13 November 2026
 Market data as of: 12 November 2026
 
 ## Release Status
@@ -16,14 +16,15 @@ point-in-time market reconstruction and does not establish future investment per
 
 | Check | Command | Result |
 | --- | --- | --- |
-| Python unit tests | `npm run data:test` | 15 passed |
-| Frontend unit tests | `npm --prefix frontend run test:unit` | 26 passed |
+| Python unit tests | `npm run data:test` | 36 passed |
+| Frontend unit tests | `npm --prefix frontend run test:unit` | 41 passed |
 | Sites worker tests | `npm run test:sites` | 4 passed |
 | Production build | `npm run build` | Passed |
 | Live API verification | `npm run data:verify` | Passed |
 
-The frontend unit command includes the Sites worker tests in its standard glob, so the combined
-frontend result is 26 unique tests; the separate Sites command is shown for deployment verification.
+The frontend unit command runs every `frontend/tests/*.test.mjs` file, including the Sites worker
+test, so the 41 figure already covers it; the separate Sites command is shown for deployment
+verification.
 
 ## Live API Verification
 
@@ -35,7 +36,7 @@ The local FastAPI service returned a current publication with:
 - A strictly ordered rank sequence from 1 through 198.
 - Independent momentum recomputation within tolerance for AAPL, MSFT, NVDA, META and JPM.
 - 100 portfolio holdings with 100.000000% total final weight.
-- Maximum individual weight of 8.999997%.
+- Maximum individual weight of 9.000000%.
 - Maximum constraint-sector-group weight of 35.000000%.
 - All portfolio constraints passing.
 - 18 March/September backtest rebalances with execution after each signal.
@@ -49,8 +50,8 @@ Generated evidence is stored in `data-service/docs/verification.json`.
 | Metric | Result |
 | --- | ---: |
 | Window | 2 Apr 2018 to 12 Nov 2026 |
-| Cumulative return | 366.0% |
-| CAGR | 19.5% |
+| Cumulative return | 366.9% |
+| CAGR | 19.6% |
 | Annualized volatility | 18.8% |
 | Maximum drawdown | −34.7% |
 | Sharpe Ratio, 0% risk-free | 1.05 |

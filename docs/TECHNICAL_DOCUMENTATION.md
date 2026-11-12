@@ -134,6 +134,37 @@ Charts are implemented with responsive SVG components. Tables use semantic HTML 
 controls and accessible labels. CSS is split into shared tokens/components/layout files and
 page-specific files.
 
+### Shared Components
+
+Several presentation rules are shared across pages and should not be re-implemented per page.
+
+- `components/UpdateBar.jsx` is the only freshness control. It renders the state dot, label, date,
+  divider and refresh button, and derives its state from `useMarket()` so the label and the dot can
+  never disagree with the in-flight request. Pages pass only a `date` / `dateTime` override and an
+  optional `onRefresh`.
+- `components/Pagination.jsx` and `styles/pagination.css` are shared by Screener and Portfolio. The
+  active page is a per-button class rather than a sliding indicator, so the outgoing page clears in
+  the same frame and every slot keeps one button width.
+- `components/Toast.jsx` is the single notice card for data-status and page-level events.
+- `components/SectorAllocation.jsx` shows the six largest positive sectors and folds the remainder
+  into one static "Other" entry. The donut, the legend and the grouped values come from the same
+  array, so the three cannot diverge.
+- All mascots use `Mascot` / `MascotDuo` with `useMascotAnimation`. Eyes never track the pointer;
+  blink timing, `prefers-reduced-motion` behaviour and the SVG geometry are fixed.
+- Stock navigation always goes through `useStockNavigation()` / `stockPath(ticker)`; `/stock/...`
+  strings are never assembled by hand.
+
+### 12–1 Momentum Series
+
+`frontend/src/utils/momentumSeries.js` is the only place the momentum chart series is read. The
+server publishes `sparkline12_1` — the adjusted closes sliced to the exact 12–1 window and indexed to
+100 — and the module validates it and projects it into a drawing box. It performs no financial
+arithmetic.
+
+The vertical domain is computed once from the whole universe in log space, so an equal percentage
+move occupies an equal amount of height at any price level, and sorting, searching or paginating the
+Screener can never rescale a row. The base of 100 is always inside the domain.
+
 ### Responsive Layout
 
 The application uses a fixed labelled sidebar on desktop, preserves the compact icon sidebar on

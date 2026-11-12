@@ -534,7 +534,6 @@
   .project-info__sections { margin-top: 18px; }
   .project-info__sections > div { grid-template-columns: 88px minmax(0, 1fr); gap: 12px; padding: 11px 0; }
   .project-info__links { grid-template-columns: 1fr; }
-  .status-indicator { font-size: 0.68rem; }
   .overview-grid__side { grid-template-columns: 1fr; }
   .sector-card .dashboard-card__header { align-items: center; flex-direction: row; }
   .update-bar { gap: 7px; padding-left: 10px; }

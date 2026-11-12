@@ -129,13 +129,6 @@ button:focus-visible, a:focus-visible { outline: none; box-shadow: var(--focus-r
 .app-button--secondary:hover { border-color: #D8D0C6; }
 .app-button:disabled { cursor: not-allowed; opacity: 0.65; }
 
-.status-indicator { display: inline-flex; align-items: center; gap: var(--space-2); min-height: 28px; color: var(--color-text-secondary); font-size: var(--font-size-meta); font-weight: var(--font-weight-bold); white-space: nowrap; }
-.status-indicator__dot { width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%; background: currentColor; }
-.status-indicator--ready { color: var(--color-positive); }
-.status-indicator--stale { color: var(--color-warning); }
-.status-indicator--error { color: var(--color-negative); }
-.status-indicator--neutral { color: var(--color-text-muted); }
-
 .sidebar {
   position: fixed;
   z-index: 10;
