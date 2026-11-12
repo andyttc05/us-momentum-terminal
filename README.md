@@ -325,3 +325,6 @@ third-party market data, third-party libraries, fonts, icons or other
 third-party assets, which remain subject to their own original licenses and
 terms of use. The MIT License grants no permission to redistribute restricted
 financial data.
+
+See [Third-Party Notices](THIRD_PARTY_NOTICES.md) for the details of every
+third-party component, provider and asset used by this project.
