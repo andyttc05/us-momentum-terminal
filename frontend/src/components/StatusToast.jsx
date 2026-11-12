@@ -36,7 +36,7 @@ export function StatusToast() {
     return { ...resolved, retry: resolved.id === "error" };
   }, [dataNotice, error, meta, refreshing, status]);
 
-  const key = state?.key ?? "";
+  const key = state?.key ?? state?.id ?? "";
 
   useEffect(() => {
     if (!state || state.id === "error" || dismissedKey === key) return undefined;
@@ -50,7 +50,7 @@ export function StatusToast() {
     setRetrying(true);
     setDismissedKey("");
     if (data?.stocks?.length) await refresh();
-    else await reload({ isRefresh: true });
+    else await reload({ isRefresh: true, trackCompletion: true });
     setRetrying(false);
   }
 

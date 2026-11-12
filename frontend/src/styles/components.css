@@ -175,7 +175,7 @@ button:focus-visible, a:focus-visible { outline: none; box-shadow: var(--focus-r
 }
 .project-info-dialog {
   position: fixed;
-  inset: 0 0 0 var(--sidebar-width);
+  inset: 0;
   width: min(600px, calc(100vw - 40px));
   max-width: 600px;
   height: max-content;

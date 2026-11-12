@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-12T14:51:22+00:00",
+  "generated_at": "2026-11-12T15:06:03+00:00",
   "checks": {
     "universe": {
       "requested": 200,
@@ -36,17 +36,17 @@
         [
           3,
           "HPE",
-          3.985
+          3.9878
         ],
         [
           4,
           "ARW",
-          3.4884
+          3.4913
         ],
         [
           5,
           "DAR",
-          3.3933
+          3.3942
         ]
       ]
     },
@@ -58,15 +58,15 @@
           "momentum_12_1_recomputed": 24.94,
           "momentum_12_1_app": 24.9,
           "delta": 0.039,
-          "momentum_6m_recomputed": 19.85,
-          "momentum_6m_app": 19.8,
+          "momentum_6m_recomputed": 20.32,
+          "momentum_6m_app": 20.3,
           "volatility_recomputed": 24.9,
           "volatility_app": 24.9,
           "risk_adjusted_recomputed": 15.9,
           "risk_adjusted_app": 15.9,
           "score_from_displayed_z": 1.73,
-          "score_app": 1.732,
-          "score_delta_from_displayed_z": 0.002
+          "score_app": 1.7321,
+          "score_delta_from_displayed_z": 0.0021
         },
         "MSFT": {
           "bars_endpoint_last_date": "2026-11-12",
@@ -74,15 +74,15 @@
           "momentum_12_1_recomputed": 5.78,
           "momentum_12_1_app": 5.8,
           "delta": 0.02,
-          "momentum_6m_recomputed": 28.35,
-          "momentum_6m_app": 28.3,
-          "volatility_recomputed": 33.9,
-          "volatility_app": 33.9,
+          "momentum_6m_recomputed": 28.8,
+          "momentum_6m_app": 28.8,
+          "volatility_recomputed": 34.0,
+          "volatility_app": 34.0,
           "risk_adjusted_recomputed": 2.7,
           "risk_adjusted_app": 2.7,
           "score_from_displayed_z": 0.813,
-          "score_app": 0.8139,
-          "score_delta_from_displayed_z": 0.0009
+          "score_app": 0.814,
+          "score_delta_from_displayed_z": 0.001
         },
         "NVDA": {
           "bars_endpoint_last_date": "2026-11-12",
@@ -90,15 +90,15 @@
           "momentum_12_1_recomputed": 14.84,
           "momentum_12_1_app": 14.8,
           "delta": 0.043,
-          "momentum_6m_recomputed": -32.4,
-          "momentum_6m_app": -32.4,
-          "volatility_recomputed": 39.4,
-          "volatility_app": 39.4,
-          "risk_adjusted_recomputed": 5.98,
-          "risk_adjusted_app": 5.98,
+          "momentum_6m_recomputed": -31.44,
+          "momentum_6m_app": -31.4,
+          "volatility_recomputed": 39.1,
+          "volatility_app": 39.1,
+          "risk_adjusted_recomputed": 6.02,
+          "risk_adjusted_app": 6.02,
           "score_from_displayed_z": 1.01,
-          "score_app": 1.0101,
-          "score_delta_from_displayed_z": 0.0001
+          "score_app": 1.0132,
+          "score_delta_from_displayed_z": 0.0032
         },
         "META": {
           "bars_endpoint_last_date": "2026-11-12",
@@ -106,15 +106,15 @@
           "momentum_12_1_recomputed": 18.01,
           "momentum_12_1_app": 18.0,
           "delta": 0.014,
-          "momentum_6m_recomputed": 1.81,
-          "momentum_6m_app": 1.8,
+          "momentum_6m_recomputed": 0.91,
+          "momentum_6m_app": 0.9,
           "volatility_recomputed": 41.6,
           "volatility_app": 41.6,
           "risk_adjusted_recomputed": 6.88,
           "risk_adjusted_app": 6.88,
           "score_from_displayed_z": 1.08,
-          "score_app": 1.0753,
-          "score_delta_from_displayed_z": 0.0047
+          "score_app": 1.0755,
+          "score_delta_from_displayed_z": 0.0045
         },
         "JPM": {
           "bars_endpoint_last_date": "2026-11-12",
@@ -122,15 +122,15 @@
           "momentum_12_1_recomputed": 8.27,
           "momentum_12_1_app": 8.3,
           "delta": 0.025,
-          "momentum_6m_recomputed": 15.88,
-          "momentum_6m_app": 15.9,
+          "momentum_6m_recomputed": 15.81,
+          "momentum_6m_app": 15.8,
           "volatility_recomputed": 23.0,
           "volatility_app": 23.0,
           "risk_adjusted_recomputed": 5.72,
           "risk_adjusted_app": 5.72,
           "score_from_displayed_z": 0.9901,
-          "score_app": 0.9911,
-          "score_delta_from_displayed_z": 0.001
+          "score_app": 0.9913,
+          "score_delta_from_displayed_z": 0.0012
         }
       },
       "all_within_tolerance": true
@@ -192,10 +192,10 @@
       "total_weight": 100.0,
       "max_single_weight": 8.999997,
       "max_sector_weight": 35.0,
-      "raw_formula_max_error": 4.9e-05,
+      "raw_formula_max_error": 5e-05,
       "float_caps_available": true,
       "sector_totals": {
-        "Energy": 12.3,
+        "Energy": 12.4,
         "Technology": 35.0,
         "Consumer Staples": 11.1,
         "Industrials": 3.8,
@@ -204,7 +204,7 @@
         "Financials": 8.1,
         "Materials": 1.5,
         "Real Estate": 1.0,
-        "Communication": 14.1,
+        "Communication": 14.0,
         "Utilities": 0.3
       },
       "all_constraints_pass": true,
@@ -249,8 +249,8 @@
       "starts_below_100_by_initial_cost": true,
       "drawdown_non_positive": true,
       "metrics": {
-        "cumulative_return": 366.8,
-        "cagr": 19.6,
+        "cumulative_return": 366.0,
+        "cagr": 19.5,
         "annualized_volatility": 18.8,
         "max_drawdown": -34.7,
         "sharpe": 1.05,
@@ -279,8 +279,8 @@
       ]
     },
     "backtest_top20": {
-      "cumulative_return": 497.8,
-      "cagr": 23.1,
+      "cumulative_return": 495.5,
+      "cagr": 23.0,
       "annualized_volatility": 22.2,
       "max_drawdown": -32.1,
       "sharpe": 1.05,
@@ -293,18 +293,18 @@
       "AAPL": {
         "twelve_data": {
           "date": "2026-11-12",
-          "close": 357.26
+          "close": 358.525
         },
         "yahoo_via_app": {
           "date": "2026-11-12",
-          "close": 357.095
+          "close": 358.4955
         },
-        "difference_pct": -0.046
+        "difference_pct": -0.008
       },
       "QQQ": {
         "twelve_data": {
           "date": "2026-11-12",
-          "close": 685.85
+          "close": 685.745
         },
         "yahoo_via_app": null
       }
@@ -317,7 +317,7 @@
       "is_backup": false,
       "backup_symbols": [],
       "timeliness": "delayed",
-      "generated_at": "2026-11-12T14:49:30+00:00",
+      "generated_at": "2026-11-12T15:04:49+00:00",
       "all_rows_carry_source": true
     },
     "passed": true

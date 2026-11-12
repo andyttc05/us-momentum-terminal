@@ -49,8 +49,8 @@ Generated evidence is stored in `data-service/docs/verification.json`.
 | Metric | Result |
 | --- | ---: |
 | Window | 2 Apr 2018 to 12 Nov 2026 |
-| Cumulative return | 366.8% |
-| CAGR | 19.6% |
+| Cumulative return | 366.0% |
+| CAGR | 19.5% |
 | Annualized volatility | 18.8% |
 | Maximum drawdown | −34.7% |
 | Sharpe Ratio, 0% risk-free | 1.05 |
@@ -71,6 +71,7 @@ At every size:
 
 - The established dashboard layout remains intact.
 - The secondary “About” navigation item is reachable by keyboard and pointer.
+- The modal is centered on both axes within the entire browser viewport.
 - The modal closes by close button, Escape key and outside click.
 - Background scrolling is locked while the modal is open.
 - The information panel remains within the viewport and scrolls internally when height is limited.
@@ -86,6 +87,7 @@ The shared data-refresh state was also checked end to end:
 - Bringing the local API down produced one final “Update failed” toast with Retry.
 - Restarting the API and pressing Retry hid both notifications during the update.
 - The completed refresh returned to a final updated state without duplicate polling notices.
+- A no-data retry cleared the stale failure state and finished with “Data updated”.
 
 At 1440 × 900, the Screener table card and the Overview/Backtesting card rows end at the same shared
 bottom rhythm. Each measured a 28 px bottom gap with no page-level vertical overflow.

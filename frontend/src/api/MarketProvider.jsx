@@ -45,9 +45,13 @@ export function MarketProvider({ children }) {
     setDataNotice({ id, key: `${signature}:${Date.now()}` });
   }, []);
 
-  const load = useCallback(async ({ isRefresh = false } = {}) => {
+  const load = useCallback(async ({ isRefresh = false, trackCompletion = false } = {}) => {
     if (STATIC_SHOWCASE) return false;
     if (isRefresh) setRefreshing(true);
+    if (trackCompletion) {
+      noticePending.current = true;
+      lastNoticeSignature.current = "";
+    }
     let backgroundRefresh = false;
     try {
       const payload = await api.snapshot();
