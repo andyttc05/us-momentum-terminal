@@ -285,7 +285,7 @@
     align-items: center;
     gap: 9px;
     font-size: 0.92rem;
-    font-weight: var(--font-weight-medium);
+    font-weight: var(--font-weight-bold);
   }
   .portfolio-sector-content .sector-legend__name i {
     width: 11px;

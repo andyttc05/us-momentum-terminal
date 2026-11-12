@@ -139,11 +139,13 @@
 .sector-legend { display: grid; align-content: center; gap: 5px; margin: 0; padding: 0; list-style: none; }
 .sector-legend li, .sector-legend__name { display: flex; align-items: center; }
 .sector-legend li { min-height: 21px; justify-content: space-between; gap: 9px; color: var(--color-ink); font-size: 0.71rem; line-height: 1.25; }
-.sector-legend__name { min-width: 0; align-items: flex-start; gap: 7px; white-space: normal; }
+/* Every category label — including "Other" — carries the same bold weight, so
+   the donut, the category and the percentage read as one unit. The value stays
+   a step heavier (`--font-weight-black`) to keep the number first. */
+.sector-legend__name { min-width: 0; align-items: flex-start; gap: 7px; font-weight: var(--font-weight-bold); white-space: normal; }
 .sector-legend__name i { width: 10px; height: 10px; flex: 0 0 10px; margin-top: 2px; border-radius: 50%; background: var(--sector-color); }
 .sector-legend strong { flex: 0 0 auto; font-size: 0.74rem; font-weight: var(--font-weight-black); font-variant-numeric: tabular-nums; }
 .sector-allocation__other { min-height: 21px; justify-content: space-between; }
-.sector-allocation__other > .sector-legend__name { font-weight: var(--font-weight-bold); }
 
 /* Phones (≤ 767px): Sector Allocation renders fewer named sectors (the
    component drops to Top 5 + Other), so each row can afford a comfortable
@@ -164,7 +166,7 @@
   align-items: center;
   gap: 9px;
   font-size: 0.92rem;
-  font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-bold);
 }
 .sector-allocation--compact .sector-legend__name i {
   width: 11px;
