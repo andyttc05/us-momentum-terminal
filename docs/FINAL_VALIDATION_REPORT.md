@@ -23,7 +23,7 @@ test deletion was avoided; disposable files were moved to the macOS Trash for re
 |---|---|
 | Data service startup | PASS |
 | Frontend development startup | PASS |
-| Published stocks | 306 eligible common stocks from 308 scanned |
+| Published stocks | 198 eligible common stocks from 200 scanned |
 | Portfolio holdings | 100 |
 | Portfolio total weight | 100.000000% |
 | Portfolio stock cap | 9.000000% maximum |
@@ -43,7 +43,7 @@ Command:
 npm run data:test
 ```
 
-Result: **12 passed, 0 failed**
+Result: **13 passed, 0 failed**
 
 Coverage includes momentum score boundaries, Z-score capping, zero dispersion, 12-1 timing, daily
 risk adjustment, adjusted-close-only construction, portfolio raw weights and caps, infeasibility,
@@ -57,7 +57,7 @@ Command:
 npm run test:frontend
 ```
 
-Result: **16 passed, 0 failed**
+Result: **20 passed, 0 failed**
 
 Coverage includes portfolio CSV rank preservation and float-adjusted cap values, Sites asset
 serving, route fallback, API-route protection and required build artifacts.
@@ -82,7 +82,7 @@ Result: **PASS**
 
 Key outputs:
 
-- 308 scanned, 306 eligible.
+- 200 scanned, 198 eligible.
 - TSM excluded as an ADR.
 - PARA excluded under the $5 common-stock price rule after the reused-symbol anomaly.
 - WBA unavailable.
@@ -164,7 +164,7 @@ No build warnings or errors were reported.
 
 Executed against the local development server and live data service:
 
-- Overview loaded with 308 scanned, 306 eligible and 100 portfolio stocks.
+- Overview loaded with 200 scanned, 198 eligible and 100 portfolio stocks.
 - Screener Top 100 displayed exactly 100 rows.
 - Stock Analysis navigation from MPC worked and returned to Screener.
 - Portfolio showed 100 holdings and four passing constraints.
@@ -276,7 +276,7 @@ US_Momentum_Terminal/
 
 ## Important Issues Remaining
 
-1. The live candidate universe is a curated 308-symbol list, not a complete daily scan of all US
+1. The live candidate universe is a curated 200-symbol list, not a complete daily scan of all US
    common stocks.
 2. Historical constituents, stable security identifiers and delisting returns are unavailable.
 3. Historical float-adjusted market caps are unavailable, so the backtest uses equal weights.

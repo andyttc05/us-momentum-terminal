@@ -62,8 +62,8 @@ The FastAPI application is in `data-service/app`.
 - `momentum.py`: price metrics, Z-score and Momentum Score.
 - `portfolio.py`: raw weights, caps and infeasibility handling.
 - `backtest.py`: semiannual signal timing, execution, costs and performance metrics.
-- `universe.py` and `universe_expansion.py`: audited core, 200 mid-cap additions and benchmark
-  metadata.
+- `universe.py` and `universe_expansion.py`: audited core, 200-symbol mid-cap candidate pool,
+  92-symbol live selection and benchmark metadata.
 - `clock.py`: NYSE session state and timeliness.
 - `cache.py`: atomic JSON cache with TTL support.
 - `models.py`: normalized bar, series and quote contracts.
@@ -115,6 +115,10 @@ The model portfolio:
 The solver returns a failure reason if too few holdings or sectors exist to reach 100% under the
 caps.
 
+The weighting solver retains the existing sector-group definitions. The returned holding sector and
+legend now expose the provider-backed detailed categories, so Financials, Energy, Materials,
+Utilities and Real Estate are no longer collapsed into "Others" in presentation.
+
 ### Backtesting Engine
 
 The historical engine uses adjusted close as its price series. It forms signals at the final March
@@ -143,7 +147,7 @@ lightweight `warming` payload when no cache exists. The browser polls during the
 Expired bar and quote caches are retained as fallback and are clearly marked rather than serving
 them as fresh.
 
-The release also includes a fully verified 306-stock publication seed. A new process with no disk
+The release also includes a fully verified 198-stock publication seed. A new process with no disk
 cache returns that seed as cached data while refreshing, avoiding an empty cold-start screen without
 inventing live values.
 
@@ -268,13 +272,13 @@ The implemented checks are:
 - At least $2 million average daily dollar volume over 63 sessions.
 - Latest observation equal to the common cross-sectional as-of date.
 
-The live candidate universe contains 308 unique symbols: 108 in the audited core and 200
-sector-balanced additions selected from an S&P MidCap 400 constituent snapshot. Exchange tags were
-checked against Nasdaq Trader listing files. It is broader than the prior scan but still not a
-complete exchange master.
+The live candidate universe contains 200 unique symbols: 108 in the audited core and 92 additions
+selected with static sector quotas from a 200-stock approved S&P MidCap 400 pool. Exchange tags were
+checked against Nasdaq Trader listing files. It is broader than the original 109-symbol scan but
+still not a complete exchange master.
 
 The historical backtest deliberately remains on the 108-symbol audited core rather than applying
-today's 200 additions retrospectively.
+today's 92 additions retrospectively.
 
 ### Momentum
 
@@ -330,7 +334,7 @@ the first 100 with a positive float-adjusted market cap.
 For candidate scaling factor `lambda`:
 
 1. Give each name `min(9%, lambda × preliminary weight)`.
-2. Sum each displayed sector group.
+2. Sum each solver sector group.
 3. Scale any sector above 35% back to 35%.
 4. Bisect `lambda` until the total allocation reaches 100%.
 5. Validate that all constraints still hold.
@@ -559,7 +563,7 @@ Secrets belong only in the root `.env`, which is ignored and loaded only by the 
 - Constraint feasibility.
 - NYSE holiday and early-close detection.
 - Semiannual execution and transaction costs.
-- 308-symbol live source uniqueness and 11-sector expansion coverage.
+- 200-symbol live source uniqueness and 11-sector selection coverage.
 - Separation of the expanded live scan from the historical backtest core.
 
 ### Live Integration Verification

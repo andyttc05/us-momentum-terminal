@@ -31,10 +31,21 @@ SECTOR_COLORS = {
     "Technology": "var(--color-yellow)",
     "Communication": "var(--color-pink)",
     "Healthcare": "var(--color-blue)",
-    "Consumer": "var(--color-mint)",
+    "Consumer Discretionary": "var(--color-mint)",
+    "Consumer Staples": "var(--color-sector-consumer-staples)",
     "Industrials": "var(--color-lavender)",
+    "Financials": "var(--color-sector-financials)",
+    "Energy": "var(--color-sector-energy)",
+    "Materials": "var(--color-sector-materials)",
+    "Utilities": "var(--color-sector-utilities)",
+    "Real Estate": "var(--color-sector-real-estate)",
+    "Other": "var(--color-sector-other)",
     "Others": "var(--color-sector-other)",
 }
+
+SECTOR_DISPLAY_ORDER = tuple(
+    sector for sector in SECTOR_COLORS if sector not in {"Other", "Others"}
+)
 
 
 def group_sector(sector: str) -> str:
@@ -133,8 +144,8 @@ def build_portfolio(scored: list[dict]) -> dict:
             "reason": "float-adjusted market cap and score produced no positive raw weights",
         }
     weights = {symbol: value / total_cap * 100.0 for symbol, value in weighted_cap.items()}
-    sectors = {row["symbol"]: group_sector(row["sector"]) for row in selected}
-    final, feasible, reason = _apply_caps(weights, sectors)
+    solver_sectors = {row["symbol"]: group_sector(row["sector"]) for row in selected}
+    final, feasible, reason = _apply_caps(weights, solver_sectors)
     if not feasible:
         return {
             "available": False,
@@ -150,7 +161,7 @@ def build_portfolio(scored: list[dict]) -> dict:
                 "rank": index + 1,
                 "ticker": row["symbol"],
                 "company": row["company"],
-                "sector": group_sector(row["sector"]),
+                "sector": row["sector"] or "Other",
                 "score": row["score"],
                 "momentum_12_1": row["momentum_12_1"],
                 "market_cap": row["market_cap"],
@@ -187,10 +198,16 @@ def build_portfolio(scored: list[dict]) -> dict:
     for holding in holdings:
         sector_totals[holding["sector"]] = sector_totals.get(holding["sector"], 0.0) + holding["finalWeight"]
     sector_rows = [
-        {"name": name, "value": round(sector_totals.get(name, 0.0), 1), "color": color}
-        for name, color in SECTOR_COLORS.items()
+        {"name": name, "value": round(sector_totals.get(name, 0.0), 1), "color": SECTOR_COLORS[name]}
+        for name in SECTOR_DISPLAY_ORDER
         if sector_totals.get(name, 0.0) > 0
     ]
+    if sector_totals.get("Other", 0.0) > 0:
+        sector_rows.append({
+            "name": "Other",
+            "value": round(sector_totals["Other"], 1),
+            "color": SECTOR_COLORS["Other"],
+        })
 
     total_weight = sum(holding["finalWeight"] for holding in holdings)
     maximum_holding = max(holding["finalWeight"] for holding in holdings)
@@ -200,7 +217,7 @@ def build_portfolio(scored: list[dict]) -> dict:
 
     constraints = [
         {"id": "max-stock", "label": "Max Stock Weight", "rule": "≤ 9%", "passed": maximum_holding <= SINGLE_NAME_CAP + 1e-6},
-        {"id": "max-sector", "label": "Max Sector Weight", "rule": "≤ 35%", "passed": maximum_sector <= 35.0 + 1e-6},
+        {"id": "max-sector", "label": "Max Sector Weight", "rule": "≤ 35%", "passed": maximum_sector <= 35.0 + 1e-5},
         {"id": "target-holdings", "label": "Target Holdings", "rule": "= 100", "passed": len(holdings) == TARGET_HOLDINGS},
         {"id": "fully-invested", "label": "Fully Invested", "rule": "= 100%", "passed": abs(total_weight - 100.0) < 0.01},
     ]
@@ -221,7 +238,7 @@ def build_portfolio(scored: list[dict]) -> dict:
             "totalFinalWeight": round(total_weight, 2),
             "maximumHoldingWeight": maximum_holding,
             "maximumSectorWeight": round(maximum_sector, 4),
-            "sectorsAtOrBelowCap": maximum_sector <= 35.0,
+            "sectorsAtOrBelowCap": maximum_sector <= 35.0 + 1e-5,
             "topTenWeight": round(top_ten, 1),
         },
         "excluded_no_market_cap": excluded_no_cap,

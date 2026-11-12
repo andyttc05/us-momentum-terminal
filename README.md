@@ -43,8 +43,8 @@ The main pages are Overview, Screener, Portfolio, Backtesting and Stock Analysis
 
 ## How The Strategy Works
 
-1. Start from 308 unique US common-stock candidates: the audited 108-symbol core plus 200
-   sector-balanced S&P MidCap 400 constituents.
+1. Start from a 200-symbol live universe: the audited 108-symbol core plus 92 sector-balanced
+   additions selected from the 200-symbol approved S&P MidCap 400 candidate pool.
 2. Keep common stocks listed on NYSE, NASDAQ or NYSE American, priced at least $5, with at least
    210 trading observations and a three-month average daily dollar volume of at least $2 million.
 3. Calculate 12-1 momentum from adjusted closing prices.
@@ -160,7 +160,7 @@ part of the current portfolio model.
 - Annualized turnover is reported with the backtest metrics.
 
 The backtest is not a point-in-time universe reconstruction. It continues to use the audited
-108-symbol core rather than retroactively applying today's 200 added mid-cap stocks to past dates.
+108-symbol core rather than retroactively applying today's mid-cap additions to past dates.
 See [Strategy Validation](docs/STRATEGY_VALIDATION_REPORT.md) for the full reliability assessment.
 
 ## Application Features
@@ -296,8 +296,8 @@ US_Momentum_Terminal/
 
 ## Important Limitations
 
-- The investable source list contains 308 symbols, not a complete daily scan of every US common
-  stock. At the 12 November 2026 audit, 308 were scanned and 306 passed all eligibility rules.
+- The live source list contains 200 symbols, not a complete daily scan of every US common stock.
+  At the 12 November 2026 audit, 200 were scanned and 198 passed all eligibility rules.
 - The provider is Yahoo Finance through an unofficial `yfinance` client.
 - Current market cap and float shares are not point-in-time historical fundamentals.
 - The backtest uses equal weights rather than the live portfolio's float-cap weighting.
@@ -322,6 +322,10 @@ The detailed source inventory, verification evidence and unresolved issues are i
 - [Product UI Audit](docs/PRODUCT_UI_AUDIT.md) — interface and responsive review.
 - [Tasks 28 And 29 Report](docs/TASK_28_29_IMPLEMENTATION_REPORT.md) — search, drawdown,
   universe-expansion and fetch-reliability details.
+- [Task 30 Animation Report](docs/TASK_30_ANIMATION_REPORT.md) — mascot blinking, eye tracking,
+  accessibility and responsive verification.
+- [Tasks 31-33 Report](docs/TASK_31_33_IMPLEMENTATION_REPORT.md) — 200-stock universe,
+  sector/top-momentum refinement and unified Screener card.
 - [Data Providers](data-service/docs/DATA_PROVIDERS.md) — provider chain, configuration and failover behaviour.
 - [Data Service README](data-service/README.md) — service-level detail and API reference.
 - [Frontend README](frontend/README.md) — frontend structure and component notes.

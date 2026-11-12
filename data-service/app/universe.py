@@ -133,13 +133,16 @@ CORE_UNIVERSE: tuple[UniverseMember, ...] = (
     UniverseMember("KMI", "Kinder Morgan", "Energy"),
 )
 
-from .universe_expansion import EXPANDED_UNIVERSE  # noqa: E402
+from .universe_expansion import EXPANDED_UNIVERSE, LIVE_UNIVERSE_ADDITIONS  # noqa: E402
 
-UNIVERSE: tuple[UniverseMember, ...] = CORE_UNIVERSE + EXPANDED_UNIVERSE
+UNIVERSE: tuple[UniverseMember, ...] = CORE_UNIVERSE + LIVE_UNIVERSE_ADDITIONS
 
 TICKERS: tuple[str, ...] = tuple(member.ticker for member in UNIVERSE)
 MEMBER_BY_TICKER: dict[str, UniverseMember] = {member.ticker: member for member in UNIVERSE}
 HISTORICAL_BACKTEST_TICKERS: tuple[str, ...] = tuple(member.ticker for member in CORE_UNIVERSE)
+CANDIDATE_TICKERS: tuple[str, ...] = tuple(
+    member.ticker for member in CORE_UNIVERSE + EXPANDED_UNIVERSE
+)
 
 # Benchmarks are tracked separately so they never enter the momentum ranking.
 BENCHMARKS: dict[str, str] = {

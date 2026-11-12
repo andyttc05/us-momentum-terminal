@@ -204,7 +204,7 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
           eyebrow="Stock"
           title="Screener"
           subtitle="Find momentum stocks"
-          art={<MascotDuo creamColor="var(--color-surface)" />}
+          art={<MascotDuo creamColor="var(--color-surface)" trackPointer />}
           controls={(
             <UpdateBar
               dateTime={snapshot?.asOf}
@@ -281,7 +281,7 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
           </div>
         </section>
 
-        <section className="screener-table-card" aria-label="Momentum stocks">
+        <section className="screener-table-card dashboard-card" aria-label="Momentum stocks">
           <div className="screener-table-scroll">
             <table className="screener-table">
               <colgroup>

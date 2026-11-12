@@ -1,3 +1,5 @@
+import { useMascotAnimation } from "./useMascotAnimation.js";
+
 const paths = {
   cream:
     "M87.22,50C87.43,54.97 85.85,60.78 83.7,65.19C81.56,69.61 77.85,73.47 74.35,76.5C70.85,79.53 66.77,81.8 62.71,83.38C58.65,84.97 54.22,86.07 50,86.03C45.78,85.99 41.19,85.01 37.38,83.15C33.57,81.3 30.01,78.17 27.12,74.89C24.24,71.62 21.96,67.65 20.05,63.5C18.15,59.35 16.41,54.81 15.72,50C15.02,45.19 14.6,39.45 15.87,34.62C17.14,29.78 19.89,24.31 23.32,20.97C26.76,17.63 32.06,15.41 36.51,14.55C40.95,13.7 45.86,14.89 50,15.84C54.14,16.79 57.62,18.58 61.33,20.23C65.04,21.89 68.75,23.25 72.27,25.77C75.79,28.29 79.96,31.33 82.45,35.37C84.94,39.41 87.01,45.03 87.22,50Z",
@@ -20,13 +22,20 @@ export function Mascot({
   eyeScale = 1,
   className = "",
   label,
+  trackPointer = false,
 }) {
   const path = paths[variant] ?? paths.mint;
   const ariaProps = label ? { role: "img", "aria-label": label } : { "aria-hidden": true };
+  const { svgRef, blinkRef, trackingRef } = useMascotAnimation({
+    trackPointer,
+    viewBoxWidth: 100,
+    viewBoxHeight: 100,
+  });
 
   return (
     <svg
       {...ariaProps}
+      ref={svgRef}
       className={`mascot-svg ${className}`.trim()}
       width={size}
       height={size}
@@ -37,8 +46,12 @@ export function Mascot({
     >
       <g transform={`rotate(${rotation} 50 50)`}>
         <path d={path} fill="var(--mascot-fill)" />
-        <ellipse cx={eyes.x1} cy={eyes.y1} rx={3.2 * eyeScale} ry={5.8 * eyeScale} fill="var(--color-ink)" />
-        <ellipse cx={eyes.x2} cy={eyes.y2} rx={3.2 * eyeScale} ry={5.8 * eyeScale} fill="var(--color-ink)" />
+        <g ref={trackingRef}>
+          <g ref={blinkRef} className="mascot-eye-blink">
+            <ellipse cx={eyes.x1} cy={eyes.y1} rx={3.2 * eyeScale} ry={5.8 * eyeScale} fill="var(--color-ink)" />
+            <ellipse cx={eyes.x2} cy={eyes.y2} rx={3.2 * eyeScale} ry={5.8 * eyeScale} fill="var(--color-ink)" />
+          </g>
+        </g>
       </g>
     </svg>
   );
@@ -50,19 +63,35 @@ const duoYellowPath =
   "M480.79,288C480.43,300.66 475.4,315.07 468.54,325.56C461.69,336.06 449.93,344.54 439.65,350.97C429.37,357.4 417.82,360.53 406.88,364.13C395.93,367.73 385.75,370.76 374,372.59C362.25,374.42 349.07,377.04 336.38,375.12C323.68,373.2 308.33,368.92 297.82,361.07C287.32,353.21 277.71,340.17 273.35,327.99C268.98,315.81 269.44,300.46 271.64,288C273.84,275.54 280.26,263.59 286.55,253.25C292.84,242.92 300.69,233.88 309.37,226.01C318.05,218.14 327.84,210.85 338.61,206.05C349.38,201.25 361.93,197.83 374,197.21C386.07,196.58 399.22,198.48 411,202.31C422.79,206.13 434.78,212.28 444.73,220.16C454.68,228.04 464.69,238.27 470.7,249.58C476.71,260.89 481.15,275.34 480.79,288Z";
 
 /** Two overlapping organic pebbles: a cream shape on top, a yellow shape tucked behind lower-right. */
-export function MascotDuo({ className = "", creamColor = "var(--color-cream)", yellowColor = "var(--color-yellow)" }) {
+export function MascotDuo({
+  className = "",
+  creamColor = "var(--color-cream)",
+  yellowColor = "var(--color-yellow)",
+  trackPointer = false,
+}) {
+  const { svgRef, blinkRef, trackingRef } = useMascotAnimation({
+    trackPointer,
+    viewBoxWidth: 530,
+    viewBoxHeight: 390,
+  });
   return (
     <svg
       aria-hidden="true"
+      ref={svgRef}
       className={`mascot-duo ${className}`.trim()}
+      data-track-pointer={trackPointer ? "true" : undefined}
       viewBox="0 0 530 390"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
       <path d={duoYellowPath} fill={yellowColor} />
       <path d={duoCreamPath} fill={creamColor} />
-      <ellipse cx="227" cy="184" rx="11" ry="20" fill="var(--color-ink)" />
-      <ellipse cx="273" cy="184" rx="11" ry="20" fill="var(--color-ink)" />
+      <g ref={trackingRef}>
+        <g ref={blinkRef} className="mascot-eye-blink">
+          <ellipse cx="227" cy="184" rx="11" ry="20" fill="var(--color-ink)" />
+          <ellipse cx="273" cy="184" rx="11" ry="20" fill="var(--color-ink)" />
+        </g>
+      </g>
     </svg>
   );
 }

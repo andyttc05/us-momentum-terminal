@@ -164,4 +164,5 @@ button:focus-visible, a:focus-visible { outline: none; box-shadow: var(--focus-r
 
 .mascot-svg { display: block; overflow: visible; }
 .mascot-duo { display: block; width: 100%; height: auto; }
+.mascot-eye-blink { transform-box: fill-box; transform-origin: center; }
 .mascot-duo--reverse { transform: scaleX(-1); }

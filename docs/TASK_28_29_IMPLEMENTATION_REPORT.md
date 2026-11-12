@@ -3,6 +3,10 @@
 Date: 12 November 2026  
 Latest data as-of: 11 November 2026
 
+> Historical stage note: this report records the 308-symbol expansion. Task 31 later reduced the
+> live scan to 200 total symbols (198 eligible). Use
+> `docs/TASK_31_33_IMPLEMENTATION_REPORT.md` for current counts.
+
 ## Outcome
 
 - Live source universe: **308 unique stocks**.

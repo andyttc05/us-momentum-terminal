@@ -15,9 +15,9 @@ duplicate dates, no out-of-order series, no missing adjusted or raw closes, no w
 and no exchange-holiday observations. AAPL and QQQ prices matched the public Twelve Data demo
 endpoint exactly on 11 November 2026.
 
-The active scan contains 308 unique US common-stock candidates: the audited 108-symbol core plus 200
-sector-balanced S&P MidCap 400 constituents. Yahoo Finance returned 308 usable series and 306
-stocks passed all universe and momentum rules. The dataset is not fully institutional-grade:
+The active scan contains 200 unique US common-stock candidates: the audited 108-symbol core plus 92
+sector-balanced additions from the full 200-symbol approved S&P MidCap 400 pool. Yahoo Finance
+returned 200 usable series and 198 stocks passed all universe and momentum rules. The dataset is not fully institutional-grade:
 Yahoo Finance is an unofficial provider, market caps and float shares are current rather than
 point-in-time, and most backup providers were not usable without paid credentials.
 
@@ -48,12 +48,12 @@ quote metadata, 15 minutes for the publication and 15 minutes for stock detail.
 | Date ordering | PASS | 0 unsorted series |
 | Missing close or adjusted close | PASS | 0 null price rows |
 | Weekend/holiday observations | PASS | 0 non-NYSE session dates in the cached bars |
-| Single cross-sectional as-of date | PASS | All 306 published stocks ended on 11 Nov 2026 |
+| Single cross-sectional as-of date | PASS | All 198 published stocks ended on 11 Nov 2026 |
 | Ticker uniqueness | PASS | No duplicate symbol in the published stock rows |
 | Ticker identity consistency | FAIL, corrected | `PARA` mixed two unrelated companies and extreme, implausible returns; current `PARA` is excluded by the $5 minimum-price rule |
-| Security-type filter | PASS after correction | ADR `TSM` is excluded; 306 common stocks remain |
+| Security-type filter | PASS after correction | ADR `TSM` is excluded; 198 common stocks remain |
 | Exchange filter | PASS | Published stocks map to NASDAQ or NYSE; exchange is provider-verified |
-| Currency consistency | PASS | 306 published stocks have USD market cap and quote currency |
+| Currency consistency | PASS | 198 published stocks have USD market cap and quote currency |
 | Minimum history | PASS | Smallest published history is 694 observations, above the 253-session momentum requirement |
 | Three-month dollar-volume filter | PASS | Every published stock clears the existing $2 million threshold |
 | Stale prices | PASS at snapshot level | All published stocks share 11 Nov 2026 as-of date |
@@ -118,8 +118,8 @@ Float shares are not independently verified against a second paid fundamentals p
 
 - Added provider security type, float shares, shares outstanding, three-month average volume and
   current quote price to quote records.
-- Added 200 sector-balanced S&P MidCap 400 common stocks, with exchange tags checked against Nasdaq
-  Trader's official listed-security files.
+- Added a 200-symbol approved mid-cap candidate pool and selected 92 additions with static sector
+  quotas, with exchange tags checked against Nasdaq Trader's official listed-security files.
 - Added explicit universe eligibility checks for exchange, common-stock type, USD currency, $5
   minimum price, 210 observations and $2 million three-month average dollar volume.
 - Separated universe eligibility from the 253-observation momentum-history requirement.
@@ -136,7 +136,7 @@ Float shares are not independently verified against a second paid fundamentals p
 
 ## Remaining Limitations
 
-- The universe is a source list of 308 symbols, not a complete exchange master or a daily scan of
+- The universe is a source list of 200 symbols, not a complete exchange master or a daily scan of
   all eligible US common stocks.
 - Yahoo Finance is an unofficial provider without a service-level agreement.
 - Current market cap and float shares cannot be applied retrospectively without look-ahead bias.

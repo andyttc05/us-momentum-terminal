@@ -34,3 +34,9 @@ The top-right pill is one component: `src/components/UpdateBar.jsx`. Never rebui
 ## Pagination (durable)
 
 `components/Pagination.jsx` + `styles/pagination.css` are shared by Screener and Portfolio. The active page is a per-button class — there is deliberately **no** shared/sliding indicator. `.is-current` is the only rule that transitions `background-color`, so the outgoing page clears in the same frame and two yellow circles can never overlap. Every slot (numbers and the ellipsis) is one button-width, which keeps the row's geometry identical across window compositions; changing the ellipsis width breaks that.
+
+## Mascot animation (durable)
+
+All mascots use the shared `Mascot` / `MascotDuo` components and `useMascotAnimation`. Eye tracking and blinking are separate nested SVG groups: the outer group handles pointer translation, the inner group handles vertical blink scaling. Never place both transforms on the same group.
+
+Only the large white header `MascotDuo` enables `trackPointer` on Overview, Screener, Portfolio, Backtesting and Stock Analysis. Sidebar, KPI, banner and Momentum Score mascots blink independently but do not track. Preserve random independent blink timing, one shared pointer listener, fine-pointer-only tracking, `prefers-reduced-motion` static behavior, visibility pausing and existing SVG geometry.

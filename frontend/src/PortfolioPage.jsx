@@ -129,7 +129,7 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
           eyebrow="Portfolio"
           title="Model Portfolio"
           subtitle="Momentum × Float-Adj. Cap"
-          art={<MascotDuo creamColor="var(--color-surface)" yellowColor="var(--color-yellow)" />}
+          art={<MascotDuo creamColor="var(--color-surface)" yellowColor="var(--color-yellow)" trackPointer />}
           controls={(
             <UpdateBar
               dateTime={snapshot?.asOf}

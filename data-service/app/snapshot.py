@@ -59,7 +59,7 @@ _BUILD_LOCK = threading.Lock()
 PERFORMANCE_PERIODS = ("1Y", "3Y", "5Y", "All")
 SERIES_COLORS = {"strategy": "#FFC83D", "spy": "#69A5F5", "spmo": "#AA8BF2"}
 SUPPORTED_EXCHANGES = {"NYSE", "NASDAQ", "NYSE American"}
-UNIVERSE_VERSION = "2026-11-12-sp400-v2"
+UNIVERSE_VERSION = "2026-11-12-live200-v2"
 
 
 def _now() -> str:
@@ -313,9 +313,15 @@ def _sector_allocation(portfolio: dict) -> list[dict]:
     if not sectors:
         return []
     total = sum(row["value"] for row in sectors) or 1
+    exact = [(row, row["value"] / total * 100) for row in sectors]
+    rounded = [int(value) for _, value in exact]
+    remainder = 100 - sum(rounded)
+    order = sorted(range(len(exact)), key=lambda index: exact[index][1] - rounded[index], reverse=True)
+    for index in order[:max(0, remainder)]:
+        rounded[index] += 1
     return [
-        {"name": row["name"], "value": round(row["value"] / total * 100), "color": row["color"]}
-        for row in sectors
+        {"name": row["name"], "value": rounded[index], "color": row["color"]}
+        for index, (row, _) in enumerate(exact)
     ]
 
 
@@ -712,7 +718,7 @@ def build_publication(force: bool = False, progress=None) -> dict:
                 "excluded": excluded,
                 "failures": failures,
                 "unavailable": sorted(symbol_failures),
-                "source": "109 core symbols plus 200 sector-balanced US common stocks from the S&P MidCap 400 constituent snapshot",
+                "source": "108 audited core symbols plus 92 sector-balanced additions from the approved S&P MidCap 400 candidate pool",
                 "min_universe_observations": MIN_UNIVERSE_OBSERVATIONS,
                 "min_momentum_observations": MIN_OBSERVATIONS,
                 "filters": {

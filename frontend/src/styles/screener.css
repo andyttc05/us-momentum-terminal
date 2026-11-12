@@ -116,10 +116,11 @@
 .filter-apply-button:hover { background: #2A2927; }
 
 /* Table shell — same card radius/shadow as every other panel. */
-.screener-table-card { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 6px var(--card-padding-inline) 6px; border-radius: var(--radius-lg); }
+.screener-table-card { display: flex; flex-direction: column; flex: 0 0 auto; min-height: 0; overflow: hidden; padding: 7px var(--card-padding-inline) 0; border-radius: var(--radius-lg); }
 /* flex-basis 0 gives the scroll area a definite height, so the table inside can
    resolve `height: 100%` against it and share the space with its rows. */
-.screener-table-scroll { width: 100%; min-height: 0; flex: 1 1 0; overflow-x: auto; overscroll-behavior-x: contain; }
+.screener-table-scroll { width: 100%; min-height: 0; flex: 0 0 auto; overflow-x: auto; overscroll-behavior-x: contain; }
+.screener-table-card > .table-pagination { min-height: 68px; padding: 0 10px; }
 /* A table height is a minimum for the browser, so the rows share the space
    the card has left over instead of leaving it blank under the last row. */
 .screener-table { width: 100%; height: auto; min-width: 1140px; table-layout: fixed; border-collapse: collapse; font-variant-numeric: tabular-nums; }
@@ -231,7 +232,7 @@
   .screener-filter-wrap, .screener-filter-wrap > .app-button, .screener-export-button { flex: 1 1 0; }
   .screener-toolbar__button { min-height: 46px; justify-content: center; padding-inline: 12px; font-size: 0.9rem; }
   .screener-filter-panel { position: fixed; top: auto; right: 16px; bottom: 20px; left: 16px; width: auto; max-height: min(80vh, 520px); overflow-y: auto; }
-  .screener-table-card { padding: 4px 12px 5px; border-radius: var(--radius-md); }
+  .screener-table-card { padding: 4px 10px 0; border-radius: var(--radius-md); }
   .screener-table { min-width: 1130px; }
 }
 

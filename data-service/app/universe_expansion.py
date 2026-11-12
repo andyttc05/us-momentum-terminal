@@ -14,6 +14,24 @@ from __future__ import annotations
 
 from .universe import UniverseMember
 
+LIVE_ADDITION_COUNT = 92
+
+# Static sector quotas preserve the audited core and spread the 92 additions
+# without considering momentum, historical return or current ranking.
+LIVE_SECTOR_QUOTAS = {
+    "Technology": 10,
+    "Consumer Discretionary": 10,
+    "Consumer Staples": 6,
+    "Financials": 10,
+    "Healthcare": 10,
+    "Industrials": 10,
+    "Communication": 5,
+    "Energy": 7,
+    "Utilities": 7,
+    "Real Estate": 8,
+    "Materials": 9,
+}
+
 
 def member(ticker: str, name: str, sector: str, exchange: str | None) -> UniverseMember:
     return UniverseMember(
@@ -227,3 +245,26 @@ EXPANDED_UNIVERSE: tuple[UniverseMember, ...] = (
     member("GAP", "Gap Inc.", "Consumer Discretionary", "NYSE"),
     member("FHN", "First Horizon", "Financials", "NYSE"),
 )
+
+
+def select_live_additions(pool: tuple[UniverseMember, ...]) -> tuple[UniverseMember, ...]:
+    """Choose a stable, evenly spaced sample from every approved sector."""
+    selected: list[UniverseMember] = []
+    for sector, quota in LIVE_SECTOR_QUOTAS.items():
+        candidates = [member for member in pool if member.sector == sector]
+        if len(candidates) < quota:
+            raise ValueError(f"only {len(candidates)} approved {sector} candidates for quota {quota}")
+        if quota == 1:
+            indexes = [0]
+        else:
+            indexes = [
+                round(index * (len(candidates) - 1) / (quota - 1))
+                for index in range(quota)
+            ]
+        selected.extend(candidates[index] for index in indexes)
+    if len(selected) != LIVE_ADDITION_COUNT:
+        raise ValueError(f"live addition quotas total {len(selected)}, expected {LIVE_ADDITION_COUNT}")
+    return tuple(selected)
+
+
+LIVE_UNIVERSE_ADDITIONS = select_live_additions(EXPANDED_UNIVERSE)

@@ -1,25 +1,25 @@
 {
-  "generated_at": "2026-11-12T12:55:08+00:00",
+  "generated_at": "2026-11-12T13:24:02+00:00",
   "checks": {
     "universe": {
-      "requested": 308,
-      "eligible": 306,
+      "requested": 200,
+      "eligible": 198,
       "unavailable": [],
       "excluded": 2,
       "single_as_of_date": true,
       "as_of": "2026-11-11",
-      "min_observations": 694,
+      "min_observations": 1209,
       "all_meet_minimum": true,
       "no_null_prices": true,
       "no_nan_scores": true,
       "score_range": [
-        0.3024,
+        0.3064,
         4.0
       ]
     },
     "ranking": {
       "rank_start": 1,
-      "rank_end": 306,
+      "rank_end": 198,
       "strictly_ordered": true,
       "mismatches": [],
       "top_five": [
@@ -30,23 +30,23 @@
         ],
         [
           2,
-          "DINO",
-          4.0
-        ],
-        [
-          3,
           "MU",
           4.0
         ],
         [
-          4,
+          3,
           "HPE",
           4.0
         ],
         [
+          4,
+          "DAR",
+          3.6766
+        ],
+        [
           5,
-          "AVT",
-          3.8006
+          "ARW",
+          3.5128
         ]
       ]
     },
@@ -64,9 +64,9 @@
           "volatility_app": 25.0,
           "risk_adjusted_recomputed": 17.17,
           "risk_adjusted_app": 17.17,
-          "score_from_displayed_z": 1.79,
-          "score_app": 1.7899,
-          "score_delta_from_displayed_z": 0.0001
+          "score_from_displayed_z": 1.78,
+          "score_app": 1.775,
+          "score_delta_from_displayed_z": 0.005
         },
         "MSFT": {
           "bars_endpoint_last_date": "2026-11-11",
@@ -80,9 +80,9 @@
           "volatility_app": 34.0,
           "risk_adjusted_recomputed": 3.87,
           "risk_adjusted_app": 3.87,
-          "score_from_displayed_z": 0.8403,
-          "score_app": 0.8437,
-          "score_delta_from_displayed_z": 0.0034
+          "score_from_displayed_z": 0.8475,
+          "score_app": 0.8461,
+          "score_delta_from_displayed_z": 0.0014
         },
         "NVDA": {
           "bars_endpoint_last_date": "2026-11-11",
@@ -97,8 +97,8 @@
           "risk_adjusted_recomputed": 6.21,
           "risk_adjusted_app": 6.21,
           "score_from_displayed_z": 0.9901,
-          "score_app": 0.9861,
-          "score_delta_from_displayed_z": 0.004
+          "score_app": 0.9863,
+          "score_delta_from_displayed_z": 0.0038
         },
         "META": {
           "bars_endpoint_last_date": "2026-11-11",
@@ -113,8 +113,8 @@
           "risk_adjusted_recomputed": 8.06,
           "risk_adjusted_app": 8.06,
           "score_from_displayed_z": 1.12,
-          "score_app": 1.1217,
-          "score_delta_from_displayed_z": 0.0017
+          "score_app": 1.1194,
+          "score_delta_from_displayed_z": 0.0006
         },
         "JPM": {
           "bars_endpoint_last_date": "2026-11-11",
@@ -129,8 +129,8 @@
           "risk_adjusted_recomputed": 4.56,
           "risk_adjusted_app": 4.56,
           "score_from_displayed_z": 0.885,
-          "score_app": 0.8814,
-          "score_delta_from_displayed_z": 0.0036
+          "score_app": 0.8833,
+          "score_delta_from_displayed_z": 0.0017
         }
       },
       "all_within_tolerance": true
@@ -190,119 +190,50 @@
     "portfolio": {
       "holdings": 100,
       "total_weight": 100.0,
-      "max_single_weight": 8.999999,
+      "max_single_weight": 8.999994,
       "max_sector_weight": 35.0,
       "raw_formula_max_error": 4.9e-05,
       "float_caps_available": true,
       "sector_totals": {
-        "Others": 31.4,
+        "Energy": 13.2,
         "Technology": 35.0,
-        "Consumer": 10.6,
-        "Industrials": 6.0,
-        "Healthcare": 7.9,
-        "Communication": 9.1
+        "Consumer Staples": 9.9,
+        "Industrials": 4.1,
+        "Healthcare": 12.9,
+        "Financials": 6.4,
+        "Consumer Discretionary": 0.4,
+        "Materials": 1.7,
+        "Real Estate": 1.5,
+        "Communication": 14.8,
+        "Utilities": 0.1
       },
       "all_constraints_pass": true,
       "excluded_without_market_cap": [
-        "AHR",
-        "ALGM",
-        "AR",
-        "EHC",
-        "BJ",
-        "CMC",
-        "NYT",
-        "APG",
-        "NFG",
-        "NNN",
-        "CR",
-        "WTRG",
-        "CHH",
-        "CTRE",
-        "ATR",
-        "AA",
-        "CDE",
-        "CAVA",
-        "HL",
-        "WFRD",
-        "BMRN",
-        "AGCO",
-        "ESNT",
-        "DOCU",
-        "CACI",
-        "FAF",
-        "AMH",
-        "FFIN",
-        "ELAN",
-        "BC",
-        "JLL",
-        "WMG",
-        "CYTK",
-        "TLN",
-        "GAP",
-        "HR",
-        "ELS",
         "ALLY",
-        "PFGC",
-        "FN",
         "BILL",
         "CNX",
         "AAL",
-        "ENSG",
         "BURL",
         "ALV",
-        "BDC",
-        "ALK",
-        "AGNC",
         "IRT",
-        "BCO",
         "RPM",
-        "POR",
-        "CAR",
-        "CRUS",
-        "BBWI",
-        "AAON",
-        "HQY",
         "EEFT",
         "HIMS",
-        "DLB",
-        "OGS",
-        "GMED",
         "NXST",
-        "EVR",
         "PINS",
         "BAH",
-        "INGR",
         "SR",
-        "SFM",
-        "CXT",
-        "KRC",
         "ADC",
-        "GLPI",
-        "DUOL",
-        "AYI",
-        "APPF",
-        "MP",
-        "FND",
-        "CHDN",
         "BYD",
         "ORA",
-        "AN",
-        "BSY",
         "CNM",
-        "EXP",
-        "BROS",
-        "KNF",
-        "PPC",
         "ACI",
         "BWXT",
         "DOCS",
         "CELH",
         "DKS",
-        "CG",
         "AVAV",
         "POST",
-        "CHWY",
-        "GPK",
         "MZTI",
         "ACM",
         "BHF"
@@ -387,7 +318,7 @@
       "is_backup": false,
       "backup_symbols": [],
       "timeliness": "delayed",
-      "generated_at": "2026-11-12T12:44:17+00:00",
+      "generated_at": "2026-11-12T13:16:29+00:00",
       "all_rows_carry_source": true
     },
     "passed": true

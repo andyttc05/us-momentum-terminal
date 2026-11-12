@@ -22,11 +22,11 @@
   align-items: center;
   gap: 12px;
 }
-.portfolio-sector-card .sector-donut { width: min(100%, 190px); }
+.portfolio-sector-card .sector-donut { width: min(100%, 205px); }
 .portfolio-sector-card .sector-donut__number { font-size: 17px; }
 .portfolio-sector-legend {
   display: grid;
-  gap: 5px;
+  gap: 3px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -38,18 +38,19 @@
   gap: 8px;
   min-width: 0;
   color: var(--color-ink);
-  font-size: var(--font-size-xs);
+  font-size: 0.71rem;
   line-height: 1.25;
 }
-.portfolio-sector-legend__name { min-width: 0; gap: 8px; white-space: nowrap; }
+.portfolio-sector-legend__name { min-width: 0; align-items: flex-start; gap: 7px; white-space: normal; }
 .portfolio-sector-legend__name i {
   width: 12px;
-  height: 12px;
-  flex: 0 0 auto;
+  height: 10px;
+  flex: 0 0 10px;
+  margin-top: 2px;
   border-radius: 50%;
   background: var(--sector-color);
 }
-.portfolio-sector-legend strong { font-size: 0.85rem; font-weight: var(--font-weight-black); font-variant-numeric: tabular-nums; }
+.portfolio-sector-legend strong { flex: 0 0 auto; font-size: 0.75rem; font-weight: var(--font-weight-black); font-variant-numeric: tabular-nums; }
 
 .portfolio-weight-card { --card-body-padding-start: 8px; }
 .portfolio-weight-list { display: grid; gap: 8px; }

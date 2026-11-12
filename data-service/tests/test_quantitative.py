@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import unittest
+from collections import Counter
 from datetime import datetime
 from pathlib import Path
 
@@ -23,6 +24,7 @@ from app.momentum import (
 from app.portfolio import build_portfolio
 from app.snapshot import UNIVERSE_VERSION
 from app.universe import (
+    CANDIDATE_TICKERS,
     EXPANDED_UNIVERSE,
     HISTORICAL_BACKTEST_TICKERS,
     TICKERS,
@@ -98,6 +100,8 @@ class PortfolioTests(unittest.TestCase):
         self.assertTrue(all(item["passed"] for item in portfolio["constraints"]))
         self.assertAlmostEqual(sum(item["finalWeight"] for item in portfolio["holdings"]), 100.0, places=5)
         self.assertLessEqual(max(item["finalWeight"] for item in portfolio["holdings"]), 9.0 + 1e-7)
+        self.assertTrue(all(item["sector"] in set(sectors) for item in portfolio["holdings"]))
+        self.assertFalse({"Consumer", "Others"} & {item["sector"] for item in portfolio["holdings"]})
 
         by_symbol = {row["symbol"]: row for row in rows}
         weighted = [
@@ -175,11 +179,29 @@ class BacktestTests(unittest.TestCase):
 
 
 class UniverseTests(unittest.TestCase):
-    def test_live_universe_is_expanded_and_unique(self):
-        self.assertGreaterEqual(len(TICKERS), 300)
+    def test_live_universe_targets_200_unique_stocks(self):
+        self.assertEqual(len(TICKERS), 200)
         self.assertEqual(len(TICKERS), len(set(TICKERS)))
+        self.assertEqual(len(CANDIDATE_TICKERS), 308)
         self.assertEqual(len(EXPANDED_UNIVERSE), 200)
+        self.assertEqual(len(TICKERS) - len(HISTORICAL_BACKTEST_TICKERS), 92)
         self.assertEqual(len({member.sector for member in EXPANDED_UNIVERSE}), 11)
+        self.assertEqual(
+            Counter(member.sector for member in UNIVERSE),
+            Counter({
+                "Technology": 36,
+                "Consumer Discretionary": 20,
+                "Consumer Staples": 16,
+                "Financials": 18,
+                "Healthcare": 22,
+                "Industrials": 22,
+                "Communication": 13,
+                "Energy": 13,
+                "Utilities": 13,
+                "Real Estate": 14,
+                "Materials": 13,
+            }),
+        )
 
     def test_historical_backtest_universe_stays_on_audited_core(self):
         self.assertEqual(len(HISTORICAL_BACKTEST_TICKERS), 108)
@@ -192,8 +214,8 @@ class UniverseTests(unittest.TestCase):
         seed_path = Path(__file__).resolve().parents[1] / "seed" / "publication.json"
         payload = json.loads(seed_path.read_text())["value"]
         self.assertEqual(payload["meta"]["universe_version"], UNIVERSE_VERSION)
-        self.assertEqual(len(payload["stocks"]), 306)
-        self.assertEqual(len({row["ticker"] for row in payload["stocks"]}), 306)
+        self.assertEqual(len(payload["stocks"]), 198)
+        self.assertEqual(len({row["ticker"] for row in payload["stocks"]}), 198)
 
 
 if __name__ == "__main__":

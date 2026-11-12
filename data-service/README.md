@@ -71,10 +71,11 @@ traced back to the provider and the moment it was fetched.
 
 ## Universe
 
-The live source universe contains 308 unique US common stocks: 108 audited core symbols plus 200
-sector-balanced S&P MidCap 400 additions. The market-data service still applies the same exchange,
-security-type, currency, price, history and liquidity tests. The historical backtest remains on the
-108-symbol audited core so today's additions are not applied retrospectively.
+The live source universe contains 200 unique US common stocks: 108 audited core symbols plus 92
+additions selected from a 200-stock S&P MidCap 400 candidate pool using static sector quotas. The
+market-data service still applies the same exchange, security-type, currency, price, history and
+liquidity tests. The historical backtest remains on the 108-symbol audited core so today's additions
+are not applied retrospectively.
 
 ## Providers
 
@@ -179,7 +180,7 @@ sanity, and an AAPL price cross-check against Twelve Data.
 | `DATA_RETRY_ATTEMPTS` | `2` | transient retries per symbol |
 | `DATA_WARM_TIMEOUT` | `180` | seconds before the UI stops showing an active refresh spinner |
 
-The release includes `data-service/seed/publication.json`, the last fully verified 306-stock
+The release includes `data-service/seed/publication.json`, the last fully verified 198-stock
 publication. A process with no local cache serves that seed as clearly labeled cached data while the
 live refresh runs. The publication endpoint otherwise returns current data, marked stale cache, or
 a lightweight warming payload. The browser never waits for a cold provider scan before rendering

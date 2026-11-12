@@ -89,10 +89,10 @@
    aligned, so no column is left with a large empty hole. */
 .top-momentum-list {
   display: grid;
-  grid-template-columns: 40px 58px 82px 62px minmax(56px, 1fr);
-  column-gap: 14px;
+  grid-template-columns: 36px 65px minmax(76px, 1fr) 85px 68px;
+  column-gap: 12px;
   row-gap: 3px;
-  grid-auto-rows: 34px;
+  grid-auto-rows: 35px;
   align-items: center;
 }
 .momentum-row { display: contents; }
@@ -114,9 +114,9 @@
 .sparkline polyline { stroke: #17B96A; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 /* Auto height keeps the sparkline at its own aspect ratio (100 × 26), and it
    stays centred inside its column instead of stretching to fill it. */
-.momentum-row .sparkline { width: 68px; height: auto; justify-self: center; }
+.momentum-row .sparkline { width: min(100%, 84px); height: auto; justify-self: stretch; }
 .momentum-row__price { color: var(--color-ink); font-size: var(--font-size-xs); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
-.momentum-row__score { display: inline-flex; min-width: 54px; min-height: 27px; align-items: center; justify-content: center; padding-inline: 8px; border-radius: var(--radius-pill); background: var(--color-positive-soft); color: var(--color-positive); font-size: var(--font-size-xs); font-weight: var(--font-weight-black); font-variant-numeric: tabular-nums; }
+.momentum-row__score { display: inline-flex; width: 64px; min-height: 27px; align-items: center; justify-content: center; justify-self: center; padding: 0; border-radius: var(--radius-pill); background: var(--color-positive-soft); color: var(--color-positive); font-size: var(--font-size-xs); font-weight: var(--font-weight-black); font-variant-numeric: tabular-nums; }
 .view-all-button { min-height: 30px; padding: 0 11px 0 13px; border: 1px solid var(--color-line); border-radius: var(--radius-pill); background: var(--color-surface); color: var(--color-ink); font-size: 0.78rem; box-shadow: 0 1px 2px rgb(56 40 22 / 5%); }
 .view-all-button > span { display: inline-flex; align-items: center; gap: 6px; }
 .view-all-button .view-all-button__arrow { display: inline-flex; align-items: center; color: var(--color-ink); transition: color 180ms ease; }
@@ -126,20 +126,20 @@
 
 /* The Sector card grows with the column; the donut scales with the space it
    has instead of leaving a gap inside the card. */
-.sector-card { --card-body-padding-start: 8px; --card-body-padding-end: 12px; display: flex; flex-direction: column; }
+.sector-card { --card-body-padding-start: 4px; --card-body-padding-end: 12px; display: flex; flex-direction: column; }
 .sector-card > .dashboard-card__body { display: flex; min-height: 0; flex: 1 1 auto; }
-.sector-card__content { display: grid; flex: 1 1 auto; min-height: 0; width: 100%; grid-template-columns: minmax(140px, 0.9fr) minmax(160px, 1.1fr); align-items: center; gap: 14px; }
+.sector-card__content { display: grid; flex: 1 1 auto; min-height: 0; width: 100%; grid-template-columns: minmax(168px, 0.95fr) minmax(190px, 1.05fr); align-items: center; gap: 16px; }
 .sector-donut-wrap { display: grid; place-items: center; min-height: 0; }
-.sector-donut { display: block; width: auto; height: min(100%, 200px); max-width: 100%; overflow: visible; }
+.sector-donut { display: block; width: min(100%, 200px); height: auto; max-width: 100%; overflow: visible; }
 .sector-donut circle { stroke-linecap: butt; }
 .sector-donut__number { fill: var(--color-ink); font-family: var(--font-family); font-size: 17px; font-weight: 900; }
 .sector-donut__caption { fill: var(--color-text-secondary); font-family: var(--font-family); font-size: 6px; font-weight: 800; letter-spacing: 0.12em; }
-.sector-legend { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.sector-legend { display: grid; align-content: center; gap: 3px; margin: 0; padding: 0; list-style: none; }
 .sector-legend li, .sector-legend__name { display: flex; align-items: center; }
-.sector-legend li { justify-content: space-between; gap: 10px; color: var(--color-ink); font-size: var(--font-size-xs); }
-.sector-legend__name { min-width: 0; gap: 8px; white-space: nowrap; }
-.sector-legend__name i { width: 11px; height: 11px; flex: 0 0 auto; border-radius: 50%; background: var(--sector-color); }
-.sector-legend strong { font-size: var(--font-size-xs); font-weight: var(--font-weight-black); font-variant-numeric: tabular-nums; }
+.sector-legend li { min-height: 19px; justify-content: space-between; gap: 9px; color: var(--color-ink); font-size: 0.71rem; line-height: 1.2; }
+.sector-legend__name { min-width: 0; align-items: flex-start; gap: 7px; white-space: normal; }
+.sector-legend__name i { width: 10px; height: 10px; flex: 0 0 10px; margin-top: 2px; border-radius: 50%; background: var(--sector-color); }
+.sector-legend strong { flex: 0 0 auto; font-size: 0.74rem; font-weight: var(--font-weight-black); font-variant-numeric: tabular-nums; }
 
 .model-banner {
   position: relative;
@@ -238,17 +238,17 @@
   .performance-legend { gap: 16px; }
   .performance-legend__item { font-size: 0.88rem; }
   .period-control button { min-height: 30px; min-width: 39px; }
-  .top-momentum-list { grid-template-columns: 36px 52px 72px 56px minmax(52px, 1fr); column-gap: 12px; grid-auto-rows: 32px; }
-  .momentum-row .sparkline { width: 60px; }
+  .top-momentum-list { grid-template-columns: 32px 58px minmax(70px, 1fr) 76px 62px; column-gap: 9px; grid-auto-rows: 32px; }
+  .momentum-row .sparkline { width: min(100%, 70px); }
   .momentum-row__rank { width: 25px; height: 25px; }
   .sparkline { width: 58px; height: 20px; }
   .momentum-row__ticker { font-size: 0.8rem; }
   .momentum-row__price, .momentum-row__score { font-size: 0.72rem; }
-  .momentum-row__score { min-height: 24px; min-width: 48px; padding-inline: 6px; }
-  .sector-card__content { grid-template-columns: minmax(122px, 0.88fr) minmax(145px, 1.12fr); gap: 10px; }
-  .sector-donut { height: min(100%, 168px); }
-  .sector-legend { gap: 4px; }
-  .sector-legend li, .sector-legend strong { font-size: 0.72rem; }
+  .momentum-row__score { width: 58px; min-height: 24px; }
+  .sector-card__content { grid-template-columns: minmax(150px, 0.9fr) minmax(165px, 1.1fr); gap: 11px; }
+  .sector-donut { width: min(100%, 172px); }
+  .sector-legend { gap: 2px; }
+  .sector-legend li, .sector-legend strong { font-size: 0.67rem; }
   .sector-legend__name i { width: 9px; height: 9px; }
   .model-banner { min-height: 90px; padding: 8px 22px; }
   .model-banner .section-header h2 { font-size: 1.9rem; }
@@ -306,8 +306,11 @@
 
   /* Top Momentum: the score pill keeps its compact width and the price column
      takes the slack, so the rows read the same as on desktop. */
-  .top-momentum-list { grid-template-columns: 32px 46px 60px minmax(56px, 1fr) 54px; column-gap: 10px; grid-auto-rows: 34px; }
-  .momentum-row .sparkline { width: 54px; }
+  .top-momentum-list { grid-template-columns: 32px 48px minmax(52px, 1fr) 68px 52px; column-gap: 8px; grid-auto-rows: 34px; }
+  .momentum-row .sparkline { width: min(100%, 64px); }
+  .momentum-row__score { width: 50px; }
+  .sector-card__content { grid-template-columns: minmax(112px, 0.78fr) minmax(160px, 1.22fr); gap: 9px; }
+  .sector-donut { width: min(100%, 122px); }
 
   /* Performance chart: compact legend, compact range control, smaller axis text. */
   .performance-chart { min-height: 200px; }
@@ -348,10 +351,11 @@
 @media (max-width: 400px) {
   .update-bar__date { font-size: 0.7rem; }
   .update-bar { gap: 5px; }
-  .top-momentum-list { grid-template-columns: 28px 40px 54px minmax(50px, 1fr) 48px; column-gap: 8px; }
-  .momentum-row .sparkline { width: 48px; }
+  .top-momentum-list { grid-template-columns: 28px 42px minmax(46px, 1fr) 62px 46px; column-gap: 5px; }
+  .momentum-row .sparkline { width: min(100%, 58px); }
   .momentum-row__ticker, .momentum-row__price, .momentum-row__score { font-size: 0.72rem; }
-  .momentum-row__score { min-width: 44px; padding-inline: 5px; }
-  .sector-card__content { grid-template-columns: 112px minmax(140px, 1fr); gap: var(--space-2); }
-  .sector-legend li, .sector-legend strong { font-size: 0.7rem; }
+  .momentum-row__score { width: 44px; }
+  .sector-card__content { grid-template-columns: 104px minmax(0, 1fr); gap: 7px; }
+  .sector-donut { width: 102px; }
+  .sector-legend li, .sector-legend strong { font-size: 0.65rem; }
 }

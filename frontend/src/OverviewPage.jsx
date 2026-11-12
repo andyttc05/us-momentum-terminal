@@ -31,7 +31,7 @@ export function OverviewPage({ onNavigate, onSelectStock, hidden = false }) {
           eyebrow="Overview"
           title="US Momentum Terminal"
           subtitle="Momentum investing for US equities"
-          art={<MascotDuo creamColor="var(--color-surface)" />}
+          art={<MascotDuo creamColor="var(--color-surface)" trackPointer />}
           controls={<UpdateBar dateTime={snapshot?.asOf} ariaLabel="Refresh overview" />}
         />
 

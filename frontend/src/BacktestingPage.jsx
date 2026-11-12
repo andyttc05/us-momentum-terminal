@@ -365,7 +365,7 @@ export function BacktestingPage({ hidden = false }) {
           eyebrow="Backtesting"
           title="Strategy Backtest"
           subtitle="Historical Performance"
-          art={<MascotDuo creamColor="var(--color-surface)" />}
+          art={<MascotDuo creamColor="var(--color-surface)" trackPointer />}
           controls={(
             <UpdateBar
               dateTime={block?.end ?? ""}

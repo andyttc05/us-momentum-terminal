@@ -31,7 +31,7 @@ following issues were confirmed and corrected:
 |---|---|---|
 | 12-1 price window | PASS | `P(t-21) / P(t-252) - 1` verified from source and independent recomputation |
 | Adjusted-close convention | PASS | Missing adjusted closes are dropped; unadjusted closes are not substituted |
-| Universe eligibility | WARNING | Rules remain enforced across a 308-symbol source list (108 core + 200 mid-cap additions), but this is still not a complete exchange master |
+| Universe eligibility | WARNING | Rules remain enforced across a 200-symbol source list (108 core + 92 additions), but this is still not a complete exchange master |
 | Ten-month versus 13-month history | PASS as handling | Universe eligibility begins at 210 observations; scoring requires 253 observations and no shorter momentum window is used |
 | Daily return volatility | PASS | Sample standard deviation over 252 daily adjusted returns |
 | Risk-adjusted momentum | PASS | Decimal 12-1 return divided by daily standard deviation |
@@ -96,7 +96,7 @@ Higher Momentum Scores correspond to better rankings.
 
 ### Live Integrity Results
 
-- Published universe: 308 scanned, 308 loaded, 306 eligible.
+- Published universe: 200 scanned, 200 loaded, 198 eligible.
 - Excluded: TSM for ADR security type; PARA for a sub-$5 reused ticker.
 - Removed from the live source list: delisted WBA.
 - Published cross-sectional date: 11 November 2026.
