@@ -1,9 +1,8 @@
 /* Screener — page-specific content only.
    Container, header, section gaps and card framing come from the layout system. */
 
-/* The screener fills the desktop viewport: the toolbar keeps its height and
-   the table card takes the rest, so the pagination ends near the bottom of
-   the window and the ten rows share the leftover space. */
+/* Exactly ten rows are shown at every breakpoint. Desktop row heights are
+   comfortable without stretching to fill the remaining viewport. */
 .screener-page {
   display: flex;
   flex-direction: column;
@@ -117,12 +116,8 @@
 
 /* Table shell — same card radius/shadow as every other panel. */
 .screener-table-card { display: flex; flex-direction: column; flex: 0 0 auto; min-height: 0; overflow: hidden; padding: 7px var(--card-padding-inline) 0; border-radius: var(--radius-lg); }
-/* flex-basis 0 gives the scroll area a definite height, so the table inside can
-   resolve `height: 100%` against it and share the space with its rows. */
 .screener-table-scroll { width: 100%; min-height: 0; flex: 0 0 auto; overflow-x: auto; overscroll-behavior-x: contain; }
 .screener-table-card > .table-pagination { min-height: 68px; padding: 0 10px; }
-/* A table height is a minimum for the browser, so the rows share the space
-   the card has left over instead of leaving it blank under the last row. */
 .screener-table { width: 100%; height: auto; min-width: 1140px; table-layout: fixed; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 
 .stock-col-rank { width: 4.5%; }
@@ -198,6 +193,7 @@
 
 @media (max-height: 830px) and (min-width: 1101px) {
   .screener-scope, .screener-search, .screener-toolbar__button { min-height: 50px; }
+  .screener-table tbody tr { height: 44px; }
   .stock-ticker-cell { font-size: 1.08rem !important; }
   .change-pill, .stock-score-cell span { min-height: 28px; }
   .stock-change-cell .change-pill { min-width: 76px; font-size: 0.9rem; }
@@ -205,6 +201,12 @@
   .momentum-value, .stock-score-cell span { font-size: 0.92rem; }
   .screener-table td { padding-block: 3px; font-size: 0.95rem; }
   .stock-rank-cell span { width: 30px; height: 30px; }
+}
+
+@media (min-height: 831px) and (min-width: 1101px) {
+  .screener-table tbody tr { height: 50px; }
+  .stock-rank-cell span { width: 33px; height: 33px; }
+  .screener-table-card > .table-pagination { min-height: 72px; }
 }
 
 @media (max-width: 1399px) and (min-width: 1101px) {

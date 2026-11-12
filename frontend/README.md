@@ -1,57 +1,58 @@
-# US Momentum Terminal — Frontend
+# Frontend
 
-React 19 + Vite 6 single-page terminal for a US equity momentum strategy. All prices, volumes,
-market caps and corporate actions come from live provider data through the local data service.
-There is no mock data in this bundle: if the service cannot verify a number, the UI shows `—`.
+React 19 and Vite 6 single-page application for US Momentum Terminal.
 
 ## Run
 
-```bash
-# 1. data service (repo root)
-npm run data:serve          # FastAPI on :8787, proxies to Yahoo Finance
+From the repository root:
 
-# 2. UI
-npm run dev                 # or npm run preview (serves dist/)
+```bash
+npm run data:serve
+npm run dev
 ```
 
-`vite.config.mjs` proxies `/api` → `http://127.0.0.1:8787` for both `dev` and `preview`.
-Use `DATA_SERVICE_URL=http://127.0.0.1:8788 npm run preview` to point at another instance.
+The Vite development server proxies `/api` to `http://127.0.0.1:8787`. Use
+`VITE_API_BASE_URL=https://us-momentum-data.onrender.com/api` to build against the hosted API.
 
 ## Structure
 
 | Path | Role |
-|---|---|
-| `src/api/client.js` | fetch wrapper: timeouts, friendly transport errors |
-| `src/api/MarketProvider.jsx` | single snapshot fetch shared by every page, 5-minute revalidation, manual refresh |
-| `src/components/UpdateBar.jsx` | shared freshness state and refresh control |
-| `src/components/StatusToast.jsx` | provider or refresh error surface |
-| `src/*Page.jsx` | Overview, Screener, Stock Analysis, Portfolio, Backtesting |
+| --- | --- |
+| `src/App.jsx` | Application shell and mounted page composition |
+| `src/router.jsx` | History API routing and stock navigation |
+| `src/api/client.js` | Timeout-aware API wrapper |
+| `src/api/MarketProvider.jsx` | Shared snapshot state, refresh and provider selection |
+| `src/*Page.jsx` | Overview, Screener, Portfolio, Backtesting and Stock Analysis |
+| `src/components/` | Shared cards, charts, navigation, tables, status and project information |
+| `src/styles/` | Design tokens, shared components, layout and page CSS |
+| `worker/index.js` | Optional Sites SPA fallback worker |
 
-## Data contract
+## Data Contract
 
-`GET /api/snapshot` returns:
+The frontend consumes `GET /api/snapshot` for:
 
-* `meta` — provider, as-of date, timeliness (`realtime` / `delayed` / `end-of-day`), session state,
-  backup flag, warnings, provider health
-* `stocks` — one row per verified symbol: price, 1D change, 1m/3m/6m/12m and 12–1 momentum,
-  volatility, risk-adjusted momentum, z-score, score, rank, market cap, sparkline, source
-* `overview` — snapshot counts, top momentum, sector allocation (portfolio weights), performance
-  curves for 1Y/3Y/5Y/All
-* `portfolio` — 100 holdings with raw and capped weights, sector totals, constraint checks
-* `backtest` — daily NAV for the top-100 and top-20 % books, drawdowns, annual returns
+- `meta`: provider, market date, timeliness, cache and refresh state.
+- `universe`: scan and exclusion counts.
+- `stocks`: rankings, momentum metrics, market data and provenance.
+- `overview`: KPI values, performance series, top momentum and sector allocation.
+- `portfolio`: holdings, weights, constraints and allocation.
+- `backtest`: metrics, daily series, drawdown and annual returns.
 
-`GET /api/stock/{ticker}` adds the weekly price series and the month-end rank/score history.
+`GET /api/stock/{ticker}` adds weekly price history and month-end rank history.
 
-## UI rules that must not regress
+## UI Rules
 
-* Design, layout, typography, colours, spacing and interactions stay as approved — only the data
-  behind them changed.
-* No placeholder or demo values anywhere. Missing data renders as `—`, never as a plausible number.
-* The update bar reflects the shared fetch state on desktop.
-* Provider identity, market-data date and timeliness travel in `meta`; detailed status is available
-  from the data-service API.
+- Preserve the established dashboard design language.
+- Never display fabricated market values.
+- Render missing values as `—`.
+- Keep data status distinct from a general application error.
+- Keep provider credentials out of the browser.
+- Preserve responsive navigation and horizontally scrollable tables.
 
 ## Tests
 
-From the repository root, `npm run build` (Vite + Sites preparation) and `npm run test:sites` must
-pass. Data-layer checks live in `../data-service/tests/`.
+```bash
+npm run test:unit
+npm run build
+npm run test:sites
+```

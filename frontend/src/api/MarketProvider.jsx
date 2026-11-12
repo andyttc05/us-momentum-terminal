@@ -5,10 +5,9 @@ const MarketContext = createContext(null);
 
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
-// The GitHub Pages build sets VITE_STATIC_SHOWCASE=true. There is no Python
-// backend on Pages, so the app renders its full UI with clean "unavailable"
-// states instead of polling an API that can never respond. Local builds and
-// `npm run dev` leave this unset and keep the normal backend behaviour.
+// An optional static-only deployment can set VITE_STATIC_SHOWCASE=true. The
+// normal GitHub Pages build connects to the hosted FastAPI service through
+// VITE_API_BASE_URL; local builds use the Vite proxy.
 const STATIC_SHOWCASE = import.meta.env.VITE_STATIC_SHOWCASE === "true";
 
 export function MarketProvider({ children }) {

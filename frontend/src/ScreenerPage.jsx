@@ -13,13 +13,14 @@ import { MascotDuo } from "./components/Mascot.jsx";
 import { PageHeader } from "./components/PageHeader.jsx";
 import { Pagination } from "./components/Pagination.jsx";
 import { Sparkline } from "./components/Sparkline.jsx";
+import { Toast } from "./components/Toast.jsx";
 import { UpdateBar } from "./components/UpdateBar.jsx";
 import { useMarket } from "./api/MarketProvider.jsx";
 import { formatMarketCap } from "./utils/format.js";
 import { searchMatch } from "./utils/stockSearch.js";
 
-const rowsPerPage = 10;
 const emptyFilters = { sector: "", minPrice: "", maxPrice: "", minMomentum: "", minScore: "" };
+const rowsPerPage = 10;
 // [value key, heading label, class slug] — the slug keeps the CSS hook
 // readable (e.g. `marketCap` -> `stock-heading--market-cap`).
 const sortableColumns = [
@@ -85,8 +86,8 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
     };
   }, [filtersOpen]);
 
-  function showToast(message) {
-    setToast(message);
+  function showToast(message, kind = "updated") {
+    setToast({ message, kind });
     window.clearTimeout(showToast.timeout);
     showToast.timeout = window.setTimeout(() => setToast(""), 2600);
   }
@@ -194,7 +195,7 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
     link.click();
     link.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    showToast(`Exported ${filteredStocks.length} stocks`);
+    showToast("Export complete");
   }
 
   return (
@@ -204,7 +205,7 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
           eyebrow="Stock"
           title="Screener"
           subtitle="Find momentum stocks"
-          art={<MascotDuo creamColor="var(--color-surface)" trackPointer />}
+          art={<MascotDuo creamColor="var(--color-surface)" />}
           controls={(
             <UpdateBar
               dateTime={snapshot?.asOf}
@@ -352,7 +353,9 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
           />
         </section>
       </div>
-      {toast && <div className="toast" role="status" aria-live="polite">{toast}</div>}
+      {isActive && toast && (
+        <Toast kind={toast.kind} message={toast.message} className="page-toast" durationMs={2600} />
+      )}
     </main>
   );
 }

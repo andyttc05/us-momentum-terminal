@@ -22,15 +22,10 @@ export function Mascot({
   eyeScale = 1,
   className = "",
   label,
-  trackPointer = false,
 }) {
   const path = paths[variant] ?? paths.mint;
   const ariaProps = label ? { role: "img", "aria-label": label } : { "aria-hidden": true };
-  const { svgRef, blinkRef, trackingRef } = useMascotAnimation({
-    trackPointer,
-    viewBoxWidth: 100,
-    viewBoxHeight: 100,
-  });
+  const { svgRef, blinkRef } = useMascotAnimation();
 
   return (
     <svg
@@ -46,11 +41,9 @@ export function Mascot({
     >
       <g transform={`rotate(${rotation} 50 50)`}>
         <path d={path} fill="var(--mascot-fill)" />
-        <g ref={trackingRef}>
-          <g ref={blinkRef} className="mascot-eye-blink">
-            <ellipse cx={eyes.x1} cy={eyes.y1} rx={3.2 * eyeScale} ry={5.8 * eyeScale} fill="var(--color-ink)" />
-            <ellipse cx={eyes.x2} cy={eyes.y2} rx={3.2 * eyeScale} ry={5.8 * eyeScale} fill="var(--color-ink)" />
-          </g>
+        <g ref={blinkRef} className="mascot-eye-blink">
+          <ellipse cx={eyes.x1} cy={eyes.y1} rx={3.2 * eyeScale} ry={5.8 * eyeScale} fill="var(--color-ink)" />
+          <ellipse cx={eyes.x2} cy={eyes.y2} rx={3.2 * eyeScale} ry={5.8 * eyeScale} fill="var(--color-ink)" />
         </g>
       </g>
     </svg>
@@ -67,30 +60,22 @@ export function MascotDuo({
   className = "",
   creamColor = "var(--color-cream)",
   yellowColor = "var(--color-yellow)",
-  trackPointer = false,
 }) {
-  const { svgRef, blinkRef, trackingRef } = useMascotAnimation({
-    trackPointer,
-    viewBoxWidth: 530,
-    viewBoxHeight: 390,
-  });
+  const { svgRef, blinkRef } = useMascotAnimation();
   return (
     <svg
       aria-hidden="true"
       ref={svgRef}
       className={`mascot-duo ${className}`.trim()}
-      data-track-pointer={trackPointer ? "true" : undefined}
       viewBox="0 0 530 390"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
       <path d={duoYellowPath} fill={yellowColor} />
       <path d={duoCreamPath} fill={creamColor} />
-      <g ref={trackingRef}>
-        <g ref={blinkRef} className="mascot-eye-blink">
-          <ellipse cx="227" cy="184" rx="11" ry="20" fill="var(--color-ink)" />
-          <ellipse cx="273" cy="184" rx="11" ry="20" fill="var(--color-ink)" />
-        </g>
+      <g ref={blinkRef} className="mascot-eye-blink">
+        <ellipse cx="227" cy="184" rx="11" ry="20" fill="var(--color-ink)" />
+        <ellipse cx="273" cy="184" rx="11" ry="20" fill="var(--color-ink)" />
       </g>
     </svg>
   );

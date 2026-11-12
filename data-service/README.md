@@ -1,195 +1,146 @@
 # Data Service
 
-Provider-independent market data layer for the US Momentum Terminal.
+The `data-service` package is the Python FastAPI backend for US Momentum Terminal. It retrieves and
+normalizes market data, calculates momentum metrics, builds the constrained model portfolio, runs
+the historical backtest, and serves the React application.
 
-The React app never talks to a data provider and never sees an API key. It calls this service on
-`/api/...`; the service fetches, validates, normalizes, caches and scores the data, then hands the
-browser one consistent publication object.
+## Architecture
 
+```mermaid
+flowchart LR
+    Providers[Market-data providers] --> Registry[Registry and failover]
+    Registry --> Validation[Normalization and validation]
+    Validation --> Cache[(JSON cache)]
+    Cache --> Universe[Universe eligibility]
+    Universe --> Momentum[Momentum and Z-score]
+    Momentum --> Portfolio[Portfolio construction]
+    Momentum --> Backtest[Backtest]
+    Portfolio --> Publication[Publication payload]
+    Backtest --> Publication
+    Publication --> API[FastAPI]
+    API --> Frontend[React frontend]
 ```
-Browser (React SPA)
-   │  fetch /api/snapshot  (same origin, proxied by Vite)
-   ▼
-FastAPI service :8787
-   ├── provider registry  ── Yahoo (primary) → Twelve Data → FMP
-   ├── validation + dedupe + provenance
-   ├── momentum engine (pandas/numpy)
-   ├── portfolio builder (market-cap weights + caps)
-   ├── backtest engine (monthly rebalance, real adjusted prices)
-   └── disk cache (TTL by data type)
-```
+
+The browser never receives provider credentials and never contacts a provider directly.
 
 ## Run
 
+From the repository root:
+
 ```bash
-# once, from the repository root
 npm run data:install
-
-# every session
 npm run data:serve
-
-# then, in frontend/
-npm run dev        # or: npm run preview
 ```
 
-`frontend/vite.config.mjs` proxies `/api` to `http://127.0.0.1:8787` for both `dev` and `preview`.
-Point it elsewhere with `DATA_SERVICE_URL=... npm run preview`.
+The service listens on `http://127.0.0.1:8787/`. Vite proxies `/api` to this address during local
+development and preview.
 
 ## Endpoints
 
 | Method | Path | Purpose |
-|---|---|---|
-| `GET` | `/api/health` | service state, market clock, provider health, cache age |
-| `GET` | `/api/snapshot` | the whole dashboard payload (stocks, overview, portfolio, backtest, meta) |
-| `GET` | `/api/stock/{ticker}` | price history, monthly rank history, momentum detail |
-| `GET` | `/api/bars/{ticker}?days=N` | normalized daily OHLCV + adjusted close + corporate actions |
-| `GET` | `/api/providers` | adapter status, roles, circuit-breaker state |
-| `GET` | `/api/probe` | last recorded live probe of every candidate provider |
-| `POST` | `/api/refresh` | force a provider re-pull and rebuild the publication |
-
-## Normalized record
-
-Every bar, whatever the provider, is stored as:
-
-```json
-{
-  "symbol": "AAPL",
-  "date": "2026-11-11",
-  "open": 349.58, "high": 355.33, "low": 349.33, "close": 355.13,
-  "adjusted_close": 355.13,
-  "volume": 81300700,
-  "market_cap": 5154347155456,
-  "dividends": 0.0,
-  "stock_splits": 0.0,
-  "data_source": "yahoo",
-  "last_updated": "2026-11-11T19:07:52+00:00"
-}
-```
-
-`data_source` and `last_updated` travel with the data all the way to the UI, so every number can be
-traced back to the provider and the moment it was fetched.
+| --- | --- | --- |
+| GET | `/api/health` | Service state, market clock, cache age and provider health |
+| GET | `/api/providers` | Provider roles and availability |
+| GET | `/api/snapshot` | Complete dashboard publication |
+| GET | `/api/stock/{ticker}` | Stock detail, price history and rank history |
+| GET | `/api/bars/{ticker}?days=N` | Normalized daily bars |
+| GET | `/api/probe` | Last recorded provider probe |
+| GET | `/api/config` | Non-secret runtime configuration |
+| POST | `/api/provider` | Select a provider and rebuild the publication |
+| POST | `/api/refresh` | Start a forced background refresh |
 
 ## Universe
 
-The live source universe contains 200 unique US common stocks: 108 audited core symbols plus 92
-additions selected from a 200-stock S&P MidCap 400 candidate pool using static sector quotas. The
-market-data service still applies the same exchange, security-type, currency, price, history and
-liquidity tests. The historical backtest remains on the 108-symbol audited core so today's additions
-are not applied retrospectively.
+The current live list contains 200 unique common stocks:
 
-## Providers
+- 108 audited core symbols.
+- 92 sector-balanced additions from a 200-symbol S&P MidCap 400 candidate pool.
 
-| id | Role | Key | Notes |
-|---|---|---|---|
-| `yahoo` | primary | none | yfinance; adjusted close, market cap, splits, dividends |
-| `stooq` | optional | none | unadjusted CSV only; blocked by a bot wall and excluded from the default scoring chain |
-| `twelvedata` | backup | `TWELVEDATA_API_KEY` | 8 req/min, 800/day; free plan is evaluation-only |
-| `fmp` | backup | `FMP_API_KEY` | 250 req/day; adjusted EOD |
+The historical backtest intentionally remains on the 108-symbol audited core. This is a curated
+research universe, not a complete exchange master.
 
-Configured order comes from `DATA_PROVIDER_CHAIN` (default `yahoo,twelvedata,fmp`); adapters
-without a key are skipped automatically. Failover is per request: the first adapter that answers
-wins, and the payload records `is_backup` plus the symbols that needed it.
+## Eligibility
 
-### Behaviour when a provider fails
+A stock enters momentum scoring only after passing:
 
-* **Bounded batches** — bar requests run in 40-symbol batches with controlled concurrency, and
-  per-symbol recovery uses a separate worker pool and limited exponential backoff.
-* **Circuit breaker** — after 3 consecutive hard failures a provider is benched for 180 s, so a
-  dead source cannot serialise a large-universe refresh.
-* **No silent substitution** — symbols that no provider can serve are dropped from the ranking and
-  reported in `universe.unavailable`. Nothing is back-filled with a placeholder price.
-* **No stale promotion** — an expired cache entry is refetched; if the refetch fails the symbol is
-  marked unavailable rather than served as if fresh.
-* **Adjusted-only scoring** — a provider that cannot supply adjusted closes has its series flagged
-  `adjusted: false`, and the momentum engine refuses to score it instead of mixing price bases.
+- Provider-verified common-stock security type.
+- NYSE, NASDAQ, or NYSE American listing.
+- USD currency and a common latest observation date.
+- At least 210 daily observations.
+- Latest raw close of at least $5.
+- At least $2 million average daily dollar volume over 63 sessions.
+- At least 253 valid adjusted-close observations for the full 12–1 window.
 
-## Caching
+Missing adjusted closes are not replaced with raw closes.
 
-| Data | TTL |
-|---|---|
-| daily bars | 15 min while the session is open, 6 h otherwise |
-| quotes / market cap / sector | 24 h |
-| publication (dashboard payload) | 15 min |
-| stock detail | 15 min |
+## Momentum
 
-Cache lives in `data-service/cache/` as JSON (git-ignored). Override the location with
-`DATA_CACHE_DIR` (used by the failover tests).
+```text
+momentum_12_1 = P(t-21) / P(t-252) - 1
+daily_volatility = sample standard deviation of 252 daily returns
+risk_adjusted = momentum_12_1 / daily_volatility
 
-## Momentum engine
+Z = (risk_adjusted - population mean) / population standard deviation
+Z = clip(Z, -3, 3)
 
-Windows are trading sessions, not calendar months: 21 / 63 / 126 / 252.
-
+Score = 1 + Z          when Z > 0
+Score = 1 / (1 - Z)    when Z < 0
+Score = 1              when Z = 0
 ```
-momentum_1m  = P(t)     / P(t-21)  - 1
-momentum_3m  = P(t)     / P(t-63)  - 1
-momentum_6m  = P(t)     / P(t-126) - 1
-momentum_12m = P(t)     / P(t-252) - 1
-momentum_12_1= P(t-21)  / P(t-252) - 1      ← headline "12–1 momentum"
-volatility   = stdev(daily returns, 252) × √252
-risk_adj     = decimal 12-1 return / daily return standard deviation
-```
-
-The cross-sectional Z-score is computed from risk-adjusted momentum over the eligible universe and
-capped at ±3:
-
-```
-score = 1 + z          if z > 0
-score = 1 / (1 - z)    if z < 0
-score = 1              if z = 0
-```
-
-A symbol needs 253 valid adjusted-close observations for the full 12-1 window. Ten-month universe
-eligibility and full momentum eligibility are reported separately.
 
 ## Portfolio
 
-Top 100 by score, weighted by provider-supplied float-adjusted market cap × score, then
-proportionally redistributed under a 9 % name cap and 35 % sector-group cap. Infeasible constraints
-are reported rather than violated. Names without verified float shares are excluded.
+The model keeps the top 100 momentum-eligible stocks with current verified float shares. Raw weights
+are:
+
+```text
+float-adjusted market cap × Momentum Score
+```
+
+Normalized raw weights are redistributed under a 9% stock cap and a 35% constraint-sector-group cap.
+The solver returns an unavailable state with a reason when a valid fully invested portfolio cannot
+be constructed.
 
 ## Backtest
 
-Signals form at the last trading session of March and September, with execution at the next
-available adjusted close. The research backtest uses equal weights because point-in-time
-float-adjusted caps are unavailable; it applies 0.10 % transaction costs and 0% slippage. SPY and
-SPMO use their own adjusted closes.
+Signals form at the final March and September sessions. Trades execute at the next available
+adjusted close, holdings are marked daily, and the historical book is equal-weighted.
+
+- Transaction cost: 0.10% of traded notional.
+- Slippage: 0.00%.
+- Benchmarks: SPY and SPMO.
+- Sharpe risk-free rate: 0%.
+
+The historical core has no point-in-time constituents, delisting-return model, or historical float
+capitalization. The result is an exploratory research proxy.
+
+## Providers and Cache
+
+The default provider order is `yahoo,twelvedata,fmp`. Missing-key adapters are skipped. Stooq is
+implemented but excluded from the default chain because it is unadjusted and commonly blocked.
+
+Yahoo history is loaded in bounded 40-symbol batches. A provider registry records health,
+provenance, backup use, retries and circuit-breaker state.
+
+Caches are atomic JSON files under `data-service/cache/`. Default TTLs:
+
+| Data | TTL |
+| --- | --- |
+| Bars while market open | 15 minutes |
+| Bars while market closed | 6 hours |
+| Quote metadata | 24 hours |
+| Publication and stock detail | 15 minutes |
+
+The service returns a verified seed or cached publication while a background refresh runs, or a
+warming/error payload when no verified snapshot exists.
 
 ## Tests
 
 ```bash
-npm run data:test        # unit tests
-npm run data:verify      # live service integration checks
-npm run data:audit       # cached-data quality evidence
-npm run data:sensitivity # historical robustness checks
+npm run data:test
+npm run data:verify
+npm run data:audit
+npm run data:sensitivity
 ```
 
-`verify.py` needs the service running. It checks: single as-of date, minimum history, no null or
-NaN values, strict ranking order, momentum recomputed from raw bars, portfolio caps, backtest
-sanity, and an AAPL price cross-check against Twelve Data.
-
-## Environment
-
-| Variable | Default | Meaning |
-|---|---|---|
-| `DATA_SERVICE_PORT` | `8787` | port |
-| `DATA_PROVIDER_CHAIN` | `yahoo,twelvedata,fmp` | failover order |
-| `DATA_HISTORY_BATCH_SIZE` | `40` | symbols per primary batch |
-| `DATA_HISTORY_BATCH_WORKERS` | `2` | concurrent primary batches |
-| `DATA_SERIES_FETCH_WORKERS` | `4` | per-symbol recovery concurrency |
-| `DATA_QUOTE_WORKERS` | `4` | quote metadata concurrency |
-| `DATA_RETRY_ATTEMPTS` | `2` | transient retries per symbol |
-| `DATA_WARM_TIMEOUT` | `180` | seconds before the UI stops showing an active refresh spinner |
-
-The release includes `data-service/seed/publication.json`, the last fully verified 198-stock
-publication. A process with no local cache serves that seed as clearly labeled cached data while the
-live refresh runs. The publication endpoint otherwise returns current data, marked stale cache, or
-a lightweight warming payload. The browser never waits for a cold provider scan before rendering
-the application shell.
-| `DATA_HISTORY_YEARS` | `10` | history depth |
-| `DATA_REQUEST_TIMEOUT` | `25` | per-request timeout (s) |
-| `DATA_CACHE_DIR` | `data-service/cache` | cache location |
-| `TWELVEDATA_API_KEY` | — | enables the verified backup |
-| `FMP_API_KEY` / `ALPHAVANTAGE_API_KEY` / `FINNHUB_API_KEY` / `POLYGON_API_KEY` | — | optional |
-
-Keys are read from the process environment or a git-ignored `.env` at the repository root. They are
-never written to logs, API responses, or the browser bundle.
+`data:verify`, `data:audit`, and `data:sensitivity` require a working data service or cached evidence.

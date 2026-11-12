@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-12T13:24:02+00:00",
+  "generated_at": "2026-11-12T14:28:32+00:00",
   "checks": {
     "universe": {
       "requested": 200,
@@ -318,7 +318,7 @@
       "is_backup": false,
       "backup_symbols": [],
       "timeliness": "delayed",
-      "generated_at": "2026-11-12T13:16:29+00:00",
+      "generated_at": "2026-11-12T14:20:58+00:00",
       "all_rows_carry_source": true
     },
     "passed": true

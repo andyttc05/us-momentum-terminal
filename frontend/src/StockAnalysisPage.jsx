@@ -273,7 +273,7 @@ export function StockAnalysisPage({ ticker = "NVDA", onBack, backLabel = "Screen
                   : staticMode ? "Static preview — no live data" : status === "error" ? "Symbol not available" : "Loading verified data…"}
               </p>
             </div>
-            <div className="stock-profile__art" aria-hidden="true"><MascotDuo creamColor="var(--color-surface)" trackPointer /></div>
+            <div className="stock-profile__art" aria-hidden="true"><MascotDuo creamColor="var(--color-surface)" /></div>
           </header>
 
           <section className="stock-price-summary" aria-label={`${ticker} price summary`}>

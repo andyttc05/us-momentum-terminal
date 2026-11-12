@@ -1,369 +1,224 @@
 # US Momentum Terminal
 
-US Momentum Terminal is a local web application for studying a US equity momentum strategy. It
-combines a React dashboard with a Python market-data service that retrieves prices, calculates
-momentum metrics, ranks stocks, builds a model portfolio and runs a historical simulation.
+[Live website](https://andyttc05.github.io/us-momentum-terminal/) ·
+[GitHub repository](https://github.com/andyttc05/us-momentum-terminal)
 
-The project is intended for students, project evaluators and developers who need a transparent view
-of the strategy and its data. It is not a live trading system and it does not provide investment
-advice.
+US Momentum Terminal is an academic research application for studying a US equity momentum strategy.
+It combines a React dashboard with a Python market-data service that retrieves prices, calculates
+risk-adjusted momentum, ranks stocks, builds a constrained model portfolio, and runs a historical
+simulation against SPY and SPMO.
+
+The project is intended for coursework, technical review, and further research. It is not a live
+trading system, does not execute orders, and does not provide investment advice.
+
+![Overview dashboard](docs/screenshots/overview-desktop.png)
 
 ## Live Demo
 
-**[Open US Momentum Terminal](https://andyttc05.github.io/us-momentum-terminal/)** — a publicly
-accessible build of the dashboard.
+The public frontend is deployed with GitHub Pages:
 
-The public site connects to a hosted Python backend, so live market data, screening, portfolio
-construction and backtesting work in the browser. Those features require the backend to be running;
-on the free-tier host it may take a moment to start after inactivity, and the pages show a clean
-"unavailable" state rather than invented values until it responds.
+<https://andyttc05.github.io/us-momentum-terminal/>
 
-## What The Application Does
+It connects to the FastAPI data service hosted on Render:
 
-- Screens US common stocks by 12-1 momentum and risk-adjusted momentum.
-- Shows the current ranking, price history, volatility, Z-score and momentum score.
-- Builds a hypothetical 100-stock model portfolio with name and sector constraints.
-- Compares a historical momentum book with SPY and SPMO.
-- Exports stock and portfolio data to CSV.
-- Shows the data provider, market-data date and update status so missing or delayed data is visible.
+<https://us-momentum-data.onrender.com/api/health>
 
-The main pages are Overview, Screener, Portfolio, Backtesting and Stock Analysis.
+The free Render service may need time to wake after inactivity. The interface distinguishes fresh,
+cached, partial, warming, and unavailable data; it does not substitute placeholder market values.
+
+## Main Features
+
+- Screens a curated 200-symbol US common-stock universe.
+- Calculates 12–1 momentum, daily volatility, risk-adjusted momentum, Z-scores, and Momentum Scores.
+- Ranks eligible stocks and supports Top 100 and Top 20% views.
+- Constructs a 100-stock model portfolio with a 9% stock cap and a 35% sector-group cap.
+- Shows overview, screener, portfolio, backtesting, and stock-analysis views.
+- Exports screener and complete-portfolio data to CSV.
+- Displays data source, market date, cache state, timeliness, and provider health.
+
+## System Architecture
+
+```mermaid
+flowchart LR
+    Yahoo[Yahoo Finance via yfinance] --> Providers[Provider registry]
+    Backups[Optional provider adapters] --> Providers
+    Providers --> Service[FastAPI data service]
+    Service --> Cache[(JSON disk cache)]
+    Service --> Ranking[Momentum ranking]
+    Ranking --> Portfolio[Constrained model portfolio]
+    Ranking --> Backtest[Historical backtest]
+    Service --> API[/api publication endpoints/]
+    API --> Frontend[React and Vite dashboard]
+```
+
+The browser reads one publication payload from the data service. Provider calls and API keys remain
+on the Python backend.
+
+## Data Collection
+
+The default provider chain is Yahoo Finance through the unofficial `yfinance` client, followed by
+Twelve Data and Financial Modeling Prep when their optional API keys are configured. Stooq exists
+as an optional adapter but is excluded from the default scoring chain because it does not supply
+adjusted closes and is commonly blocked by an anti-bot challenge.
+
+The live universe is a curated list of 200 unique symbols: a 108-stock audited core plus 92
+sector-balanced selections from a larger S&P MidCap 400 candidate pool. It is not a scan of every
+US-listed stock.
+
+For each symbol, the service retrieves daily OHLCV history, adjusted closes, and available dividends
+and split actions. It also retrieves current quote metadata, including company name, sector,
+exchange, currency, security type, market capitalization, shares outstanding, float shares, and
+three-month average volume. Records are normalized, duplicate dates are removed, invalid prices are
+rejected, and provenance is retained.
+
+## Momentum Strategy
+
+The calculation uses adjusted closing prices and trading-session windows:
+
+```text
+12–1 momentum = P(t − 21) / P(t − 252) − 1
+daily volatility = sample standard deviation of 252 trailing daily returns
+risk-adjusted momentum = decimal 12–1 momentum / daily volatility
+Z = (risk-adjusted momentum − cross-sectional mean) / population standard deviation
+Z = clip(Z, −3, +3)
+
+Momentum Score = 1 + Z          when Z > 0
+Momentum Score = 1 / (1 − Z)   when Z < 0
+Momentum Score = 1              when Z = 0
+```
+
+Universe eligibility requires a provider-verified common stock, USD currency, listing on NYSE,
+NASDAQ, or NYSE American, a latest close of at least $5, at least 210 daily observations, a common
+latest observation date, and at least $2 million average daily dollar volume over 63 sessions.
+Scoring requires the full 253 observations needed for the 12–1 window.
+
+## Portfolio Construction
+
+The current model selects the top 100 momentum-eligible stocks with verified current float shares.
+Each initial weight is proportional to:
+
+```text
+float-adjusted market capitalization × Momentum Score
+```
+
+A capped proportional solver redistributes the preliminary weights until they total 100% while
+respecting the individual-stock and sector-group limits. If the constraints are infeasible, the
+service reports that state instead of returning invalid weights.
+
+The official portfolio rebalance is semiannual in March and September. Daily ranking updates do not
+automatically create trades.
+
+## Backtesting Method
+
+The historical test is a research proxy for the ranking method:
+
+- Signals form at the last March or September trading session.
+- Execution occurs at the next available adjusted close.
+- Holdings are marked to market daily.
+- Historical books are equal-weighted.
+- Transaction costs are 0.10% of traded notional; assumed slippage is 0.00%.
+- SPY and SPMO are benchmark series over the same dates.
+- Sharpe Ratio uses a documented 0% risk-free rate.
+
+The backtest uses the audited 108-symbol historical core rather than applying today's 92 additions
+retrospectively. It is not a point-in-time reconstruction: current constituents and current
+fundamentals introduce survivorship, selection, and look-ahead limitations. Historical
+float-adjusted market capitalization is unavailable, which is why the backtest uses equal weights.
 
 ## Technology Stack
 
 | Layer | Technology |
 | --- | --- |
-| Frontend | React 19, Vite 6, `@vitejs/plugin-react` |
-| Styling | Plain CSS with a shared design-token layer (`frontend/src/styles/tokens.css`) |
-| Icons | Phosphor Icons (`@phosphor-icons/react`) |
-| Data service | Python 3.11+, FastAPI, Uvicorn |
-| Market data | `yfinance` (Yahoo Finance) with Twelve Data and FMP as configured backups; Stooq remains an optional unadjusted adapter |
-| Data processing | pandas, NumPy, `exchange-calendars` |
-| Tests | Python `unittest` for the data service, `node:test` for the frontend and edge worker |
-
-## How The Strategy Works
-
-1. Start from a 200-symbol live universe: the audited 108-symbol core plus 92 sector-balanced
-   additions selected from the 200-symbol approved S&P MidCap 400 candidate pool.
-2. Keep common stocks listed on NYSE, NASDAQ or NYSE American, priced at least $5, with at least
-   210 trading observations and a three-month average daily dollar volume of at least $2 million.
-3. Calculate 12-1 momentum from adjusted closing prices.
-4. Divide that return by the trailing daily volatility to obtain risk-adjusted momentum.
-5. Convert risk-adjusted momentum to a cross-sectional Z-score.
-6. Cap the Z-score between -3 and +3.
-7. Convert the capped Z-score to a Momentum Score.
-8. Rank eligible stocks from highest to lowest score.
-9. Select the top 100, or the top 20% of the currently eligible universe.
-10. Multiply float-adjusted market capitalization by Momentum Score to obtain each raw portfolio
-    weight.
-11. Redistribute the weights under a 9% stock cap and a 35% sector-group cap.
-12. Form historical signals at the end of March and September and execute at the next session.
-13. Compare historical results with SPY and SPMO over the same dates.
-
-## Key Formulas
-
-All momentum calculations use adjusted closing prices.
-
-### 12-1 Momentum
-
-```text
-M = Price(t - 21 sessions) / Price(t - 252 sessions) - 1
-```
-
-The most recent 21 trading sessions are excluded. The calculation uses the full prices from
-approximately 13 months ago to approximately one month ago.
-
-### Daily Volatility
-
-```text
-sigma_daily = sample standard deviation of the trailing 252 daily returns
-annualized volatility (%) = sigma_daily * sqrt(252) * 100
-```
-
-The volatility displayed on the Stock Analysis page is annualized. The risk adjustment uses the
-daily standard deviation as its denominator.
-
-### Risk-Adjusted Momentum
-
-```text
-R = decimal 12-1 return / sigma_daily
-```
-
-The calculation is performed only when volatility is positive and finite.
-
-### Cross-Sectional Z-Score
-
-```text
-z_i = (R_i - mean(R)) / population standard deviation(R)
-z_i = min(3, max(-3, z_i))
-```
-
-Only stocks that pass the eligible universe and full momentum-history checks enter the
-cross-section.
-
-### Momentum Score
-
-```text
-Score = 1 + z          when z > 0
-Score = 1 / (1 - z)    when z < 0
-Score = 1              when z = 0
-```
-
-A higher score means a better momentum rank.
-
-### Raw Portfolio Weight
-
-```text
-Raw Weight_i = Float-Adjusted Market Cap_i * Score_i
-Normalized Raw Weight_i = Raw Weight_i / sum(all Raw Weights) * 100
-```
-
-Float-adjusted market cap is calculated from the provider's current float-share count multiplied by
-the latest stock price. Ordinary company market cap is displayed separately in the Screener and
-Stock Analysis pages.
-
-### Final Portfolio Weight
-
-The preliminary weights are scaled proportionally until they sum to 100%, while no position may
-exceed 9% and no displayed sector group may exceed 35%. The implementation uses a capped
-proportional redistribution solved by bisection. If the constraints cannot be met, the portfolio is
-marked unavailable instead of publishing weights that break a limit.
-
-## Portfolio Rules
-
-- Maximum individual stock weight: 9%.
-- Maximum displayed sector-group weight: 35%.
-- Target holdings: 100.
-- Fully invested: 100%.
-- Rebalance months: March and September.
-- Daily ranking updates do not create daily portfolio trades.
-
-The dashboard's sector display groups Consumer Discretionary with Consumer Staples, and groups
-Financials, Energy, Materials, Utilities and Real Estate under "Others". The 35% cap applies to
-those displayed groups. This is a stricter grouping than a full 11-sector GICS allocation.
-
-## Backtesting Method
-
-The historical simulation is a research proxy for the ranking method. It does not reproduce every
-part of the current portfolio model.
-
-- Signals use data available at the last trading session of March or September.
-- Trades execute at the next available adjusted close, which avoids using a signal at an earlier
-  price.
-- Holdings are marked to market daily between rebalances.
-- The historical book is equal-weighted because point-in-time float-adjusted market caps are not
-  available from the current data source.
-- Transaction costs are 0.10% of traded buy and sell notional.
-- Slippage is 0.00%.
-- SPY and SPMO use adjusted closes over the same dates.
-- Sharpe Ratio assumes a 0% risk-free rate. The rate is stored in the result payload.
-- Annualized turnover is reported with the backtest metrics.
-
-The backtest is not a point-in-time universe reconstruction. It continues to use the audited
-108-symbol core rather than retroactively applying today's mid-cap additions to past dates.
-See [Strategy Validation](docs/STRATEGY_VALIDATION_REPORT.md) for the full reliability assessment.
-
-## Application Features
-
-### Overview
-
-Shows the scanned, eligible and portfolio stock counts; performance versus SPY and SPMO; the current
-top momentum names; and sector allocation.
-
-### Screener
-
-Shows Top 100 and Top 20% views, relevance-ranked ticker/company search across the full eligible
-universe, filters, sorting, pagination and CSV export. The table's rank stays the strategy rank
-when the user sorts by another column.
-
-### Portfolio
-
-Shows the 100-stock model portfolio, sector allocation, largest positions, constraint status and a
-complete holdings export.
-
-### Backtesting
-
-Allows the user to select Top 100 or Top 20%, a date window and a 1Y/3Y/5Y/All chart range. It shows
-cumulative return, CAGR, Sharpe Ratio, drawdown, annual returns and turnover calculations stored in
-the service payload.
-
-### Stock Analysis
-
-Shows the stock's price summary, adjusted price chart, monthly returns, momentum metrics, rank tier
-and month-end ranking history.
-
-## Installation And Usage
-
-### Requirements
-
-- Python 3.11 or later.
-- Node.js 20 or later and npm.
-- Internet access for the market-data provider.
-
-The repository includes package lockfiles. No API key is required for the default Yahoo Finance
-provider. Optional backup keys may be added in `.env`.
-
-### Install
-
-```bash
-npm run data:install
-npm --prefix frontend install
-```
-
-`npm run data:install` creates `.venv-datatest` and installs `data-service/requirements.txt`.
-
-### Environment
-
-Copy `.env.example` to `.env` if optional keys are needed:
-
-```bash
-cp .env.example .env
-```
-
-Never commit `.env`. The browser never receives provider keys.
-
-### Start
-
-Run the data service in one terminal:
-
-```bash
-npm run data:serve
-```
-
-Run the frontend in another terminal:
-
-```bash
-npm run dev
-```
-
-The Vite development server is normally available at `http://127.0.0.1:5173/`. The data service
-listens on `http://127.0.0.1:8787/`.
-
-### Production Build And Preview
-
-```bash
-npm run build
-npm run preview
-```
-
-The frontend build is written to `frontend/dist/`.
-
-### Tests
-
-```bash
-npm run data:test
-npm run test:sites
-npm run build
-```
-
-With the data service running:
-
-```bash
-npm run data:verify
-npm run data:audit
-npm run data:sensitivity
-```
-
-Generated evidence is stored in `data-service/docs/`.
+| Frontend | React 19, Vite 6, plain CSS, Phosphor Icons |
+| Backend | Python 3.11+, FastAPI, Uvicorn |
+| Quant processing | pandas, NumPy, `exchange-calendars` |
+| Market data | `yfinance` primary; optional Twelve Data and FMP adapters |
+| Persistence | Atomic JSON disk cache and verified publication seed |
+| Testing | Python `unittest`, Node test runner, live API verification |
+| Deployment | GitHub Pages frontend, Render FastAPI backend |
 
 ## Project Structure
 
 ```text
-US_Momentum_Terminal/
-├── README.md
-├── package.json
-├── .env.example
+.
+├── .github/workflows/       # CI and GitHub Pages deployment
 ├── data-service/
-│   ├── app/
-│   ├── tests/
-│   ├── cache/              # ignored runtime cache
-│   └── docs/               # generated audit evidence
+│   ├── app/                 # FastAPI, providers and quantitative engines
+│   ├── docs/                # Provider report and generated evidence
+│   ├── seed/                # Verified publication seed
+│   └── tests/               # Unit and live integration checks
+├── docs/
+│   ├── screenshots/         # Curated application screenshots
+│   ├── PROJECT_OVERVIEW.md
+│   ├── TECHNICAL_DOCUMENTATION.md
+│   ├── DATA_AUDIT_REPORT.md
+│   ├── STRATEGY_VALIDATION_REPORT.md
+│   └── FINAL_VALIDATION_REPORT.md
 ├── frontend/
-│   ├── src/
-│   ├── tests/
-│   ├── worker/
-│   └── package.json
-└── docs/
-    ├── DATA_AUDIT_REPORT.md
-    ├── STRATEGY_VALIDATION_REPORT.md
-    ├── PROJECT_TECHNICAL_DOCUMENTATION.md
-    ├── FINAL_VALIDATION_REPORT.md
-    ├── PRODUCT_UI_AUDIT.md
-    ├── audit-screenshots/
-    ├── development-history/
-    └── source-brief/
+│   ├── src/                 # React pages, components, styles and API client
+│   ├── tests/               # Frontend and Sites tests
+│   └── worker/              # Sites fallback worker
+├── .env.example
+├── LICENSE
+├── THIRD_PARTY_NOTICES.md
+├── package.json
+└── package-lock.json
 ```
 
-## Important Limitations
+## Local Installation
 
-- The live source list contains 200 symbols, not a complete daily scan of every US common stock.
-  At the 12 November 2026 audit, 200 were scanned and 198 passed all eligibility rules.
-- The provider is Yahoo Finance through an unofficial `yfinance` client.
-- Current market cap and float shares are not point-in-time historical fundamentals.
-- The backtest uses equal weights rather than the live portfolio's float-cap weighting.
-- The current live universe is broader, but the historical test still uses today's audited core and
-  therefore retains survivorship and selection limitations.
-- Some older cached core series retain adjusted closes without complete per-bar dividend and split
-  fields; refreshed series retain those actions.
-- Cross-provider confirmation without paid backup keys is limited to public demo symbols.
-- The Sharpe Ratio uses a 0% risk-free assumption.
-- A historical result is not evidence of future returns or investment suitability.
+Requirements: Python 3.11+, Node.js 20+, npm, and internet access.
 
-The detailed source inventory, verification evidence and unresolved issues are in
-[Data Audit](docs/DATA_AUDIT_REPORT.md) and
-[Strategy Validation](docs/STRATEGY_VALIDATION_REPORT.md).
+```bash
+npm run data:install
+npm --prefix frontend ci
+```
+
+Optional backup provider keys can be added by copying `.env.example` to `.env`. Never commit `.env`.
+
+Start the backend and frontend in separate terminals:
+
+```bash
+npm run data:serve
+npm run dev
+```
+
+The frontend runs at `http://127.0.0.1:5173/`; the API runs at `http://127.0.0.1:8787/`.
+
+Run the production build and checks with:
+
+```bash
+npm run data:test
+npm --prefix frontend run test:unit
+npm run test:sites
+npm run build
+```
+
+With the data service running, `npm run data:verify` checks the live API, calculations, portfolio
+constraints, and backtest timing.
+
+## Limitations
+
+- The universe is curated rather than a complete US exchange master.
+- Yahoo Finance is an unofficial provider without a service-level agreement.
+- Market capitalization and float shares are current, not point-in-time historical observations.
+- The historical universe omits a complete set of delisted securities and stable ticker identities.
+- The backtest is equal-weighted rather than float-cap weighted.
+- The Sharpe Ratio assumes a 0% risk-free rate.
+- No taxes, market impact, capacity constraints, order execution, or paper-trading record are modeled.
+- Past performance does not establish future returns or investment suitability.
 
 ## Documentation
 
-- [Project Technical Documentation](docs/PROJECT_TECHNICAL_DOCUMENTATION.md) — architecture, modules and API shape.
-- [Data Audit Report](docs/DATA_AUDIT_REPORT.md) — source inventory, coverage and data quality evidence.
-- [Strategy Validation Report](docs/STRATEGY_VALIDATION_REPORT.md) — reliability assessment of the momentum method and backtest.
-- [Final Validation Report](docs/FINAL_VALIDATION_REPORT.md) — end-to-end validation results.
-- [Product UI Audit](docs/PRODUCT_UI_AUDIT.md) — interface and responsive review.
-- [Tasks 28 And 29 Report](docs/TASK_28_29_IMPLEMENTATION_REPORT.md) — search, drawdown,
-  universe-expansion and fetch-reliability details.
-- [Task 30 Animation Report](docs/TASK_30_ANIMATION_REPORT.md) — mascot blinking, eye tracking,
-  accessibility and responsive verification.
-- [Tasks 31-33 Report](docs/TASK_31_33_IMPLEMENTATION_REPORT.md) — 200-stock universe,
-  sector/top-momentum refinement and unified Screener card.
-- [Data Providers](data-service/docs/DATA_PROVIDERS.md) — provider chain, configuration and failover behaviour.
-- [Data Service README](data-service/README.md) — service-level detail and API reference.
-- [Frontend README](frontend/README.md) — frontend structure and component notes.
-- [Source Brief](docs/source-brief/README_AGENT_START_HERE.md) — original requirements, methodology and design blueprint.
-- [Development History](docs/development-history/README.md) — chronological record of the development and QA passes.
-
-## Deployment
-
-A live build of the dashboard is published to GitHub Pages at
-<https://andyttc05.github.io/us-momentum-terminal/>.
-
-GitHub Pages hosts only the static frontend; the Python data service runs
-separately on Render at `https://us-momentum-data.onrender.com`. The Pages build
-sets `VITE_API_BASE_URL` to that backend, so the public site fetches live market
-data from it. Data-dependent areas show compact loading, partial, cached or
-unavailable states — never invented values. Cached results remain usable while a
-background refresh runs. The same application also runs fully locally:
-
-```bash
-npm run data:serve   # FastAPI data service on :8787
-npm run dev          # Vite dev server on :5173
-```
-
-The Pages build is produced by `.github/workflows/deploy-pages.yml`, which runs
-the frontend tests and builds with Vite's `base` set to the repository subpath.
-GitHub Pages is configured to deploy from GitHub Actions.
+- [Academic Project Overview](docs/PROJECT_OVERVIEW.md)
+- [Technical Documentation](docs/TECHNICAL_DOCUMENTATION.md)
+- [Data Audit Report](docs/DATA_AUDIT_REPORT.md)
+- [Strategy Validation Report](docs/STRATEGY_VALIDATION_REPORT.md)
+- [Final Validation Report](docs/FINAL_VALIDATION_REPORT.md)
+- [Data Provider Report](data-service/docs/DATA_PROVIDERS.md)
 
 ## License
 
-The project's original code and documentation are distributed under the [MIT License](LICENSE).
-
-Copyright (c) 2026 US Momentum Terminal contributors.
-
-The MIT License covers original project material only. It does not cover
-third-party market data, third-party libraries, fonts, icons or other
-third-party assets, which remain subject to their own original licenses and
-terms of use. The MIT License grants no permission to redistribute restricted
-financial data.
-
-See [Third-Party Notices](THIRD_PARTY_NOTICES.md) for the details of every
-third-party component, provider and asset used by this project.
+Original project code and documentation are distributed under the [MIT License](LICENSE). Third-party
+libraries, fonts, icons, market data, and other third-party material remain subject to their own
+terms. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

@@ -1,14 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  ArrowClockwise,
-  CheckCircle,
-  CircleNotch,
-  CloudSlash,
-  WarningCircle,
-  X,
-} from "@phosphor-icons/react";
+import { ArrowClockwise } from "@phosphor-icons/react";
 import { useMarket } from "../api/MarketProvider.jsx";
 import { getDataNoticeState } from "../utils/dataStatus.js";
+import { Toast } from "./Toast.jsx";
 
 const AUTO_DISMISS_MS = 4200;
 
@@ -40,14 +34,7 @@ export function StatusToast() {
       hasData: Boolean(data?.stocks?.length),
     });
     if (!resolved) return null;
-    const visual = {
-      error: { Icon: CloudSlash, retry: true },
-      loading: { Icon: CircleNotch, retry: false },
-      partial: { Icon: WarningCircle, retry: false },
-      cached: { Icon: WarningCircle, retry: false },
-      updated: { Icon: CheckCircle, retry: false },
-    }[resolved.id];
-    return { ...resolved, ...visual };
+    return { ...resolved, retry: resolved.id === "error" };
   }, [data?.stocks?.length, error, lastRefreshCompletedAt, meta, refreshing, status]);
 
   const key = state
@@ -70,33 +57,20 @@ export function StatusToast() {
     setDismissedKey("");
   }
 
-  const { Icon } = state;
   return (
-    <div
-      className={`status-toast status-toast--${state.id}`}
-      role={state.id === "error" ? "alert" : "status"}
-      aria-live={state.id === "error" ? "assertive" : "polite"}
-    >
-      <span className="status-toast__icon" aria-hidden="true">
-        <Icon size={15} weight={state.id === "loading" ? "bold" : "fill"} />
-      </span>
-      <span className="status-toast__message">{state.message}</span>
-      {state.retry && (
-        <button type="button" className="status-toast__action" onClick={retry} disabled={retrying}>
-          <ArrowClockwise size={12} weight="bold" aria-hidden="true" />
+    <Toast
+      kind={state.id}
+      message={state.message}
+      className="status-toast"
+      durationMs={state.id === "error" ? undefined : AUTO_DISMISS_MS}
+      action={state.retry ? (
+        <button type="button" className="notification-toast__action" onClick={retry} disabled={retrying}>
+          <ArrowClockwise size={13} weight="bold" aria-hidden="true" />
           {retrying ? "Retrying…" : "Retry"}
         </button>
-      )}
-      {state.id === "error" && (
-        <button
-          type="button"
-          className="status-toast__close"
-          aria-label="Dismiss"
-          onClick={() => setDismissedKey(key)}
-        >
-          <X size={12} weight="bold" aria-hidden="true" />
-        </button>
-      )}
-    </div>
+      ) : null}
+      onDismiss={state.id === "error" ? () => setDismissedKey(key) : undefined}
+      dismissLabel="Dismiss status notification"
+    />
   );
 }

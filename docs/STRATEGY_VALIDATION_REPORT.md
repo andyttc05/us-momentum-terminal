@@ -2,7 +2,7 @@
 
 Validation date: 12 November 2026  
 Data as-of: 11 November 2026  
-Automated unit tests: 10 passed  
+Automated unit tests: 13 passed
 Live integration verification: passed  
 Sensitivity output: `data-service/docs/strategy_sensitivity.json`
 

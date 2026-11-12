@@ -12,6 +12,7 @@ import { UpdateBar } from "./components/UpdateBar.jsx";
 import { KpiCard } from "./components/KpiCard.jsx";
 import { Mascot, MascotDuo } from "./components/Mascot.jsx";
 import { PageHeader } from "./components/PageHeader.jsx";
+import { Toast } from "./components/Toast.jsx";
 import { useElementSize } from "./components/useElementSize.js";
 import { useMarket } from "./api/MarketProvider.jsx";
 import { buildDrawdownScale } from "./utils/drawdownScale.js";
@@ -365,7 +366,7 @@ export function BacktestingPage({ hidden = false }) {
           eyebrow="Backtesting"
           title="Strategy Backtest"
           subtitle="Historical Performance"
-          art={<MascotDuo creamColor="var(--color-surface)" trackPointer />}
+          art={<MascotDuo creamColor="var(--color-surface)" />}
           controls={(
             <UpdateBar
               dateTime={block?.end ?? ""}
@@ -423,7 +424,7 @@ export function BacktestingPage({ hidden = false }) {
           </div>
         </section>
       </div>
-      {toast && <div className="toast" role="status" aria-live="polite">{toast}</div>}
+      {toast && <Toast kind="updated" message={toast} className="page-toast" durationMs={2200} />}
     </main>
   );
 }

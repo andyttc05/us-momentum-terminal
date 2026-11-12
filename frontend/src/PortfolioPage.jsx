@@ -17,7 +17,8 @@ import { KpiCard } from "./components/KpiCard.jsx";
 import { MascotDuo } from "./components/Mascot.jsx";
 import { PageHeader } from "./components/PageHeader.jsx";
 import { Pagination } from "./components/Pagination.jsx";
-import { SectorDonut } from "./components/SectorDonut.jsx";
+import { SectorAllocation } from "./components/SectorAllocation.jsx";
+import { Toast } from "./components/Toast.jsx";
 import { UpdateBar } from "./components/UpdateBar.jsx";
 import { useMarket } from "./api/MarketProvider.jsx";
 import { downloadCsvFile } from "./utils/csv.js";
@@ -84,8 +85,8 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
     setPage(1);
   }
 
-  function showToast(message, duration = 2600) {
-    setToast(message);
+  function showToast(message, kind = "updated", duration = 2600) {
+    setToast({ message, kind, duration });
     window.clearTimeout(showToast.timeout);
     showToast.timeout = window.setTimeout(() => setToast(""), duration);
   }
@@ -101,7 +102,7 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
     });
 
     if (!report.ok) {
-      showToast(`Export blocked — ${report.problems[0]}.`, 4200);
+      showToast("Export blocked", "error", 4200);
       return;
     }
 
@@ -110,9 +111,9 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
       const csv = buildPortfolioCsv(holdings);
       const filename = portfolioCsvFilename(new Date());
       downloadCsvFile(filename, csv);
-      showToast(`Exported ${report.rowCount} holdings to ${filename}`);
+      showToast("Export complete");
     } catch (error) {
-      showToast("Export failed — please try again.", 4200);
+      showToast("Export failed", "error", 4200);
     } finally {
       setIsExporting(false);
     }
@@ -129,7 +130,7 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
           eyebrow="Portfolio"
           title="Model Portfolio"
           subtitle="Momentum × Float-Adj. Cap"
-          art={<MascotDuo creamColor="var(--color-surface)" yellowColor="var(--color-yellow)" trackPointer />}
+          art={<MascotDuo creamColor="var(--color-surface)" yellowColor="var(--color-yellow)" />}
           controls={(
             <UpdateBar
               dateTime={snapshot?.asOf}
@@ -148,17 +149,7 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
 
         <section className="portfolio-summary-grid" aria-label="Portfolio allocation and constraints">
           <DashboardCard title="Sector Allocation" className="portfolio-sector-card">
-            <div className="portfolio-sector-content">
-              <SectorDonut sectors={portfolioSectors} />
-              <ul className="portfolio-sector-legend">
-                {portfolioSectors.map((sector) => (
-                  <li key={sector.name}>
-                    <span className="portfolio-sector-legend__name"><i style={{ "--sector-color": sector.color }} aria-hidden="true" />{sector.name}</span>
-                    <strong>{Math.round(sector.value)}%</strong>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <SectorAllocation sectors={portfolioSectors} className="portfolio-sector-content" />
           </DashboardCard>
 
           <DashboardCard title="Stock Weight Distribution" className="portfolio-weight-card">
@@ -180,7 +171,7 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
           </DashboardCard>
 
           <section className="dashboard-card portfolio-constraints" aria-labelledby="portfolio-constraints-title">
-            <div className="dashboard-card__header"><h3 id="portfolio-constraints-title">Constraints</h3></div>
+            <div className="dashboard-card__header"><h3 className="dashboard-card__title" id="portfolio-constraints-title">Constraints</h3></div>
             <div className="dashboard-card__body">
               <ul className="portfolio-constraint-list">
                 {portfolioConstraints.map((constraint) => {
@@ -272,7 +263,7 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
           />
         </DashboardCard>
       </div>
-      {toast && <div className="toast" role="status" aria-live="polite">{toast}</div>}
+      {toast && <Toast kind={toast.kind} message={toast.message} className="page-toast" durationMs={toast.duration} />}
     </main>
   );
 }

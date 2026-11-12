@@ -7,7 +7,7 @@ import { Mascot, MascotDuo } from "./components/Mascot.jsx";
 import { PageHeader } from "./components/PageHeader.jsx";
 import { PerformanceChart } from "./components/PerformanceChart.jsx";
 import { SectionHeader } from "./components/SectionHeader.jsx";
-import { SectorDonut } from "./components/SectorDonut.jsx";
+import { SectorAllocation } from "./components/SectorAllocation.jsx";
 import { Sparkline } from "./components/Sparkline.jsx";
 import { UpdateBar } from "./components/UpdateBar.jsx";
 import { useMarket } from "./api/MarketProvider.jsx";
@@ -31,7 +31,7 @@ export function OverviewPage({ onNavigate, onSelectStock, hidden = false }) {
           eyebrow="Overview"
           title="US Momentum Terminal"
           subtitle="Momentum investing for US equities"
-          art={<MascotDuo creamColor="var(--color-surface)" trackPointer />}
+          art={<MascotDuo creamColor="var(--color-surface)" />}
           controls={<UpdateBar dateTime={snapshot?.asOf} ariaLabel="Refresh overview" />}
         />
 
@@ -110,17 +110,7 @@ export function OverviewPage({ onNavigate, onSelectStock, hidden = false }) {
             </DashboardCard>
 
             <DashboardCard title="Sector Allocation" className="sector-card">
-              <div className="sector-card__content">
-                <SectorDonut sectors={sectorAllocation} />
-                <ul className="sector-legend">
-                  {sectorAllocation.map((sector) => (
-                    <li key={sector.name}>
-                      <span className="sector-legend__name"><i style={{ "--sector-color": sector.color }} aria-hidden="true" />{sector.name}</span>
-                      <strong>{sector.value}%</strong>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              <SectorAllocation sectors={sectorAllocation} className="sector-card__content" />
             </DashboardCard>
           </aside>
         </div>

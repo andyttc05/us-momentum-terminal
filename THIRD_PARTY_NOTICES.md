@@ -44,17 +44,12 @@ responsible for checking and complying with the applicable provider terms.
 These remain subject to their own original licenses. See each dependency's own
 distribution for the authoritative terms.
 
-## Documentation and design references
+## Documentation and screenshots
 
-Screenshots of the application itself under `docs/audit-screenshots/` and
-`docs/reference-screenshots/` are project documentation and are covered by the
-MIT License.
+Screenshots of the application itself under `docs/screenshots/` are project
+documentation and are covered by the MIT License.
 
-Course-provided documents (the IEDA 1180 course guidelines, the original project
-proposal and the original full project guide) and third-party design material
-(the Miyama Graphics visual reference and the conceptual UI blueprint images)
-are **not redistributed** in this repository. They were removed from the public
-repository because redistribution is not clearly permitted; the originals are
-kept locally only. The written design direction derived from them is preserved
-in `docs/source-brief/UI_DESIGN_BLUEPRINT.md`, which remains project-authored
-documentation.
+Course-provided documents, the original proposal and guide, third-party design
+reference images, internal handoff prompts and obsolete development reports are
+not included in this repository. They are kept in a separate local archive
+outside the public project because redistribution is not clearly permitted.

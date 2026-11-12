@@ -1,5 +1,6 @@
 import { Briefcase, ChartLineUp, House, MagnifyingGlass } from "@phosphor-icons/react";
 import { MascotDuo } from "./Mascot.jsx";
+import { ProjectInfo } from "./ProjectInfo.jsx";
 import { publicPath } from "../router.jsx";
 
 const mainItems = [
@@ -45,6 +46,7 @@ export function SidebarNav({ active = "overview", onNavigate }) {
         ))}
       </nav>
 
+      <ProjectInfo />
       <div className="sidebar__mascot" aria-hidden="true"><MascotDuo className="mascot-duo--reverse" creamColor="var(--color-surface)" /></div>
     </aside>
   );

@@ -24,16 +24,15 @@
 }
 .portfolio-sector-card .sector-donut { width: min(100%, 205px); }
 .portfolio-sector-card .sector-donut__number { font-size: 17px; }
-.portfolio-sector-legend {
+.portfolio-sector-content .sector-legend {
   display: grid;
-  gap: 3px;
+  gap: 5px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.portfolio-sector-legend li,
-.portfolio-sector-legend__name { display: flex; align-items: center; }
-.portfolio-sector-legend li {
+.portfolio-sector-content .sector-legend li { display: flex; align-items: center; }
+.portfolio-sector-content .sector-legend li {
   justify-content: space-between;
   gap: 8px;
   min-width: 0;
@@ -41,8 +40,8 @@
   font-size: 0.71rem;
   line-height: 1.25;
 }
-.portfolio-sector-legend__name { min-width: 0; align-items: flex-start; gap: 7px; white-space: normal; }
-.portfolio-sector-legend__name i {
+.portfolio-sector-content .sector-legend__name { min-width: 0; align-items: flex-start; gap: 7px; white-space: normal; }
+.portfolio-sector-content .sector-legend__name i {
   width: 12px;
   height: 10px;
   flex: 0 0 10px;
@@ -50,7 +49,7 @@
   border-radius: 50%;
   background: var(--sector-color);
 }
-.portfolio-sector-legend strong { flex: 0 0 auto; font-size: 0.75rem; font-weight: var(--font-weight-black); font-variant-numeric: tabular-nums; }
+.portfolio-sector-content .sector-legend strong { flex: 0 0 auto; font-size: 0.75rem; font-weight: var(--font-weight-black); font-variant-numeric: tabular-nums; }
 
 .portfolio-weight-card { --card-body-padding-start: 8px; }
 .portfolio-weight-list { display: grid; gap: 8px; }
@@ -214,11 +213,11 @@
   .portfolio-summary-grid { grid-template-columns: minmax(0, 1.32fr) minmax(0, 1.26fr) minmax(270px, 1fr); }
   .portfolio-sector-content { grid-template-columns: minmax(165px, 1fr) minmax(150px, 1fr); gap: 8px; }
   .portfolio-sector-card .sector-donut { width: min(100%, 168px); }
-  .portfolio-sector-legend { gap: 3px; }
-  .portfolio-sector-legend li { font-size: 0.7rem; }
-  .portfolio-sector-legend strong { font-size: 0.75rem; }
-  .portfolio-sector-legend__name { gap: 6px; }
-  .portfolio-sector-legend__name i { width: 10px; height: 10px; }
+  .portfolio-sector-content .sector-legend { gap: 4px; }
+  .portfolio-sector-content .sector-legend li { font-size: 0.7rem; }
+  .portfolio-sector-content .sector-legend strong { font-size: 0.75rem; }
+  .portfolio-sector-content .sector-legend__name { gap: 6px; }
+  .portfolio-sector-content .sector-legend__name i { width: 10px; height: 10px; }
   .portfolio-weight-list { gap: 5px; }
   .portfolio-weight-row { min-height: 28px; grid-template-columns: 48px minmax(70px, 1fr) 48px; gap: 7px; }
   .portfolio-weight-row__ticker,
@@ -238,7 +237,7 @@
   .portfolio-summary-grid { grid-template-columns: minmax(0, 1.32fr) minmax(0, 1.26fr) minmax(275px, 1fr); }
   .portfolio-sector-content { grid-template-columns: minmax(165px, 1fr) minmax(150px, 1fr); gap: 9px; }
   .portfolio-sector-card .sector-donut { width: min(100%, 180px); }
-  .portfolio-sector-legend li { font-size: 0.73rem; }
+  .portfolio-sector-content .sector-legend li { font-size: 0.73rem; }
   .portfolio-constraint { gap: 7px; padding-inline: 10px 7px; font-size: 0.77rem; }
 }
 
@@ -256,7 +255,7 @@
   .portfolio-summary-grid { grid-template-columns: 1fr; }
   .portfolio-sector-content { min-height: 158px; grid-template-columns: minmax(120px, 0.9fr) minmax(150px, 1.1fr); }
   .portfolio-sector-card .sector-donut { width: min(100%, 160px); }
-  .portfolio-sector-legend li { font-size: 0.75rem; }
+  .portfolio-sector-content .sector-legend li { font-size: 0.75rem; }
   .portfolio-constraints { grid-column: auto; }
   .portfolio-constraint-list { grid-template-columns: 1fr; }
   .portfolio-holdings-card { --card-body-padding-start: 0px; }
@@ -265,6 +264,6 @@
 
 @media (max-width: 400px) {
   .portfolio-sector-content { grid-template-columns: 122px minmax(132px, 1fr); gap: 8px; }
-  .portfolio-sector-legend li { font-size: 0.68rem; }
-  .portfolio-sector-legend__name { gap: 5px; }
+  .portfolio-sector-content .sector-legend li { font-size: 0.68rem; }
+  .portfolio-sector-content .sector-legend__name { gap: 5px; }
 }

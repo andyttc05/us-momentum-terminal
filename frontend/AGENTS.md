@@ -35,8 +35,16 @@ The top-right pill is one component: `src/components/UpdateBar.jsx`. Never rebui
 
 `components/Pagination.jsx` + `styles/pagination.css` are shared by Screener and Portfolio. The active page is a per-button class — there is deliberately **no** shared/sliding indicator. `.is-current` is the only rule that transitions `background-color`, so the outgoing page clears in the same frame and two yellow circles can never overlap. Every slot (numbers and the ellipsis) is one button-width, which keeps the row's geometry identical across window compositions; changing the ellipsis width breaks that.
 
+Screener always shows exactly 10 rows per page at every viewport. Keep row heights natural and page through the complete filtered result set; never hardcode total pages or ranges.
+
+## Notifications (durable)
+
+`components/Toast.jsx` is the single visual card for data-status notices and page-level events. It is near-black (`#111111`), fixed at the bottom-right, uses a restrained accent icon, and keeps all existing notification state, retry and auto-dismiss logic. Page-level events must use this component instead of a separate toast style. On mobile table pages, the card sits above pagination so it does not block the controls.
+
+## Sector allocation (durable)
+
+Overview and Portfolio use the shared `SectorAllocation` component. Its presentation-only `getSectorAllocationGroups` utility shows the six largest positive sectors individually, sorts them descending, and folds every remaining sector into one neutral, static “Other” entry with only its aggregate percentage. The donut and legend consume the same grouped values. Never expose the grouped members, mutate the source allocation data or replace the top-six rule with a fixed threshold.
+
 ## Mascot animation (durable)
 
-All mascots use the shared `Mascot` / `MascotDuo` components and `useMascotAnimation`. Eye tracking and blinking are separate nested SVG groups: the outer group handles pointer translation, the inner group handles vertical blink scaling. Never place both transforms on the same group.
-
-Only the large white header `MascotDuo` enables `trackPointer` on Overview, Screener, Portfolio, Backtesting and Stock Analysis. Sidebar, KPI, banner and Momentum Score mascots blink independently but do not track. Preserve random independent blink timing, one shared pointer listener, fine-pointer-only tracking, `prefers-reduced-motion` static behavior, visibility pausing and existing SVG geometry.
+All mascots use the shared `Mascot` / `MascotDuo` components and `useMascotAnimation`. Mascot eyes remain stationary and must never follow a mouse, pointer, or touch input. Preserve random independent blink timing, occasional double blinks, `prefers-reduced-motion` static behavior, visibility pausing and existing SVG geometry.
