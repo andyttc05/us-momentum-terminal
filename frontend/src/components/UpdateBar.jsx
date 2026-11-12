@@ -1,6 +1,7 @@
 import { ArrowClockwise } from "@phosphor-icons/react";
 import { AppButton } from "./AppButton.jsx";
 import { useMarket } from "../api/MarketProvider.jsx";
+import { isDataUpdating } from "../utils/dataStatus.js";
 
 const FETCH_LABEL = {
   loading: "Updating…",
@@ -48,15 +49,14 @@ export function UpdateBar({ dateTime, ariaLabel = "Refresh data", onRefresh, bus
   const hasData = Boolean(data);
   const fetching = refreshing || busy;
   const cacheState = meta?.cache_state;
+  const updating = isDataUpdating({ status, meta, refreshing: fetching });
   const fetchState = staticMode
     ? "static"
-    : cacheState === "warming" ? "loading"
-    : cacheState === "error" ? "failed"
+    : updating ? (hasData ? "updating" : "loading")
+    : error || status === "error" || cacheState === "error" ? "failed"
     : cacheState === "cached" ? "cached"
     : cacheState === "partial" ? "partial"
-    : !hasData
-      ? (status === "error" ? "empty" : "loading")
-      : fetching ? "updating" : error ? "failed" : "updated";
+    : !hasData ? "empty" : "updated";
 
   const timeliness = meta ? TIMELINESS_LABEL[meta.timeliness] ?? meta.timeliness : null;
   const tooltip = staticMode
@@ -64,7 +64,7 @@ export function UpdateBar({ dateTime, ariaLabel = "Refresh data", onRefresh, bus
     : meta ? [
       meta.data_provider,
       timeliness,
-      cacheState === "cached" ? "Showing cached data while refreshing" : null,
+      cacheState === "cached" ? (updating ? "Showing cached data while refreshing" : "Showing cached data") : null,
     ].filter(Boolean).join(" · ") : "Market data source";
   const shownDate = hasData ? dateTime ?? "" : "";
 

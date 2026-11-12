@@ -17,7 +17,7 @@ export function StatusToast() {
     meta,
     status,
     refreshing,
-    lastRefreshCompletedAt,
+    dataNotice,
     refresh,
     reload,
   } = useMarket();
@@ -30,16 +30,13 @@ export function StatusToast() {
       status,
       meta,
       refreshing,
-      lastRefreshCompletedAt,
-      hasData: Boolean(data?.stocks?.length),
+      notice: dataNotice,
     });
     if (!resolved) return null;
     return { ...resolved, retry: resolved.id === "error" };
-  }, [data?.stocks?.length, error, lastRefreshCompletedAt, meta, refreshing, status]);
+  }, [dataNotice, error, meta, refreshing, status]);
 
-  const key = state
-    ? `${state.id}:${meta?.as_of ?? ""}:${data?.universe?.scanned ?? 0}:${lastRefreshCompletedAt?.getTime?.() ?? 0}`
-    : "";
+  const key = state?.key ?? "";
 
   useEffect(() => {
     if (!state || state.id === "error" || dismissedKey === key) return undefined;
@@ -51,10 +48,10 @@ export function StatusToast() {
 
   async function retry() {
     setRetrying(true);
-    if (data?.stocks?.length) await refresh();
-    else await reload();
-    setRetrying(false);
     setDismissedKey("");
+    if (data?.stocks?.length) await refresh();
+    else await reload({ isRefresh: true });
+    setRetrying(false);
   }
 
   return (

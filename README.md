@@ -189,9 +189,9 @@ Run the production build and checks with:
 
 ```bash
 npm run data:test
+npm run build
 npm --prefix frontend run test:unit
 npm run test:sites
-npm run build
 ```
 
 With the data service running, `npm run data:verify` checks the live API, calculations, portfolio

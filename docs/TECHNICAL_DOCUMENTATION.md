@@ -115,6 +115,11 @@ proxy.
 manual refresh, background warming state, and provider selection. Stock Analysis uses a separate
 detail request. An optional `VITE_STATIC_SHOWCASE=true` mode supports a disconnected visual build.
 
+Refresh completion notices are event-driven from the shared data state. Loading and updating cycles
+render only in the top update bar; the dark toast is shown once a final success, cached, partial or
+failed state is known. Retry starts a new completion cycle rather than relying on timers to infer
+whether work has finished.
+
 ### Pages and Charts
 
 | Page | Main content |
@@ -135,8 +140,10 @@ The application uses a fixed labelled sidebar on desktop, a compact icon sidebar
 and a top navigation bar on phones. Page headers and the main content grid reflow to one or two
 columns as space decreases. Wide stock tables remain horizontally scrollable on small screens.
 
-The sidebar includes a compact, keyboard-operable project-information disclosure. It links to this
-document and the README without adding a new route or changing the dashboard layout.
+The sidebar includes a secondary About navigation item that opens a responsive native modal. The
+modal supports close-button, Escape-key and outside-click dismissal, keeps background scrolling
+locked while open, and links to this document and the README without adding a new route or changing
+the dashboard layout.
 
 ### CSV Export
 

@@ -1,7 +1,7 @@
 # Final Validation Report
 
 Validation date: 12 November 2026
-Market data as of: 11 November 2026
+Market data as of: 12 November 2026
 
 ## Release Status
 
@@ -17,30 +17,30 @@ point-in-time market reconstruction and does not establish future investment per
 | Check | Command | Result |
 | --- | --- | --- |
 | Python unit tests | `npm run data:test` | 13 passed |
-| Frontend unit tests | `npm --prefix frontend run test:unit` | 22 passed |
+| Frontend unit tests | `npm --prefix frontend run test:unit` | 23 passed |
 | Sites worker tests | `npm run test:sites` | 4 passed |
 | Production build | `npm run build` | Passed |
 | Live API verification | `npm run data:verify` | Passed |
 
 The frontend unit command includes the Sites worker tests in its standard glob, so the combined
-frontend result is 22 unique tests; the separate Sites command is shown for deployment verification.
+frontend result is 23 unique tests; the separate Sites command is shown for deployment verification.
 
 ## Live API Verification
 
 The local FastAPI service returned a current publication with:
 
 - 200 requested symbols and 198 eligible common stocks.
-- One common market-data date: 11 November 2026.
+- One common market-data date: 12 November 2026.
 - No null prices or NaN scores.
 - A strictly ordered rank sequence from 1 through 198.
 - Independent momentum recomputation within tolerance for AAPL, MSFT, NVDA, META and JPM.
 - 100 portfolio holdings with 100.000000% total final weight.
-- Maximum individual weight of 8.999994%.
+- Maximum individual weight of 8.999997%.
 - Maximum constraint-sector-group weight of 35.000000%.
 - All portfolio constraints passing.
 - 18 March/September backtest rebalances with execution after each signal.
 - 0.10% transaction costs applied and a documented 0% Sharpe risk-free rate.
-- AAPL matching the Twelve Data public demo close at `$355.63` on 11 November 2026.
+- AAPL within 0.05% of the Twelve Data public demo close on 12 November 2026.
 
 Generated evidence is stored in `data-service/docs/verification.json`.
 
@@ -48,13 +48,13 @@ Generated evidence is stored in `data-service/docs/verification.json`.
 
 | Metric | Result |
 | --- | ---: |
-| Window | 2 Apr 2018 to 11 Nov 2026 |
-| Cumulative return | 367.2% |
+| Window | 2 Apr 2018 to 12 Nov 2026 |
+| Cumulative return | 366.8% |
 | CAGR | 19.6% |
 | Annualized volatility | 18.8% |
 | Maximum drawdown | −34.7% |
 | Sharpe Ratio, 0% risk-free | 1.05 |
-| Annualized one-way turnover | 30.9% |
+| Annualized one-way turnover | 30.8% |
 
 These values are an exploratory historical result. The 108-stock historical core, equal weighting,
 current-universe knowledge, and missing point-in-time float data limit interpretation.
@@ -70,13 +70,25 @@ The updated application was opened against the local FastAPI service and reviewe
 At every size:
 
 - The established dashboard layout remains intact.
-- The new “About” disclosure is reachable by keyboard and pointer.
-- The information panel remains within the viewport.
+- The secondary “About” navigation item is reachable by keyboard and pointer.
+- The modal closes by close button, Escape key and outside click.
+- Background scrolling is locked while the modal is open.
+- The information panel remains within the viewport and scrolls internally when height is limited.
 - The panel presents project purpose, data source, methodology, backtest assumptions, limitations,
   and links to the README and technical documentation.
 - Existing navigation, cards, charts, tables, sector allocation, and status surfaces remain present.
 
 No substitute market values were introduced.
+
+The shared data-refresh state was also checked end to end:
+
+- Initial loading and manual refresh show only the top-right update bar.
+- Bringing the local API down produced one final “Update failed” toast with Retry.
+- Restarting the API and pressing Retry hid both notifications during the update.
+- The completed refresh returned to a final updated state without duplicate polling notices.
+
+At 1440 × 900, the Screener table card and the Overview/Backtesting card rows end at the same shared
+bottom rhythm. Each measured a 28 px bottom gap with no page-level vertical overflow.
 
 ## Repository Cleanup
 

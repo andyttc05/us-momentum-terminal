@@ -1,41 +1,35 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getDataNoticeState } from "../src/utils/dataStatus.js";
+import { getDataNoticeState, isDataUpdating } from "../src/utils/dataStatus.js";
 
-const base = { error: null, status: "ready", meta: {}, refreshing: false, lastRefreshCompletedAt: null };
+const base = { error: null, status: "ready", meta: {}, refreshing: false, notice: null };
 
-test("data notices use concise user-facing loading and error text", () => {
-  assert.equal(getDataNoticeState({ ...base, status: "loading" }).message, "Updating data…");
+test("updating states never produce a second notification", () => {
+  assert.equal(getDataNoticeState({ ...base, status: "loading" }), null);
+  assert.equal(getDataNoticeState({ ...base, refreshing: true, notice: { id: "updated" } }), null);
+  assert.equal(getDataNoticeState({ ...base, meta: { refresh_in_progress: true } }), null);
+  assert.equal(isDataUpdating({ ...base, meta: { cache_state: "warming" } }), true);
+});
+
+test("final failure uses the compact required wording", () => {
   assert.equal(
     getDataNoticeState({ ...base, error: { message: "warming up: first provider fetch in progress" } }).message,
-    "Service unavailable",
+    "Update failed",
   );
 });
 
-test("partial and cached results remain distinguishable", () => {
-  assert.equal(getDataNoticeState({ ...base, meta: { cache_state: "partial" } }).id, "partial");
-  assert.equal(getDataNoticeState({ ...base, meta: { cache_state: "cached" } }).id, "cached");
+test("completion notices use concise final wording", () => {
+  assert.equal(getDataNoticeState({ ...base, notice: { id: "updated" } }).message, "Data updated");
+  assert.equal(getDataNoticeState({ ...base, notice: { id: "cached" } }).message, "Using cached data");
+  assert.equal(getDataNoticeState({ ...base, notice: { id: "partial" } }).message, "Partial update");
 });
 
-test("cached and updating data use the quieter update bar instead of a floating notice", () => {
-  assert.equal(
-    getDataNoticeState({ ...base, refreshing: true, hasData: true }),
-    null,
-  );
-  assert.equal(
-    getDataNoticeState({ ...base, meta: { cache_state: "cached" }, hasData: true }),
-    null,
-  );
+test("a final notice is required outside an update cycle", () => {
+  assert.equal(getDataNoticeState({ ...base, meta: { cache_state: "cached" } }), null);
+  assert.equal(getDataNoticeState({ ...base, notice: { id: "unknown" } }), null);
 });
 
-test("manual refresh success is brief and stale success is hidden", () => {
-  const now = Date.parse("2026-11-12T12:00:00Z");
-  assert.equal(
-    getDataNoticeState({ ...base, lastRefreshCompletedAt: new Date(now - 1000), now }).id,
-    "updated",
-  );
-  assert.equal(
-    getDataNoticeState({ ...base, lastRefreshCompletedAt: new Date(now - 5000), now }),
-    null,
-  );
+test("completion keys are stable until the provider publishes a new cycle", () => {
+  const notice = { id: "updated", key: "updated:one" };
+  assert.equal(getDataNoticeState({ ...base, notice }).key, notice.key);
 });

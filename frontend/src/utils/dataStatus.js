@@ -7,27 +7,28 @@ export function getDataNoticeState({
   status,
   meta,
   refreshing,
-  lastRefreshCompletedAt,
-  hasData = false,
-  now = Date.now(),
+  notice,
 }) {
+  if (isDataUpdating({ status, meta, refreshing })) return null;
   if (error || status === "error" || meta?.cache_state === "error") {
-    return { id: "error", message: "Service unavailable" };
+    return { id: "error", message: "Update failed" };
   }
-  if (status === "loading" || refreshing || meta?.refresh_in_progress || meta?.cache_state === "warming") {
-    // With usable data on screen, the update bar is the quieter loading state.
-    if (hasData) return null;
-    return { id: "loading", message: "Updating data…" };
-  }
-  if (meta?.cache_state === "partial") {
-    return { id: "partial", message: "Some data unavailable" };
-  }
-  if (meta?.cache_state === "cached") {
-    if (hasData) return null;
-    return { id: "cached", message: "Cached data" };
-  }
-  if (lastRefreshCompletedAt && now - new Date(lastRefreshCompletedAt).getTime() < 4200) {
-    return { id: "updated", message: "Data updated" };
-  }
-  return null;
+  if (!notice?.id) return null;
+  const messages = {
+    updated: "Data updated",
+    cached: "Using cached data",
+    partial: "Partial update",
+    error: "Update failed",
+  };
+  if (!messages[notice.id]) return null;
+  return { ...notice, message: messages[notice.id] };
+}
+
+export function isDataUpdating({ status, meta, refreshing }) {
+  return Boolean(
+    status === "loading"
+    || refreshing
+    || meta?.refresh_in_progress
+    || meta?.cache_state === "warming",
+  );
 }

@@ -52,7 +52,7 @@ The frontend consumes `GET /api/snapshot` for:
 ## Tests
 
 ```bash
-npm run test:unit
 npm run build
+npm run test:unit
 npm run test:sites
 ```

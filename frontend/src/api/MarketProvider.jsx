@@ -16,13 +16,33 @@ export function MarketProvider({ children }) {
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [lastLoadedAt, setLastLoadedAt] = useState(null);
-  const [lastRefreshCompletedAt, setLastRefreshCompletedAt] = useState(null);
+  const [dataNotice, setDataNotice] = useState(null);
   const mounted = useRef(true);
-  const manualRefreshRequested = useRef(false);
+  const noticePending = useRef(true);
+  const lastNoticeSignature = useRef("");
 
   useEffect(() => {
     mounted.current = true;
     return () => { mounted.current = false; };
+  }, []);
+
+  const publishFinalNotice = useCallback((meta, requestError = null) => {
+    if (requestError || meta?.connection_status === "error") {
+      const signature = "error";
+      if (lastNoticeSignature.current === signature) return;
+      lastNoticeSignature.current = signature;
+      noticePending.current = false;
+      setDataNotice({ id: "error", key: `${signature}:${Date.now()}` });
+      return;
+    }
+    if (!noticePending.current) return;
+    const cacheState = meta?.cache_state;
+    const id = cacheState === "partial" ? "partial" : cacheState === "cached" ? "cached" : "updated";
+    const signature = `${id}:${meta?.generated_at ?? ""}:${meta?.as_of ?? ""}`;
+    if (lastNoticeSignature.current === signature) return;
+    lastNoticeSignature.current = signature;
+    noticePending.current = false;
+    setDataNotice({ id, key: `${signature}:${Date.now()}` });
   }, []);
 
   const load = useCallback(async ({ isRefresh = false } = {}) => {
@@ -34,6 +54,10 @@ export function MarketProvider({ children }) {
       if (!mounted.current) return false;
       const meta = payload?.meta ?? {};
       backgroundRefresh = Boolean(meta.refresh_in_progress || meta.cache_state === "warming");
+      if (backgroundRefresh) {
+        if (!noticePending.current) lastNoticeSignature.current = "";
+        noticePending.current = true;
+      }
       setData(payload);
       setStatus(backgroundRefresh && !(payload?.stocks?.length) ? "loading" : "ready");
       if (meta.connection_status === "error") {
@@ -43,22 +67,20 @@ export function MarketProvider({ children }) {
         setError(null);
       }
       setLastLoadedAt(new Date());
-      if (manualRefreshRequested.current && !backgroundRefresh) {
-        manualRefreshRequested.current = false;
-        setLastRefreshCompletedAt(new Date());
-      }
+      if (!backgroundRefresh) publishFinalNotice(meta);
       setRefreshing(backgroundRefresh);
       return true;
     } catch (requestError) {
       if (!mounted.current) return false;
       setError({ message: requestError.message, code: requestError.code ?? "request_failed" });
+      publishFinalNotice(null, requestError);
       // Keep the last good payload and "ready" status when we already have data.
       setStatus((current) => (current === "ready" ? "ready" : "error"));
       return false;
     } finally {
       if (mounted.current && !backgroundRefresh) setRefreshing(false);
     }
-  }, []);
+  }, [publishFinalNotice]);
 
   useEffect(() => {
     if (STATIC_SHOWCASE) return undefined;
@@ -77,33 +99,37 @@ export function MarketProvider({ children }) {
   const refresh = useCallback(async () => {
     if (STATIC_SHOWCASE) return false;
     setRefreshing(true);
-    manualRefreshRequested.current = true;
+    noticePending.current = true;
+    lastNoticeSignature.current = "";
     try {
       await api.refresh();
     } catch (requestError) {
-      manualRefreshRequested.current = false;
       setError({ message: requestError.message, code: requestError.code ?? "request_failed" });
+      publishFinalNotice(null, requestError);
       setRefreshing(false);
       return false;
     }
     return load();
-  }, [load]);
+  }, [load, publishFinalNotice]);
 
   // Switch the primary source; the service rebuilds and we reload the payload.
   const selectProvider = useCallback(async (providerId) => {
     if (STATIC_SHOWCASE) return { ok: false };
     setRefreshing(true);
+    noticePending.current = true;
+    lastNoticeSignature.current = "";
     try {
       await api.setProvider(providerId);
       await load({ isRefresh: true });
       return { ok: true };
     } catch (requestError) {
       setError({ message: requestError.message, code: requestError.code ?? "request_failed" });
+      publishFinalNotice(null, requestError);
       return { ok: false, message: requestError.message };
     } finally {
       if (mounted.current) setRefreshing(false);
     }
-  }, [load]);
+  }, [load, publishFinalNotice]);
 
   const value = useMemo(
     () => ({
@@ -113,13 +139,13 @@ export function MarketProvider({ children }) {
       error,
       refreshing,
       lastLoadedAt,
-      lastRefreshCompletedAt,
+      dataNotice,
       staticMode: STATIC_SHOWCASE,
       refresh,
       selectProvider,
       reload: load,
     }),
-    [data, error, lastLoadedAt, lastRefreshCompletedAt, load, refresh, refreshing, selectProvider, status],
+    [data, dataNotice, error, lastLoadedAt, load, refresh, refreshing, selectProvider, status],
   );
 
   return <MarketContext.Provider value={value}>{children}</MarketContext.Provider>;

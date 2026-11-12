@@ -46,7 +46,9 @@ export function SidebarNav({ active = "overview", onNavigate }) {
         ))}
       </nav>
 
-      <ProjectInfo />
+      <div className="sidebar-project-info">
+        <ProjectInfo />
+      </div>
       <div className="sidebar__mascot" aria-hidden="true"><MascotDuo className="mascot-duo--reverse" creamColor="var(--color-surface)" /></div>
     </aside>
   );
