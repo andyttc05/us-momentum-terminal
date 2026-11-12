@@ -1,0 +1,27 @@
+# Files included in the US Momentum Terminal Agent Package
+
+AGENT_RULES.md	4339 bytes
+AGENT_TASK_PROMPT.md	1647 bytes
+COURSE_DELIVERABLES.md	3614 bytes
+DEVELOPMENT_ROADMAP.md	5923 bytes
+OPEN_DECISIONS.md	4885 bytes
+PRODUCT_REQUIREMENTS.md	8853 bytes
+PROJECT_BRIEF.md	4723 bytes
+QUANTITATIVE_METHODOLOGY.md	8360 bytes
+README_AGENT_START_HERE.md	3528 bytes
+SOURCE_DOCUMENTS/IEDA_1180_Course_Project_Guidelines_Fall_2026.pdf	99834 bytes
+SOURCE_DOCUMENTS/US_Momentum_Terminal_Full_Project_Guide_ORIGINAL.md	51404 bytes
+SOURCE_DOCUMENTS/US_Momentum_Terminal_Original_Proposal.pdf	84272 bytes
+TECHNICAL_ARCHITECTURE.md	8841 bytes
+UI_DESIGN_BLUEPRINT.md	6745 bytes
+UI_REFERENCES/00_Miyama_Graphics_Visual_Reference.jpg	191813 bytes
+UI_REFERENCES/01_Overview.png	1889709 bytes
+UI_REFERENCES/02_Screener.png	1858454 bytes
+UI_REFERENCES/03_Portfolio.png	1900706 bytes
+UI_REFERENCES/04_Backtesting.png	1886763 bytes
+UI_REFERENCES/05_Stock_Analysis.png	1585276 bytes
+UI_REFERENCES/06_Settings_Stock.png	1664368 bytes
+UI_REFERENCES/07_Settings_Portfolio.png	1665400 bytes
+UI_REFERENCES/08_Settings_Backtest.png	1612716 bytes
+UI_REFERENCES/09_Settings_General.png	1510533 bytes
+prompts/UI_REGENERATION_PROMPTS.md	4966 bytes

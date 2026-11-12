@@ -1,0 +1,629 @@
+{
+  "generated_at": "2026-11-11T19:14:22+00:00",
+  "duration_seconds": 154.6,
+  "tickers": [
+    "AAPL",
+    "MSFT",
+    "NVDA",
+    "AMZN",
+    "META",
+    "AVGO",
+    "GOOGL",
+    "TSLA",
+    "AMD",
+    "NFLX",
+    "PLTR",
+    "ORCL",
+    "COST",
+    "WMT",
+    "JPM",
+    "XOM",
+    "LLY",
+    "BRK-B",
+    "SPY",
+    "QQQ"
+  ],
+  "providers": [
+    {
+      "provider": "Yahoo Finance (yfinance)",
+      "connection": "Connected",
+      "direct_endpoint": {
+        "status": 429,
+        "elapsed_ms": 1313,
+        "note": "Raw chart endpoint is aggressively rate limited without cookie/crumb; the yfinance client performs the cookie+crumb handshake automatically."
+      },
+      "authentication": "Not required",
+      "historical_data": "Available",
+      "adjusted_close": "Available",
+      "ohlcv": "Complete",
+      "market_cap": "Available",
+      "symbols_tested": 20,
+      "symbols_ok": 20,
+      "symbols_failed": [],
+      "min_observations": 502,
+      "latest_data": "2026-11-11",
+      "median_latency_ms": 466,
+      "market_cap_detail": {
+        "available": true,
+        "market_cap": 5154347155456,
+        "sector": "Technology",
+        "name": "Apple Inc.",
+        "elapsed_ms": 1270
+      },
+      "rows": [
+        {
+          "symbol": "AAPL",
+          "status": "ok",
+          "rows": 502,
+          "first_date": "2024-11-11",
+          "last_date": "2026-11-11",
+          "has_adj_close": true,
+          "has_dividends": true,
+          "has_splits": true,
+          "ohlcv_complete": true,
+          "last_close": 354.71,
+          "elapsed_ms": 3313
+        },
+        {
+          "symbol": "MSFT",
+          "status": "ok",
+          "rows": 502,
+          "first_date": "2024-11-11",
+          "last_date": "2026-11-11",
+          "has_adj_close": true,
+          "has_dividends": true,
+          "has_splits": true,
+          "ohlcv_complete": true,
+          "last_close": 520.3,
+          "elapsed_ms": 492
+        },
+        {
+          "symbol": "NVDA",
+          "status": "ok",
+          "rows": 502,
+          "first_date": "2024-11-11",
+          "last_date": "2026-11-11",
+          "has_adj_close": true,
+          "has_dividends": true,
+          "has_splits": true,
+          "ohlcv_complete": true,
+          "last_close": 175.9101,
+          "elapsed_ms": 429
+        },
+        {
+          "symbol": "AMZN",
+          "status": "ok",
+          "rows": 502,
+          "first_date": "2024-11-11",
+          "last_date": "2026-11-11",
+          "has_adj_close": true,
+          "has_dividends": true,
+          "has_splits": true,
+          "ohlcv_complete": true,
+          "last_close": 265.77,
+          "elapsed_ms": 376
+        },
+        {
+          "symbol": "META",
+          "status": "ok",
+          "rows": 502,
+          "first_date": "2024-11-11",
+          "last_date": "2026-11-11",
+          "has_adj_close": true,
+          "has_dividends": true,
+          "has_splits": true,
+          "ohlcv_complete": true,
+          "last_close": 635.745,
+          "elapsed_ms": 420
+        },
+        {
+          "symbol": "AVGO",
+          "status": "ok",
+          "rows": 502,
+          "first_date": "2024-11-11",
+          "last_date": "2026-11-11",
+          "has_adj_close": true,
+          "has_dividends": true,
+          "has_splits": true,
+          "ohlcv_complete": true,
+          "last_close": 350.5801,
+          "elapsed_ms": 710
+        },
+        {
+          "symbol": "GOOGL",
+          "status": "ok",
+          "rows": 502,
+          "first_date": "2024-11-11",
+          "last_date": "2026-11-11",
+          "has_adj_close": true,
+          "has_dividends": true,
+          "has_splits": true,
+          "ohlcv_complete": true,
+          "last_close": 293.71,
+          "elapsed_ms": 608
+        },
+        {
+          "symbol": "TSLA",
+          "status": "ok",
+          "rows": 502,
+          "first_date": "2024-11-11",
+          "last_date": "2026-11-11",
+          "has_adj_close": true,
+          "has_dividends": true,
+          "has_splits": true,
+          "ohlcv_complete": true,
+          "last_close": 392.8401,
+          "elapsed_ms": 402
+        },
+        {
+          "symbol": "AMD",
+          "status": "ok",
+          "rows": 502,
+          "first_date": "2024-11-11",
+          "last_date": "2026-11-11",
+          "has_adj_close": true,
+          "has_dividends": true,
+          "has_splits": true,
+          "ohlcv_complete": true,
+          "last_close": 562.08,
+          "elapsed_ms": 400
+        },
+        {
+          "symbol": "NFLX",
+          "status": "ok",
+          "rows": 502,
+          "first_date": "2024-11-11",
+          "last_date": "2026-11-11",
+          "has_adj_close": true,
+          "has_dividends": true,
+          "has_splits": true,
+          "ohlcv_complete": true,
+          "last_close": 63.94,
+          "elapsed_ms": 592
+        },
+        {
+          "symbol": "PLTR",
+          "status": "ok",
+          "rows": 502,
+          "first_date": "2024-11-11",
+          "last_date": "2026-11-11",
+          "has_adj_close": true,
+          "has_dividends": true,
+          "has_splits": true,
+          "ohlcv_complete": true,
+          "last_close": 173.15,
+          "elapsed_ms": 387
+        },
+        {
+          "symbol": "ORCL",
+          "status": "ok",
+          "rows": 502,
+          "first_date": "2024-11-11",
+          "last_date": "2026-11-11",
+          "has_adj_close": true,
+          "has_dividends": true,
+          "has_splits": true,
+          "ohlcv_complete": true,
+          "last_close": 128.885,
+          "elapsed_ms": 620
+        },
+        {
+          "symbol": "COST",
+          "status": "ok",
+          "rows": 502,
+          "first_date": "2024-11-11",
+          "last_date": "2026-11-11",
+          "has_adj_close": true,
+          "has_dividends": true,
+          "has_splits": true,
+          "ohlcv_complete": true,
+          "last_close": 1077.8,
+          "elapsed_ms": 416
+        },
+        {
+          "symbol": "WMT",
+          "status": "ok",
+          "rows": 502,
+          "first_date": "2024-11-11",
+          "last_date": "2026-11-11",
+          "has_adj_close": true,
+          "has_dividends": true,
+          "has_splits": true,
+          "ohlcv_complete": true,
+          "last_close": 124.725,
+          "elapsed_ms": 614
+        },
+        {
+          "symbol": "JPM",
+          "status": "ok",
+          "rows": 502,
+          "first_date": "2024-11-11",
+          "last_date": "2026-11-11",
+          "has_adj_close": true,
+          "has_dividends": true,
+          "has_splits": true,
+          "ohlcv_complete": true,
+          "last_close": 343.65,
+          "elapsed_ms": 440
+        },
+        {
+          "symbol": "XOM",
+          "status": "ok",
+          "rows": 502,
+          "first_date": "2024-11-11",
+          "last_date": "2026-11-11",
+          "has_adj_close": true,
+          "has_dividends": true,
+          "has_splits": true,
+          "ohlcv_complete": true,
+          "last_close": 166.43,
+          "elapsed_ms": 618
+        },
+        {
+          "symbol": "LLY",
+          "status": "ok",
+          "rows": 502,
+          "first_date": "2024-11-11",
+          "last_date": "2026-11-11",
+          "has_adj_close": true,
+          "has_dividends": true,
+          "has_splits": true,
+          "ohlcv_complete": true,
+          "last_close": 1429.23,
+          "elapsed_ms": 653
+        },
+        {
+          "symbol": "BRK-B",
+          "status": "ok",
+          "rows": 502,
+          "first_date": "2024-11-11",
+          "last_date": "2026-11-11",
+          "has_adj_close": true,
+          "has_dividends": true,
+          "has_splits": true,
+          "ohlcv_complete": true,
+          "last_close": 583.12,
+          "elapsed_ms": 426
+        },
+        {
+          "symbol": "SPY",
+          "status": "ok",
+          "rows": 502,
+          "first_date": "2024-11-11",
+          "last_date": "2026-11-11",
+          "has_adj_close": true,
+          "has_dividends": true,
+          "has_splits": true,
+          "ohlcv_complete": true,
+          "last_close": 760.31,
+          "elapsed_ms": 431
+        },
+        {
+          "symbol": "QQQ",
+          "status": "ok",
+          "rows": 502,
+          "first_date": "2024-11-11",
+          "last_date": "2026-11-11",
+          "has_adj_close": true,
+          "has_dividends": true,
+          "has_splits": true,
+          "ohlcv_complete": true,
+          "last_close": 692.48,
+          "elapsed_ms": 616
+        }
+      ],
+      "rate_limits": "Unofficial API. Observed HTTP 429 on the raw chart endpoint; yfinance survives by doing a cookie/crumb handshake and retrying. No published quota - must be paced client-side."
+    },
+    {
+      "provider": "Financial Modeling Prep",
+      "connection": "Connected (HTTP reachable)",
+      "authentication": "API key required",
+      "historical_data": "Not tested - no API key",
+      "adjusted_close": "Not tested",
+      "ohlcv": "Not tested",
+      "market_cap": "Not tested",
+      "symbols_tested": 0,
+      "symbols_ok": 0,
+      "latest_data": null,
+      "median_latency_ms": 2107,
+      "observed": {
+        "legacy_v3_status": 401,
+        "stable_status": 401,
+        "body": "{\n  \"Error Message\": \"Invalid API KEY. Feel free to create a Free API Key or visit https://site.financialmodelingprep.com/faqs?search=why-is-my-api-key-invalid for more information.\"\n}"
+      },
+      "rate_limits": "Free plan documented at 250 requests/day. Not verifiable without a key."
+    },
+    {
+      "provider": "Alpha Vantage",
+      "connection": "Connected (HTTP reachable)",
+      "authentication": "API key required",
+      "historical_data": "Not tested - no API key",
+      "adjusted_close": "Not tested",
+      "ohlcv": "Not tested",
+      "market_cap": "Not tested",
+      "symbols_tested": 3,
+      "symbols_ok": 0,
+      "ok_symbols": [],
+      "latest_data": null,
+      "median_latency_ms": 1427,
+      "observed": {
+        "key_used": "demo",
+        "message": "The **demo** API key is for demo purposes only. Please claim your free API key at (https://www.alphavantage.co/support/#api-key) to explore our full API offerings. It takes fewer than 20 seconds."
+      },
+      "rate_limits": "Free tier documented at 25 requests/day. The public 'demo' key serves a single demo symbol; TIME_SERIES_DAILY_ADJUSTED is a premium function.",
+      "rows": [
+        {
+          "symbol": "AAPL",
+          "status": 200,
+          "ok": false,
+          "message": "The **demo** API key is for demo purposes only. Please claim your free API key at (https://www.alphavantage.co/support/#api-key) to explore our full API offerin"
+        },
+        {
+          "symbol": "MSFT",
+          "status": 200,
+          "ok": false,
+          "message": "The **demo** API key is for demo purposes only. Please claim your free API key at (https://www.alphavantage.co/support/#api-key) to explore our full API offerin"
+        },
+        {
+          "symbol": "IBM",
+          "status": 200,
+          "ok": false,
+          "message": "The **demo** API key is for demo purposes only. Please claim your free API key at (https://www.alphavantage.co/support/#api-key) to explore our full API offerin"
+        }
+      ]
+    },
+    {
+      "provider": "Finnhub",
+      "connection": "Connected (HTTP reachable)",
+      "authentication": "API key required",
+      "historical_data": "Not tested - no API key",
+      "adjusted_close": "Not tested",
+      "ohlcv": "Not tested",
+      "market_cap": "Not tested",
+      "symbols_tested": 0,
+      "symbols_ok": 0,
+      "latest_data": null,
+      "median_latency_ms": 2953,
+      "observed": {
+        "quote_status": 401,
+        "candle_status": 401,
+        "body": "{\"error\":\"Please use an API key.\"}"
+      },
+      "rate_limits": "Free tier documented at 60 API calls/minute. Historic candles are not included in the free tier."
+    },
+    {
+      "provider": "Twelve Data",
+      "connection": "Connected",
+      "authentication": "Passed for demo symbols only",
+      "historical_data": "Available",
+      "adjusted_close": "Not verified",
+      "ohlcv": "Complete",
+      "market_cap": "Not tested",
+      "symbols_tested": 20,
+      "symbols_ok": 2,
+      "ok_symbols": [
+        "AAPL",
+        "QQQ"
+      ],
+      "latest_data": "2026-11-11",
+      "median_latency_ms": 1210,
+      "rate_limits": "Free tier documented at 8 requests/minute and 800 requests/day. The public 'demo' key is restricted to a handful of symbols.",
+      "rows": [
+        {
+          "symbol": "AAPL",
+          "status": 200,
+          "ok": true,
+          "message": null,
+          "latest": "2026-11-11"
+        },
+        {
+          "symbol": "MSFT",
+          "status": 401,
+          "ok": false,
+          "message": "The 'demo' API key is only used for initial familiarity. To become a full user, you can request your own API key at https://twelvedata.com/pricing. It is absolutely free, and it\u2019s yours for a lifetime. It only takes 10 seconds to obtain your own API key!",
+          "latest": null
+        },
+        {
+          "symbol": "NVDA",
+          "status": 401,
+          "ok": false,
+          "message": "The 'demo' API key is only used for initial familiarity. To become a full user, you can request your own API key at https://twelvedata.com/pricing. It is absolutely free, and it\u2019s yours for a lifetime. It only takes 10 seconds to obtain your own API key!",
+          "latest": null
+        },
+        {
+          "symbol": "AMZN",
+          "status": 401,
+          "ok": false,
+          "message": "The 'demo' API key is only used for initial familiarity. To become a full user, you can request your own API key at https://twelvedata.com/pricing. It is absolutely free, and it\u2019s yours for a lifetime. It only takes 10 seconds to obtain your own API key!",
+          "latest": null
+        },
+        {
+          "symbol": "META",
+          "status": 401,
+          "ok": false,
+          "message": "The 'demo' API key is only used for initial familiarity. To become a full user, you can request your own API key at https://twelvedata.com/pricing. It is absolutely free, and it\u2019s yours for a lifetime. It only takes 10 seconds to obtain your own API key!",
+          "latest": null
+        },
+        {
+          "symbol": "AVGO",
+          "status": 401,
+          "ok": false,
+          "message": "The 'demo' API key is only used for initial familiarity. To become a full user, you can request your own API key at https://twelvedata.com/pricing. It is absolutely free, and it\u2019s yours for a lifetime. It only takes 10 seconds to obtain your own API key!",
+          "latest": null
+        },
+        {
+          "symbol": "GOOGL",
+          "status": 401,
+          "ok": false,
+          "message": "The 'demo' API key is only used for initial familiarity. To become a full user, you can request your own API key at https://twelvedata.com/pricing. It is absolutely free, and it\u2019s yours for a lifetime. It only takes 10 seconds to obtain your own API key!",
+          "latest": null
+        },
+        {
+          "symbol": "TSLA",
+          "status": 401,
+          "ok": false,
+          "message": "The 'demo' API key is only used for initial familiarity. To become a full user, you can request your own API key at https://twelvedata.com/pricing. It is absolutely free, and it\u2019s yours for a lifetime. It only takes 10 seconds to obtain your own API key!",
+          "latest": null
+        },
+        {
+          "symbol": "AMD",
+          "status": 401,
+          "ok": false,
+          "message": "The 'demo' API key is only used for initial familiarity. To become a full user, you can request your own API key at https://twelvedata.com/pricing. It is absolutely free, and it\u2019s yours for a lifetime. It only takes 10 seconds to obtain your own API key!",
+          "latest": null
+        },
+        {
+          "symbol": "NFLX",
+          "status": 401,
+          "ok": false,
+          "message": "The 'demo' API key is only used for initial familiarity. To become a full user, you can request your own API key at https://twelvedata.com/pricing. It is absolutely free, and it\u2019s yours for a lifetime. It only takes 10 seconds to obtain your own API key!",
+          "latest": null
+        },
+        {
+          "symbol": "PLTR",
+          "status": 401,
+          "ok": false,
+          "message": "The 'demo' API key is only used for initial familiarity. To become a full user, you can request your own API key at https://twelvedata.com/pricing. It is absolutely free, and it\u2019s yours for a lifetime. It only takes 10 seconds to obtain your own API key!",
+          "latest": null
+        },
+        {
+          "symbol": "ORCL",
+          "status": 401,
+          "ok": false,
+          "message": "The 'demo' API key is only used for initial familiarity. To become a full user, you can request your own API key at https://twelvedata.com/pricing. It is absolutely free, and it\u2019s yours for a lifetime. It only takes 10 seconds to obtain your own API key!",
+          "latest": null
+        },
+        {
+          "symbol": "COST",
+          "status": 401,
+          "ok": false,
+          "message": "The 'demo' API key is only used for initial familiarity. To become a full user, you can request your own API key at https://twelvedata.com/pricing. It is absolutely free, and it\u2019s yours for a lifetime. It only takes 10 seconds to obtain your own API key!",
+          "latest": null
+        },
+        {
+          "symbol": "WMT",
+          "status": 401,
+          "ok": false,
+          "message": "The 'demo' API key is only used for initial familiarity. To become a full user, you can request your own API key at https://twelvedata.com/pricing. It is absolutely free, and it\u2019s yours for a lifetime. It only takes 10 seconds to obtain your own API key!",
+          "latest": null
+        },
+        {
+          "symbol": "JPM",
+          "status": 401,
+          "ok": false,
+          "message": "The 'demo' API key is only used for initial familiarity. To become a full user, you can request your own API key at https://twelvedata.com/pricing. It is absolutely free, and it\u2019s yours for a lifetime. It only takes 10 seconds to obtain your own API key!",
+          "latest": null
+        },
+        {
+          "symbol": "XOM",
+          "status": 401,
+          "ok": false,
+          "message": "The 'demo' API key is only used for initial familiarity. To become a full user, you can request your own API key at https://twelvedata.com/pricing. It is absolutely free, and it\u2019s yours for a lifetime. It only takes 10 seconds to obtain your own API key!",
+          "latest": null
+        },
+        {
+          "symbol": "LLY",
+          "status": 401,
+          "ok": false,
+          "message": "The 'demo' API key is only used for initial familiarity. To become a full user, you can request your own API key at https://twelvedata.com/pricing. It is absolutely free, and it\u2019s yours for a lifetime. It only takes 10 seconds to obtain your own API key!",
+          "latest": null
+        },
+        {
+          "symbol": "BRK-B",
+          "status": 401,
+          "ok": false,
+          "message": "The 'demo' API key is only used for initial familiarity. To become a full user, you can request your own API key at https://twelvedata.com/pricing. It is absolutely free, and it\u2019s yours for a lifetime. It only takes 10 seconds to obtain your own API key!",
+          "latest": null
+        },
+        {
+          "symbol": "SPY",
+          "status": 401,
+          "ok": false,
+          "message": "The 'demo' API key is only used for initial familiarity. To become a full user, you can request your own API key at https://twelvedata.com/pricing. It is absolutely free, and it\u2019s yours for a lifetime. It only takes 10 seconds to obtain your own API key!",
+          "latest": null
+        },
+        {
+          "symbol": "QQQ",
+          "status": 200,
+          "ok": true,
+          "message": null,
+          "latest": "2026-11-11"
+        }
+      ]
+    },
+    {
+      "provider": "Polygon.io",
+      "connection": "Connected (HTTP reachable)",
+      "authentication": "API key required",
+      "historical_data": "Not tested - no API key",
+      "adjusted_close": "Not tested",
+      "ohlcv": "Not tested",
+      "market_cap": "Not tested",
+      "symbols_tested": 0,
+      "symbols_ok": 0,
+      "latest_data": null,
+      "median_latency_ms": 1762,
+      "observed": {
+        "status": 401,
+        "body": "{\"status\":\"ERROR\",\"request_id\":\"6bf0bf526c222e4245702f1d7b5e8fb0\",\"error\":\"Unknown API Key\"}"
+      },
+      "rate_limits": "Free tier documented at 5 requests/minute. Not verifiable without a key."
+    },
+    {
+      "provider": "Stooq",
+      "connection": "Failed",
+      "authentication": "Not required",
+      "historical_data": "Unavailable (requests refused)",
+      "adjusted_close": "Unknown",
+      "ohlcv": "Unknown",
+      "market_cap": "Unavailable",
+      "symbols_tested": 5,
+      "symbols_ok": 0,
+      "latest_data": null,
+      "median_latency_ms": null,
+      "rate_limits": "No published limit; anonymous daily CSV export. Currently intercepted by a bot-verification page.",
+      "rows": [
+        {
+          "symbol": "aapl.us",
+          "status": null,
+          "csv": false,
+          "blocked": false,
+          "error": "ConnectionError: ('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
+          "elapsed_ms": 20117
+        },
+        {
+          "symbol": "msft.us",
+          "status": null,
+          "csv": false,
+          "blocked": false,
+          "error": "ConnectionError: ('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
+          "elapsed_ms": 19967
+        },
+        {
+          "symbol": "nvda.us",
+          "status": null,
+          "csv": false,
+          "blocked": false,
+          "error": "ConnectionError: ('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
+          "elapsed_ms": 20269
+        },
+        {
+          "symbol": "amzn.us",
+          "status": null,
+          "csv": false,
+          "blocked": false,
+          "error": "ConnectionError: ('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
+          "elapsed_ms": 19923
+        },
+        {
+          "symbol": "meta.us",
+          "status": null,
+          "csv": false,
+          "blocked": false,
+          "error": "ConnectionError: ('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
+          "elapsed_ms": 20235
+        }
+      ]
+    }
+  ]
+}

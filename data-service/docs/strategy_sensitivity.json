@@ -1,0 +1,287 @@
+{
+  "generated_at": "2026-11-12T10:32:23+00:00",
+  "source": "cached Yahoo Finance adjusted closes",
+  "base_window": [
+    "2018-04-02",
+    "2026-11-11"
+  ],
+  "eligible_universe_size": 106,
+  "classification": "exploratory historical sensitivity; not an optimisation or future-performance claim",
+  "scenarios": {
+    "base_top100_semiannual": {
+      "available": true,
+      "start": "2018-04-02",
+      "end": "2026-11-11",
+      "cumulative_return_pct": 367.2,
+      "cagr_pct": 19.6,
+      "annualized_volatility_pct": 18.8,
+      "max_drawdown_pct": -34.7,
+      "sharpe_zero_rf": 1.05,
+      "transaction_cost_pct": 0.9497,
+      "annualized_turnover_pct": 30.9,
+      "rebalances": 18
+    },
+    "top50": {
+      "available": true,
+      "start": "2018-04-02",
+      "end": "2026-11-11",
+      "cumulative_return_pct": 390.4,
+      "cagr_pct": 20.3,
+      "annualized_volatility_pct": 19.8,
+      "max_drawdown_pct": -32.9,
+      "sharpe_zero_rf": 1.03,
+      "transaction_cost_pct": 3.1426,
+      "annualized_turnover_pct": 85.8,
+      "rebalances": 18
+    },
+    "top20_percent": {
+      "available": true,
+      "start": "2018-04-02",
+      "end": "2026-11-11",
+      "cumulative_return_pct": 497.7,
+      "cagr_pct": 23.1,
+      "annualized_volatility_pct": 22.2,
+      "max_drawdown_pct": -32.1,
+      "sharpe_zero_rf": 1.05,
+      "transaction_cost_pct": 5.389,
+      "annualized_turnover_pct": 129.4,
+      "rebalances": 18
+    },
+    "cost_0_bps": {
+      "available": true,
+      "start": "2018-04-02",
+      "end": "2026-11-11",
+      "cumulative_return_pct": 369.2,
+      "cagr_pct": 19.7,
+      "annualized_volatility_pct": 18.8,
+      "max_drawdown_pct": -34.7,
+      "sharpe_zero_rf": 1.05,
+      "transaction_cost_pct": 0.0,
+      "annualized_turnover_pct": 30.9,
+      "rebalances": 18
+    },
+    "cost_25_bps": {
+      "available": true,
+      "start": "2018-04-02",
+      "end": "2026-11-11",
+      "cumulative_return_pct": 364.2,
+      "cagr_pct": 19.5,
+      "annualized_volatility_pct": 18.8,
+      "max_drawdown_pct": -34.7,
+      "sharpe_zero_rf": 1.04,
+      "transaction_cost_pct": 2.365,
+      "annualized_turnover_pct": 30.9,
+      "rebalances": 18
+    },
+    "cost_50_bps": {
+      "available": true,
+      "start": "2018-04-02",
+      "end": "2026-11-11",
+      "cumulative_return_pct": 359.2,
+      "cagr_pct": 19.4,
+      "annualized_volatility_pct": 18.8,
+      "max_drawdown_pct": -34.7,
+      "sharpe_zero_rf": 1.04,
+      "transaction_cost_pct": 4.6991,
+      "annualized_turnover_pct": 30.9,
+      "rebalances": 18
+    },
+    "slippage_10_bps": {
+      "available": true,
+      "start": "2018-04-02",
+      "end": "2026-11-11",
+      "cumulative_return_pct": 365.2,
+      "cagr_pct": 19.5,
+      "annualized_volatility_pct": 18.8,
+      "max_drawdown_pct": -34.7,
+      "sharpe_zero_rf": 1.05,
+      "transaction_cost_pct": 1.8944,
+      "annualized_turnover_pct": 30.9,
+      "rebalances": 18
+    },
+    "slippage_25_bps": {
+      "available": true,
+      "start": "2018-04-02",
+      "end": "2026-11-11",
+      "cumulative_return_pct": 362.2,
+      "cagr_pct": 19.4,
+      "annualized_volatility_pct": 18.8,
+      "max_drawdown_pct": -34.7,
+      "sharpe_zero_rf": 1.04,
+      "transaction_cost_pct": 3.3023,
+      "annualized_turnover_pct": 30.9,
+      "rebalances": 18
+    },
+    "monthly_rebalance": {
+      "available": true,
+      "start": "2017-12-01",
+      "end": "2026-11-11",
+      "cumulative_return_pct": 375.1,
+      "cagr_pct": 19.0,
+      "annualized_volatility_pct": 18.7,
+      "max_drawdown_pct": -34.3,
+      "sharpe_zero_rf": 1.03,
+      "transaction_cost_pct": 2.489,
+      "annualized_turnover_pct": 63.6,
+      "rebalances": 108
+    },
+    "liquidity_top_50_universe": {
+      "available": true,
+      "start": "2018-04-02",
+      "end": "2026-11-11",
+      "cumulative_return_pct": 630.5,
+      "cagr_pct": 26.0,
+      "annualized_volatility_pct": 21.7,
+      "max_drawdown_pct": -33.9,
+      "sharpe_zero_rf": 1.18,
+      "transaction_cost_pct": 1.0377,
+      "annualized_turnover_pct": 28.0,
+      "rebalances": 18
+    },
+    "liquidity_top_75_universe": {
+      "available": true,
+      "start": "2018-04-02",
+      "end": "2026-11-11",
+      "cumulative_return_pct": 487.9,
+      "cagr_pct": 22.8,
+      "annualized_volatility_pct": 19.7,
+      "max_drawdown_pct": -33.9,
+      "sharpe_zero_rf": 1.15,
+      "transaction_cost_pct": 0.8765,
+      "annualized_turnover_pct": 27.2,
+      "rebalances": 18
+    }
+  },
+  "periods": {
+    "in_sample_through_2022": {
+      "available": true,
+      "start": "2018-04-02",
+      "end": "2022-12-30",
+      "total_return_pct": 110.6,
+      "cagr_pct": 17.0,
+      "annualized_volatility_pct": 22.1,
+      "max_drawdown_pct": -34.7,
+      "sharpe_zero_rf": 0.82
+    },
+    "holdout_2023_to_end": {
+      "available": true,
+      "start": "2023-01-03",
+      "end": "2026-11-11",
+      "total_return_pct": 122.2,
+      "cagr_pct": 23.0,
+      "annualized_volatility_pct": 13.8,
+      "max_drawdown_pct": -18.7,
+      "sharpe_zero_rf": 1.57
+    },
+    "covid_recovery_2020_h2": {
+      "available": true,
+      "start": "2020-04-01",
+      "end": "2020-12-31",
+      "total_return_pct": 64.4,
+      "cagr_pct": 93.9,
+      "annualized_volatility_pct": 23.5,
+      "max_drawdown_pct": -8.2,
+      "sharpe_zero_rf": 2.93
+    },
+    "bear_2022": {
+      "available": true,
+      "start": "2022-01-03",
+      "end": "2022-12-30",
+      "total_return_pct": -12.4,
+      "cagr_pct": -12.5,
+      "annualized_volatility_pct": 23.1,
+      "max_drawdown_pct": -22.6,
+      "sharpe_zero_rf": -0.46
+    },
+    "bull_2023_2024": {
+      "available": true,
+      "start": "2023-01-03",
+      "end": "2024-12-31",
+      "total_return_pct": 59.3,
+      "cagr_pct": 26.3,
+      "annualized_volatility_pct": 12.6,
+      "max_drawdown_pct": -10.4,
+      "sharpe_zero_rf": 1.92
+    }
+  },
+  "yearly_realized_volatility_pct": {
+    "2018": 15.8,
+    "2019": 12.7,
+    "2020": 35.5,
+    "2021": 13.2,
+    "2022": 23.1,
+    "2023": 13.3,
+    "2024": 11.8,
+    "2025": 17.5,
+    "2026": 11.8
+  },
+  "annual_returns": [
+    {
+      "year": 2019,
+      "strategy": 36.2,
+      "spy": 31.2,
+      "spmo": 25.9
+    },
+    {
+      "year": 2020,
+      "strategy": 27.6,
+      "spy": 18.3,
+      "spmo": 27.8
+    },
+    {
+      "year": 2021,
+      "strategy": 34.1,
+      "spy": 28.7,
+      "spmo": 22.5
+    },
+    {
+      "year": 2022,
+      "strategy": -11.9,
+      "spy": -18.2,
+      "spmo": -10.5
+    },
+    {
+      "year": 2023,
+      "strategy": 26.2,
+      "spy": 26.2,
+      "spmo": 17.6
+    },
+    {
+      "year": 2024,
+      "strategy": 26.2,
+      "spy": 24.9,
+      "spmo": 45.8
+    },
+    {
+      "year": 2025,
+      "strategy": 17.6,
+      "spy": 17.7,
+      "spmo": 26.6
+    },
+    {
+      "year": 2026,
+      "strategy": 18.6,
+      "spy": 12.3,
+      "spmo": 13.3
+    }
+  ],
+  "execution": {
+    "selection": "top 100",
+    "weighting": "equal weight (research proxy)",
+    "signal_months": [
+      3,
+      9
+    ],
+    "execution": "next available adjusted close",
+    "transaction_cost_bps": 10.0,
+    "slippage_bps": 0.0,
+    "risk_free_rate": 0.0,
+    "historical_capitalisation": "not available point-in-time"
+  },
+  "limitations": [
+    "The universe list is current rather than point-in-time.",
+    "Historical float-adjusted market caps are unavailable, so the backtest uses equal weights.",
+    "The 2023-to-end result is a chronological holdout, not a separately trained model test.",
+    "All results depend on the vendor's adjusted-close history and the 0% Sharpe risk-free assumption."
+  ]
+}

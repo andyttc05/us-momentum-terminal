@@ -1,0 +1,223 @@
+/* ------------------------------------------------------------------------- *
+ * Global layout system
+ *
+ * One container, one header, one vertical rhythm. Every main page renders
+ * `.page > .page-header + content`, so the title block, the left edge of the
+ * content and the gap between sections are identical on all five screens.
+ *
+ * Pages may rearrange their content freely; they must not restate padding,
+ * header metrics or section gaps. Those live here and in tokens.css.
+ * ------------------------------------------------------------------------- */
+
+/* A. Main content container ------------------------------------------------ */
+
+.page {
+  width: min(100%, var(--page-max-width));
+  margin-inline: auto;
+  padding: var(--page-padding-block-start) var(--page-padding-inline) var(--page-padding-block-end);
+}
+
+/* B. Page header ----------------------------------------------------------- */
+
+.page-header {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  column-gap: clamp(20px, 2vw, 32px);
+  min-height: var(--page-header-height);
+  margin-bottom: var(--page-header-gap);
+}
+
+.page-header__copy {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+
+.page-header__eyebrow {
+  margin: 0 0 var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-eyebrow);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--letter-spacing-eyebrow);
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.page-header__title {
+  margin: 0;
+  color: var(--color-ink);
+  font-family: var(--font-family);
+  font-size: var(--font-size-page-title);
+  font-weight: var(--font-weight-black);
+  letter-spacing: -0.035em;
+  line-height: var(--line-height-title);
+  white-space: nowrap;
+}
+
+.page-header__subtitle {
+  margin: var(--space-2) 0 0;
+  color: var(--color-ink);
+  font-size: var(--font-size-subtitle);
+  font-weight: var(--font-weight-black);
+  letter-spacing: var(--letter-spacing-subtitle);
+  line-height: 1.45;
+  text-transform: uppercase;
+}
+
+.page-header__controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* The mascot sits in its own grid track, so it can never push the title, the
+   controls or the header height around. A negative start margin cancels its
+   extra height, so the artwork bleeds upward into the page gutter while its
+   bottom edge stops exactly on the header's baseline — it can never collide
+   with the first content section. */
+.page-header__art {
+  width: var(--header-art-width);
+  height: var(--header-art-height);
+  align-self: start;
+  margin-block: calc(var(--page-header-height) - var(--header-art-height)) 0;
+  pointer-events: none;
+}
+
+.page-header__art > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* C. Update bar ------------------------------------------------------------ */
+
+.update-bar {
+  display: inline-flex;
+  min-height: var(--update-bar-height);
+  align-items: center;
+  gap: 10px;
+  padding: 4px 7px 4px 12px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+  white-space: nowrap;
+}
+
+.update-bar__dot {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #6FCE9B;
+  transition: background-color 220ms ease;
+}
+
+.update-bar--loading .update-bar__dot,
+.update-bar--updating .update-bar__dot { background: #E3A85A; }
+.update-bar--failed .update-bar__dot { background: #C97C7C; }
+.update-bar--empty .update-bar__dot { background: #B8B5B1; }
+
+.update-bar__label {
+  margin-right: 4px;
+  color: var(--color-ink);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+}
+
+.update-bar--empty .update-bar__label { color: var(--color-text-secondary); }
+
+.update-bar__date {
+  color: var(--color-ink);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+.update-bar__divider {
+  width: 1px;
+  height: 25px;
+  background: var(--color-line);
+}
+
+.update-bar .refresh-button {
+  width: var(--update-bar-control-size);
+  min-height: var(--update-bar-control-size);
+  padding: 0;
+}
+
+/* D. Section rhythm -------------------------------------------------------- */
+
+.section-stack > * + * {
+  margin-top: var(--section-gap);
+}
+
+.section-row {
+  display: grid;
+  gap: var(--card-gap);
+}
+
+/* E. Breakpoints ----------------------------------------------------------- */
+
+/* Shorter desktop viewports: same system, compressed one step. */
+@media (max-height: 830px) and (min-width: 1101px) {
+  :root {
+    --page-padding-block-start: 24px;
+    --page-padding-block-end: 16px;
+    --page-header-height: 92px;
+    --section-gap: 14px;
+    --card-gap: 12px;
+    --card-header-padding-block-start: 13px;
+    --card-body-padding-start: 8px;
+    --card-body-padding-end: 12px;
+    --kpi-card-min-height: 104px;
+    --table-head-height: 40px;
+    --table-row-height: 38px;
+    --font-size-page-title: var(--font-size-page-title-compact);
+    --header-art-width: clamp(168px, 13.8vw, 198px);
+    --header-art-height: calc(clamp(168px, 13.8vw, 198px) * 0.7358);
+  }
+}
+
+@media (max-width: 1100px) {
+  :root {
+    --page-padding-block-start: 24px;
+    --section-gap: 14px;
+    --kpi-card-min-height: 108px;
+    --card-padding-inline: 18px;
+  }
+
+  .page-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  /* No room for decoration once the sidebar collapses. */
+  .page-header__art { display: none; }
+}
+
+@media (max-width: 680px) {
+  :root {
+    --page-padding-block-start: 18px;
+    --page-padding-block-end: 24px;
+    --page-padding-inline: 16px;
+    --page-header-height: 0px;
+    --section-gap: 12px;
+    --card-gap: 12px;
+    --card-padding-inline: 18px;
+    --kpi-card-min-height: 96px;
+    --font-size-page-title: clamp(1.95rem, 8vw, 2.6rem);
+  }
+
+  .page-header {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    min-height: 0;
+  }
+
+  .page-header__title { white-space: normal; }
+  .page-header__subtitle { letter-spacing: 0.14em; }
+  .page-header__controls { justify-content: flex-start; }
+}

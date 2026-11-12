@@ -1,0 +1,131 @@
+@import url("https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;500;600;700;800;900&display=swap");
+
+:root {
+  color-scheme: light;
+
+  /* Color */
+  --color-cream: #F7F3EE;
+  --color-ink: #111111;
+  --color-text-secondary: #6D6964;
+  --color-text-muted: #77716A;
+  --color-surface: #FFFEFC;
+  --color-surface-soft: #FBF9F6;
+  --color-line: #EAE4DC;
+  --color-yellow: #FFE59A;
+  --color-pink: #FFB5C1;
+  --color-mint: #B7E1D1;
+  --color-blue: #A9D3EF;
+  --color-lavender: #C9B8F4;
+  --color-yellow-line: #947000;
+  --color-blue-line: #3879AE;
+  --color-lavender-line: #765CB6;
+  --color-pink-line: #B84F60;
+  --color-mint-line: #34846A;
+  --color-yellow-soft: #FFF2CC;
+  --color-blue-soft: #E5F2FA;
+  --color-lavender-soft: #F0EBFB;
+  --color-sector-other: #B8B5B1;
+  --color-positive: #207A50;
+  --color-positive-soft: #E5F3EB;
+  --color-negative: #B34854;
+  --color-negative-soft: #FBE9EA;
+  --color-warning: #A76C16;
+  --color-warning-soft: #FFF2D1;
+  --color-nav-surface: #FCFAF7;
+  --color-nav-hover: #F2EDE7;
+  --color-badge-surface: #FFF9EA;
+  --color-badge-text: #795A1E;
+  --color-badge-border: #E7DED1;
+  --color-accent-text: #80652D;
+  --color-accent-copy: #665B45;
+
+  /* Typography — family and weights */
+  --font-family: "Nunito Sans", "Avenir Next", Avenir, "Segoe UI", sans-serif;
+  --font-weight-regular: 400;
+  --font-weight-medium: 600;
+  --font-weight-bold: 800;
+  --font-weight-black: 900;
+  --line-height-copy: 1.55;
+
+  /* Typography — scale
+     One hierarchy, shared by every page: page title > card title > table heading
+     > body > meta. Pages size their own content, never their own headings. */
+  --font-size-page-title: clamp(2.45rem, 3.15vw, 3.35rem);
+  --font-size-page-title-compact: clamp(2.2rem, 2.9vw, 2.85rem);
+  --font-size-detail-title: clamp(2.05rem, 2.75vw, 2.85rem);
+  --font-size-banner-title: clamp(1.8rem, 2.55vw, 2.3rem);
+  --font-size-card-title: clamp(1.28rem, 1.55vw, 1.48rem);
+  --font-size-kpi: clamp(1.95rem, 2.45vw, 2.32rem);
+  --font-size-kpi-long: clamp(1.5rem, 1.9vw, 1.8rem);
+  --font-size-table-heading: 0.78rem;
+  --font-size-table-cell: 0.96rem;
+  --font-size-label: 0.75rem;
+  --font-size-meta: 0.74rem;
+  --font-size-eyebrow: 0.72rem;
+  --font-size-subtitle: 0.72rem;
+
+  /* Typography — tracking and rhythm */
+  --letter-spacing-eyebrow: 0.16em;
+  --letter-spacing-subtitle: 0.22em;
+  --letter-spacing-table-heading: 0.1em;
+  --line-height-title: 1.04;
+  --line-height-card-title: 1.2;
+
+  /* Legacy aliases kept so existing component rules keep resolving. */
+  --font-size-xs: 0.72rem;
+  --font-size-sm: 0.86rem;
+  --font-size-md: 0.98rem;
+  --font-size-lg: 1.2rem;
+  --font-size-xl: 1.65rem;
+  --font-size-display: clamp(2.1rem, 3vw, 3rem);
+  --letter-spacing-label: var(--letter-spacing-eyebrow);
+
+  /* Shape and elevation */
+  --radius-xs: 0.65rem;
+  --radius-sm: 0.9rem;
+  --radius-md: 1.2rem;
+  --radius-lg: 1.65rem;
+  --radius-pill: 999px;
+  --shadow-card: 0 12px 32px rgb(56 40 22 / 5%), 0 2px 8px rgb(56 40 22 / 3%);
+  --shadow-float: 0 18px 44px rgb(56 40 22 / 9%), 0 3px 12px rgb(56 40 22 / 4%);
+  --shadow-nav: 0 3px 12px rgb(56 40 22 / 5%);
+
+  /* Raw spacing scale */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /* Layout system — the vertical and horizontal rhythm every page shares.
+     Overridden once per breakpoint in layout.css; pages never restate them. */
+  --page-max-width: 1520px;
+  --page-padding-inline: clamp(22px, 1.8vw, 30px);
+  --page-padding-block-start: clamp(26px, 2.4vw, 34px);
+  --page-padding-block-end: 28px;
+  --page-header-height: 104px;
+  --section-gap: 18px;
+  --page-header-gap: var(--section-gap);
+  --card-gap: 14px;
+  --card-padding-inline: 20px;
+  --card-header-padding-block-start: 15px;
+  --card-body-padding-start: 10px;
+  --card-body-padding-end: 15px;
+  --kpi-card-min-height: 118px;
+  --table-head-height: 44px;
+  --table-row-height: 40px;
+  --update-bar-height: 48px;
+  --update-bar-control-size: 37px;
+  --header-art-width: clamp(180px, 15vw, 216px);
+  --header-art-height: calc(clamp(180px, 15vw, 216px) * 0.7358);
+
+  --sidebar-width: clamp(192px, 14.1vw, 237px);
+  --sidebar-compact-width: 76px;
+  --content-max-width: var(--page-max-width);
+  --focus-ring: 0 0 0 3px rgb(169 211 239 / 65%);
+}

@@ -1,0 +1,20 @@
+{
+  "name": "us-momentum-terminal",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "data:install": "python3 -m venv .venv-datatest && .venv-datatest/bin/pip install -r data-service/requirements.txt",
+    "data:serve": "PYTHONPATH=data-service .venv-datatest/bin/python -m uvicorn app.main:app --port 8787",
+    "data:test": "PYTHONPATH=data-service .venv-datatest/bin/python -m unittest discover -s data-service/tests -p 'test_*.py'",
+    "data:verify": ".venv-datatest/bin/python data-service/tests/verify.py",
+    "data:probe": ".venv-datatest/bin/python data-service/tests/provider_probe.py",
+    "data:audit": "PYTHONPATH=data-service .venv-datatest/bin/python data-service/tests/audit_data.py",
+    "data:sensitivity": "PYTHONPATH=data-service .venv-datatest/bin/python data-service/tests/strategy_sensitivity.py",
+    "dev": "npm --prefix frontend run dev",
+    "preview": "npm --prefix frontend run preview",
+    "build": "npm --prefix frontend run build",
+    "test:sites": "npm --prefix frontend run test:sites",
+    "test:frontend": "npm --prefix frontend run test:unit",
+    "test": "npm run data:test && npm run test:frontend"
+  }
+}

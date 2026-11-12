@@ -1,0 +1,320 @@
+#root { min-height: 100vh; }
+
+.app-shell { min-height: 100vh; }
+.app-main { min-height: 100vh; margin-left: var(--sidebar-width); }
+.app-main[hidden] { display: none; }
+
+/* Overview ----------------------------------------------------------------- */
+
+/* The dashboard fills the desktop viewport: the KPI row keeps its height and
+   the two-column grid takes the rest, so the content is distributed over the
+   full height instead of leaving a blank band underneath. */
+.overview-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.overview-kpis {
+  display: grid;
+  flex: 0 0 auto;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--card-gap);
+  margin-bottom: var(--section-gap);
+}
+
+.kpi-card__mascot { position: absolute; right: -15px; bottom: -36px; z-index: 0; }
+
+.overview-grid {
+  display: grid;
+  flex: 1 1 auto;
+  min-height: 0;
+  grid-template-columns: minmax(0, 1.82fr) minmax(360px, 1fr);
+  gap: var(--card-gap);
+}
+.overview-grid__main,
+.overview-grid__side {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  gap: var(--card-gap);
+  align-content: start;
+}
+/* The Performance chart and the Sector Allocation card take the slack; the
+   Model Portfolio banner keeps its natural height at the bottom of the left
+   column so both columns end on the same line. */
+.overview-grid__main { grid-template-rows: minmax(0, 1fr) auto; }
+.overview-grid__side { grid-template-rows: auto minmax(0, 1fr); }
+
+.performance-card { --card-body-padding-start: 8px; }
+/* The range control belongs to the card header, next to the title. */
+.performance-card > .dashboard-card__header { align-items: center; }
+.performance-card__toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 1px; }
+.performance-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 20px; }
+.performance-legend__item { display: inline-flex; align-items: center; gap: 8px; color: var(--color-ink); font-size: 0.94rem; font-weight: var(--font-weight-bold); }
+.performance-legend__item i { width: 11px; height: 11px; border-radius: 50%; background: var(--legend-color); }
+.performance-legend__item--strategy { --legend-color: #FFC83D; }
+.performance-legend__item--spy { --legend-color: #69A5F5; }
+.performance-legend__item--spmo { --legend-color: #AA8BF2; }
+.period-control { display: inline-flex; flex: 0 0 auto; gap: 3px; padding: 4px; border: 1px solid var(--color-line); border-radius: var(--radius-pill); background: var(--color-surface-soft); }
+.period-control button { min-width: 43px; min-height: 34px; padding: 0 11px; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--color-text-secondary); cursor: pointer; font-size: var(--font-size-xs); font-weight: var(--font-weight-bold); transition: color 180ms ease, background-color 180ms ease; }
+.period-control button:hover:not([aria-pressed="true"]) { background: #F3EFE9; color: var(--color-ink); }
+.period-control button[aria-pressed="true"] { background: var(--color-yellow); color: var(--color-ink); }
+/* The chart fills the card and re-lays itself out at 1:1 CSS pixels. */
+.performance-card > .dashboard-card__body { display: flex; min-height: 0; flex: 1 1 auto; flex-direction: column; }
+/* The minimum height keeps the chart visible in stacked (auto-height) layouts,
+   where there is no definite box to measure against. */
+.performance-chart { display: flex; min-width: 0; width: 100%; min-height: 190px; flex: 1 1 auto; }
+.performance-chart__canvas { flex: 1 1 auto; min-width: 0; min-height: 0; }
+.performance-chart__svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.performance-chart__gridline { stroke: var(--color-line); stroke-width: 1; }
+.performance-chart__axis-label { fill: var(--color-text-secondary); font-family: var(--font-family); font-size: 12px; font-weight: 600; }
+.performance-chart__line { fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.performance-chart__line--strategy, .performance-chart__endpoint--strategy, .performance-chart__leader--strategy { stroke: #FFC83D; }
+.performance-chart__line--spy, .performance-chart__endpoint--spy, .performance-chart__leader--spy { stroke: #69A5F5; }
+.performance-chart__line--spmo, .performance-chart__endpoint--spmo, .performance-chart__leader--spmo { stroke: #AA8BF2; }
+.performance-chart__endpoint { stroke-width: 2; fill: var(--color-surface); }
+.performance-chart__leader { fill: none; stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.performance-chart__value-pill--strategy { fill: var(--color-yellow-soft); }
+.performance-chart__value-pill--spy { fill: var(--color-blue-soft); }
+.performance-chart__value-pill--spmo { fill: var(--color-lavender-soft); }
+.performance-chart__value-label { fill: var(--color-ink); font-family: var(--font-family); font-size: 12px; font-weight: 800; }
+
+.top-momentum-card { --card-body-padding-start: 8px; --card-body-padding-end: 10px; }
+/* One shared grid for the whole card: every row shares the exact same column
+   widths, so the five rows stay perfectly aligned.
+   Rank · ticker · compact sparkline · price · score.
+   The columns have fixed widths (scaled to the card) and one consistent gap;
+   the graph is centred in its own column and the price and score are right
+   aligned, so no column is left with a large empty hole. */
+.top-momentum-list {
+  display: grid;
+  grid-template-columns: 40px 58px 82px 62px minmax(56px, 1fr);
+  column-gap: 14px;
+  row-gap: 3px;
+  grid-auto-rows: 34px;
+  align-items: center;
+}
+.momentum-row { display: contents; }
+.momentum-row__rank { display: grid; width: 28px; height: 28px; place-items: center; justify-self: center; border-radius: 50%; background: var(--color-yellow-soft); color: var(--color-ink); font-size: var(--font-size-sm); font-weight: var(--font-weight-black); }
+.momentum-row__ticker { font-size: var(--font-size-sm); font-weight: var(--font-weight-black); letter-spacing: -0.01em; }
+.momentum-row__ticker--link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: color 160ms ease;
+}
+.momentum-row__ticker--link:hover { color: #8D6500; }
+.momentum-row__ticker--link:focus-visible { outline: 2px solid #D7AB2E; outline-offset: 2px; border-radius: 3px; }
+.sparkline { display: block; width: 68px; height: 24px; overflow: visible; }
+.sparkline polyline { stroke: #17B96A; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+/* Auto height keeps the sparkline at its own aspect ratio (100 × 26), and it
+   stays centred inside its column instead of stretching to fill it. */
+.momentum-row .sparkline { width: 68px; height: auto; justify-self: center; }
+.momentum-row__price { color: var(--color-ink); font-size: var(--font-size-xs); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.momentum-row__score { display: inline-flex; min-width: 54px; min-height: 27px; align-items: center; justify-content: center; padding-inline: 8px; border-radius: var(--radius-pill); background: var(--color-positive-soft); color: var(--color-positive); font-size: var(--font-size-xs); font-weight: var(--font-weight-black); font-variant-numeric: tabular-nums; }
+.view-all-button { min-height: 30px; padding: 0 11px 0 13px; border: 1px solid var(--color-line); border-radius: var(--radius-pill); background: var(--color-surface); color: var(--color-ink); font-size: 0.78rem; box-shadow: 0 1px 2px rgb(56 40 22 / 5%); }
+.view-all-button > span { display: inline-flex; align-items: center; gap: 6px; }
+.view-all-button .view-all-button__arrow { display: inline-flex; align-items: center; color: var(--color-ink); transition: color 180ms ease; }
+.view-all-button:hover { background: var(--color-nav-hover); border-color: #E0D8CD; color: var(--color-ink); transform: none; }
+.view-all-button:active { background: #E7E2DA; border-color: #D8D0C6; color: var(--color-ink); transform: none; }
+.view-all-button:hover .view-all-button__arrow { color: var(--color-ink); }
+
+/* The Sector card grows with the column; the donut scales with the space it
+   has instead of leaving a gap inside the card. */
+.sector-card { --card-body-padding-start: 8px; --card-body-padding-end: 12px; display: flex; flex-direction: column; }
+.sector-card > .dashboard-card__body { display: flex; min-height: 0; flex: 1 1 auto; }
+.sector-card__content { display: grid; flex: 1 1 auto; min-height: 0; width: 100%; grid-template-columns: minmax(140px, 0.9fr) minmax(160px, 1.1fr); align-items: center; gap: 14px; }
+.sector-donut-wrap { display: grid; place-items: center; min-height: 0; }
+.sector-donut { display: block; width: auto; height: min(100%, 200px); max-width: 100%; overflow: visible; }
+.sector-donut circle { stroke-linecap: butt; }
+.sector-donut__number { fill: var(--color-ink); font-family: var(--font-family); font-size: 17px; font-weight: 900; }
+.sector-donut__caption { fill: var(--color-text-secondary); font-family: var(--font-family); font-size: 6px; font-weight: 800; letter-spacing: 0.12em; }
+.sector-legend { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.sector-legend li, .sector-legend__name { display: flex; align-items: center; }
+.sector-legend li { justify-content: space-between; gap: 10px; color: var(--color-ink); font-size: var(--font-size-xs); }
+.sector-legend__name { min-width: 0; gap: 8px; white-space: nowrap; }
+.sector-legend__name i { width: 11px; height: 11px; flex: 0 0 auto; border-radius: 50%; background: var(--sector-color); }
+.sector-legend strong { font-size: var(--font-size-xs); font-weight: var(--font-weight-black); font-variant-numeric: tabular-nums; }
+
+.model-banner {
+  position: relative;
+  display: flex;
+  min-height: 96px;
+  align-items: center;
+  overflow: hidden;
+  padding: 12px 28px;
+  border: 1px solid #F3D980;
+  border-radius: var(--radius-lg);
+  background: var(--color-yellow);
+}
+.model-banner__copy { position: relative; z-index: 1; }
+.model-banner .eyebrow { margin-bottom: 0; color: var(--color-ink); }
+.model-banner .section-header { display: block; }
+.model-banner .section-header h2 { font-size: var(--font-size-banner-title); letter-spacing: -0.045em; }
+.model-banner__mascot { position: absolute; right: 98px; bottom: -82px; z-index: 0; opacity: 0.98; }
+.model-banner__arrow { position: absolute; top: calc(50% - 22px); right: 22px; z-index: 2; }
+.model-banner__arrow:disabled { cursor: not-allowed; opacity: 0.82; }
+
+/* Feedback ---------------------------------------------------------------- */
+
+.status-toast {
+  position: fixed;
+  right: var(--space-6);
+  bottom: var(--space-6);
+  z-index: 31;
+  display: flex;
+  max-width: min(420px, calc(100vw - 2rem));
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px 9px 14px;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: var(--radius-pill);
+  background: var(--color-ink);
+  color: #fff;
+  box-shadow: var(--shadow-float);
+  font-size: var(--font-size-sm);
+  animation: status-toast-in 180ms ease-out;
+}
+.status-toast > svg { flex: 0 0 auto; color: #F2C078; }
+.status-toast__message { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.status-toast__action { display: inline-flex; min-height: 26px; flex: 0 0 auto; align-items: center; gap: 5px; padding: 0 11px; border: 0; border-radius: var(--radius-pill); background: rgb(255 255 255 / 14%); color: #fff; font-family: inherit; font-size: 0.74rem; font-weight: var(--font-weight-bold); cursor: pointer; }
+.status-toast__action:hover { background: rgb(255 255 255 / 22%); }
+.status-toast__action:disabled { opacity: 0.6; cursor: default; }
+.status-toast__close { display: grid; width: 24px; height: 24px; flex: 0 0 auto; place-items: center; border: 0; border-radius: 50%; background: transparent; color: rgb(255 255 255 / 62%); cursor: pointer; }
+.status-toast__close:hover { background: rgb(255 255 255 / 12%); color: #fff; }
+
+@keyframes status-toast-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+.toast { position: fixed; right: var(--space-6); bottom: var(--space-6); z-index: 30; max-width: calc(100vw - 2rem); padding: var(--space-3) var(--space-5); border: 1px solid rgb(255 255 255 / 12%); border-radius: var(--radius-pill); background: var(--color-ink); color: #fff; box-shadow: var(--shadow-float); font-size: var(--font-size-sm); }
+
+/* Compact desktop ---------------------------------------------------------- */
+
+@media (max-height: 830px) and (min-width: 1101px) {
+  .kpi-card__mascot { width: 92px; height: 92px; right: -10px; bottom: -37px; }
+  .performance-card { --card-body-padding-start: 5px; }
+  .performance-card__toolbar { margin-bottom: 0; }
+  .performance-legend { gap: 16px; }
+  .performance-legend__item { font-size: 0.88rem; }
+  .period-control button { min-height: 30px; min-width: 39px; }
+  .top-momentum-list { grid-template-columns: 36px 52px 72px 56px minmax(52px, 1fr); column-gap: 12px; grid-auto-rows: 32px; }
+  .momentum-row .sparkline { width: 60px; }
+  .momentum-row__rank { width: 25px; height: 25px; }
+  .sparkline { width: 58px; height: 20px; }
+  .momentum-row__ticker { font-size: 0.8rem; }
+  .momentum-row__price, .momentum-row__score { font-size: 0.72rem; }
+  .momentum-row__score { min-height: 24px; min-width: 48px; padding-inline: 6px; }
+  .sector-card__content { grid-template-columns: minmax(122px, 0.88fr) minmax(145px, 1.12fr); gap: 10px; }
+  .sector-donut { height: min(100%, 168px); }
+  .sector-legend { gap: 4px; }
+  .sector-legend li, .sector-legend strong { font-size: 0.72rem; }
+  .sector-legend__name i { width: 9px; height: 9px; }
+  .model-banner { min-height: 90px; padding: 8px 22px; }
+  .model-banner .section-header h2 { font-size: 1.9rem; }
+  .model-banner__mascot { right: 88px; bottom: -66px; width: 155px; height: 155px; }
+  .model-banner__arrow { top: calc(50% - 20px); right: 16px; }
+}
+
+@media (max-width: 1100px) {
+  :root { --sidebar-width: var(--sidebar-compact-width); }
+  .sidebar { align-items: center; padding-top: 18px; }
+  .brand-lockup { align-items: center; margin: 0; padding-inline: 8px; text-align: center; }
+  .brand-lockup__text { font-size: 0.66rem; letter-spacing: 0; line-height: 1.2; }
+  .sidebar__rule { width: calc(100% - 24px); margin: 13px 12px 11px; }
+  .sidebar__label, .sidebar__mascot { display: none; }
+  .sidebar-nav { width: 100%; margin-top: var(--space-5); padding: 0 8px; }
+  .sidebar-nav__item { justify-content: center; padding: 0; }
+  .sidebar-nav__item .sidebar-nav__label { display: none; }
+  .overview-grid { grid-template-columns: 1fr; }
+  .overview-grid__side { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+}
+
+@media (max-width: 680px) {
+  .overview-grid__side { grid-template-columns: 1fr; }
+  .performance-card__toolbar { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .performance-legend { gap: 16px; }
+  .performance-chart__svg { width: 100%; min-width: 0; }
+  .model-banner { min-height: 96px; padding: 10px 18px; }
+  .model-banner__arrow { top: calc(50% - 20px); right: 12px; }
+  .model-banner .section-header h2 { font-size: 1.75rem; }
+}
+
+/* Phones (≤ 767px) — a compact reorganisation of the same design.
+   Desktop (≥ 1200px) and tablet (768–1199px) are untouched. */
+@media (max-width: 767px) {
+  /* The update bar is dropped entirely on phones — it consumed a whole row. */
+  .page-header__controls .update-bar { display: none; }
+
+  /* KPI cards: two equal columns, tighter padding, no decorative mascots. */
+  .overview-page .overview-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+  .overview-page .overview-kpis .kpi-card:last-child { grid-column: span 2; }
+  .kpi-card { min-height: 92px; padding: 11px 13px; }
+  .kpi-card__mascot { display: none; }
+  .kpi-card__label { gap: 7px; font-size: 0.82rem; line-height: 1.25; }
+  .kpi-card__label svg { width: 18px; height: 18px; }
+  .kpi-card__value { margin-top: 5px; font-size: 1.8rem; }
+  /* A composite value such as "GOOGL 9.0%" has to fit a half-width card. */
+  .kpi-card__value--long { font-size: 1.4rem; letter-spacing: -0.03em; }
+  .kpi-card__detail, .kpi-card__sample { display: none; }
+  .kpi-card__label-full { display: none; }
+  .kpi-card__label-short { display: inline; }
+
+  /* Compact legend labels on phones ("Strategy" instead of the full name). */
+  .legend-name-short { display: contents; }
+  .legend-name-full { display: none; }
+
+  /* Top Momentum: the score pill keeps its compact width and the price column
+     takes the slack, so the rows read the same as on desktop. */
+  .top-momentum-list { grid-template-columns: 32px 46px 60px minmax(56px, 1fr) 54px; column-gap: 10px; grid-auto-rows: 34px; }
+  .momentum-row .sparkline { width: 54px; }
+
+  /* Performance chart: compact legend, compact range control, smaller axis text. */
+  .performance-chart { min-height: 200px; }
+  .performance-legend { flex-wrap: wrap; gap: 12px; }
+  .performance-legend__item { gap: 6px; font-size: 0.74rem; }
+  .performance-legend__item i { width: 9px; height: 9px; }
+  .performance-chart__axis-label { font-size: 10px; }
+  .period-control { padding: 3px; }
+  .period-control button { min-width: 32px; min-height: 28px; padding: 0 7px; font-size: 0.68rem; }
+
+  /* The banner mascot is raised so both eyes stay clearly inside the yellow
+     card instead of being clipped by its bottom edge. */
+  .model-banner__mascot { right: 46px; bottom: -58px; width: 148px; height: 148px; opacity: 0.92; }
+
+  /* On phones the Model Portfolio banner reads better as the closing card, so
+     the two columns are flattened into one flow and the banner moves last. */
+  .overview-grid__main, .overview-grid__side { display: contents; }
+  .overview-grid { grid-auto-rows: min-content; }
+  .model-banner { order: 10; }
+}
+
+@media (max-width: 520px) {
+  :root { --sidebar-width: 0px; }
+  .sidebar { position: relative; width: 100%; height: auto; flex-direction: row; justify-content: space-between; align-items: center; padding: 10px 16px; border-right: 0; border-bottom: 1px solid var(--color-line); }
+  .brand-lockup { flex-direction: row; align-items: center; gap: 8px; padding-inline: 0; text-align: left; }
+  .brand-lockup__text { font-size: 0.74rem; letter-spacing: -0.01em; line-height: 1.14; text-align: left; }
+  .sidebar__rule { display: none; }
+  .sidebar-nav { display: flex; width: auto; gap: 3px; margin: 0; padding: 0; }
+  .sidebar-nav__item { width: 34px; min-height: 34px; }
+  .sidebar-nav__item .sidebar-nav__label { display: none; }
+  .app-main { margin-left: 0; }
+  .status-indicator { font-size: 0.68rem; }
+  .overview-grid__side { grid-template-columns: 1fr; }
+  .sector-card .dashboard-card__header { align-items: center; flex-direction: row; }
+  .update-bar { gap: 7px; padding-left: 10px; }
+}
+
+@media (max-width: 400px) {
+  .update-bar__date { font-size: 0.7rem; }
+  .update-bar { gap: 5px; }
+  .top-momentum-list { grid-template-columns: 28px 40px 54px minmax(50px, 1fr) 48px; column-gap: 8px; }
+  .momentum-row .sparkline { width: 48px; }
+  .momentum-row__ticker, .momentum-row__price, .momentum-row__score { font-size: 0.72rem; }
+  .momentum-row__score { min-width: 44px; padding-inline: 5px; }
+  .sector-card__content { grid-template-columns: 112px minmax(140px, 1fr); gap: var(--space-2); }
+  .sector-legend li, .sector-legend strong { font-size: 0.7rem; }
+}

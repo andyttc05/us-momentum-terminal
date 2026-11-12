@@ -1,0 +1,294 @@
+{
+  "generated_at": "2026-11-12T10:32:08+00:00",
+  "checks": {
+    "universe": {
+      "requested": 109,
+      "eligible": 106,
+      "unavailable": [
+        "WBA"
+      ],
+      "excluded": 2,
+      "single_as_of_date": true,
+      "as_of": "2026-11-11",
+      "min_observations": 1209,
+      "all_meet_minimum": true,
+      "no_null_prices": true,
+      "no_nan_scores": true,
+      "score_range": [
+        0.3746,
+        4.0
+      ]
+    },
+    "ranking": {
+      "rank_start": 1,
+      "rank_end": 106,
+      "strictly_ordered": true,
+      "mismatches": [],
+      "top_five": [
+        [
+          1,
+          "MPC",
+          4.0
+        ],
+        [
+          2,
+          "MU",
+          4.0
+        ],
+        [
+          3,
+          "HPE",
+          3.9168
+        ],
+        [
+          4,
+          "TGT",
+          3.0565
+        ],
+        [
+          5,
+          "ADI",
+          2.7378
+        ]
+      ]
+    },
+    "momentum_recompute": {
+      "tickers": {
+        "AAPL": {
+          "bars_endpoint_last_date": "2026-11-11",
+          "snapshot_date": "2026-11-11",
+          "momentum_12_1_recomputed": 27.01,
+          "momentum_12_1_app": 27.0,
+          "delta": 0.008,
+          "momentum_6m_recomputed": 19.09,
+          "momentum_6m_app": 19.1,
+          "volatility_recomputed": 25.0,
+          "volatility_app": 25.0,
+          "risk_adjusted_recomputed": 17.17,
+          "risk_adjusted_app": 17.17,
+          "score_from_displayed_z": 1.68,
+          "score_app": 1.6802,
+          "score_delta_from_displayed_z": 0.0002
+        },
+        "MSFT": {
+          "bars_endpoint_last_date": "2026-11-11",
+          "snapshot_date": "2026-11-11",
+          "momentum_12_1_recomputed": 8.28,
+          "momentum_12_1_app": 8.3,
+          "delta": 0.015,
+          "momentum_6m_recomputed": 29.13,
+          "momentum_6m_app": 29.1,
+          "volatility_recomputed": 34.0,
+          "volatility_app": 34.0,
+          "risk_adjusted_recomputed": 3.87,
+          "risk_adjusted_app": 3.87,
+          "score_from_displayed_z": 0.8197,
+          "score_app": 0.8174,
+          "score_delta_from_displayed_z": 0.0023
+        },
+        "NVDA": {
+          "bars_endpoint_last_date": "2026-11-11",
+          "snapshot_date": "2026-11-11",
+          "momentum_12_1_recomputed": 15.08,
+          "momentum_12_1_app": 15.1,
+          "delta": 0.02,
+          "momentum_6m_recomputed": -22.89,
+          "momentum_6m_app": -22.9,
+          "volatility_recomputed": 38.6,
+          "volatility_app": 38.6,
+          "risk_adjusted_recomputed": 6.21,
+          "risk_adjusted_app": 6.21,
+          "score_from_displayed_z": 0.9434,
+          "score_app": 0.9392,
+          "score_delta_from_displayed_z": 0.0042
+        },
+        "META": {
+          "bars_endpoint_last_date": "2026-11-11",
+          "snapshot_date": "2026-11-11",
+          "momentum_12_1_recomputed": 21.1,
+          "momentum_12_1_app": 21.1,
+          "delta": 0.004,
+          "momentum_6m_recomputed": 2.14,
+          "momentum_6m_app": 2.1,
+          "volatility_recomputed": 41.6,
+          "volatility_app": 41.6,
+          "risk_adjusted_recomputed": 8.06,
+          "risk_adjusted_app": 8.06,
+          "score_from_displayed_z": 1.06,
+          "score_app": 1.0611,
+          "score_delta_from_displayed_z": 0.0011
+        },
+        "JPM": {
+          "bars_endpoint_last_date": "2026-11-11",
+          "snapshot_date": "2026-11-11",
+          "momentum_12_1_recomputed": 6.6,
+          "momentum_12_1_app": 6.6,
+          "delta": 0.003,
+          "momentum_6m_recomputed": 15.46,
+          "momentum_6m_app": 15.5,
+          "volatility_recomputed": 23.0,
+          "volatility_app": 23.0,
+          "risk_adjusted_recomputed": 4.56,
+          "risk_adjusted_app": 4.56,
+          "score_from_displayed_z": 0.8475,
+          "score_app": 0.8501,
+          "score_delta_from_displayed_z": 0.0026
+        }
+      },
+      "all_within_tolerance": true
+    },
+    "bar_hygiene": {
+      "AAPL": {
+        "count": 800,
+        "sorted": true,
+        "duplicates": 0,
+        "first": "2023-09-06",
+        "last": "2026-11-11",
+        "adjusted": true,
+        "source": "yahoo",
+        "warnings": []
+      },
+      "MSFT": {
+        "count": 800,
+        "sorted": true,
+        "duplicates": 0,
+        "first": "2023-09-06",
+        "last": "2026-11-11",
+        "adjusted": true,
+        "source": "yahoo",
+        "warnings": []
+      },
+      "NVDA": {
+        "count": 800,
+        "sorted": true,
+        "duplicates": 0,
+        "first": "2023-09-06",
+        "last": "2026-11-11",
+        "adjusted": true,
+        "source": "yahoo",
+        "warnings": []
+      },
+      "META": {
+        "count": 800,
+        "sorted": true,
+        "duplicates": 0,
+        "first": "2023-09-06",
+        "last": "2026-11-11",
+        "adjusted": true,
+        "source": "yahoo",
+        "warnings": []
+      },
+      "JPM": {
+        "count": 800,
+        "sorted": true,
+        "duplicates": 0,
+        "first": "2023-09-06",
+        "last": "2026-11-11",
+        "adjusted": true,
+        "source": "yahoo",
+        "warnings": []
+      }
+    },
+    "portfolio": {
+      "holdings": 100,
+      "total_weight": 100.0,
+      "max_single_weight": 9.0,
+      "max_sector_weight": 35.0,
+      "raw_formula_max_error": 4.9e-05,
+      "float_caps_available": true,
+      "sector_totals": {
+        "Others": 20.7,
+        "Technology": 35.0,
+        "Consumer": 15.7,
+        "Industrials": 4.7,
+        "Healthcare": 10.0,
+        "Communication": 13.9
+      },
+      "all_constraints_pass": true,
+      "excluded_without_market_cap": []
+    },
+    "backtest": {
+      "available": true,
+      "window": [
+        "2018-04-02",
+        "2026-11-11"
+      ],
+      "points": 2167,
+      "no_nan": true,
+      "starts_below_100_by_initial_cost": true,
+      "drawdown_non_positive": true,
+      "metrics": {
+        "cumulative_return": 367.2,
+        "cagr": 19.6,
+        "annualized_volatility": 18.8,
+        "max_drawdown": -34.7,
+        "sharpe": 1.05,
+        "risk_free_rate": 0.0,
+        "transaction_cost_pct": 0.9497,
+        "total_one_way_turnover_pct": 265.3,
+        "annualized_one_way_turnover_pct": 30.9
+      },
+      "rebalances": 18,
+      "rebalance_months": [
+        "03",
+        "09"
+      ],
+      "execution_after_signal": true,
+      "transaction_costs_applied": true,
+      "risk_free_rate_documented": true,
+      "annual_years": [
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ]
+    },
+    "backtest_top20": {
+      "cumulative_return": 497.7,
+      "cagr": 23.1,
+      "annualized_volatility": 22.2,
+      "max_drawdown": -32.1,
+      "sharpe": 1.05,
+      "risk_free_rate": 0.0,
+      "transaction_cost_pct": 5.389,
+      "total_one_way_turnover_pct": 1113.0,
+      "annualized_one_way_turnover_pct": 129.4
+    },
+    "cross_provider_prices": {
+      "AAPL": {
+        "twelve_data": {
+          "date": "2026-11-11",
+          "close": 355.63
+        },
+        "yahoo_via_app": {
+          "date": "2026-11-11",
+          "close": 355.63
+        },
+        "difference_pct": 0.0
+      },
+      "QQQ": {
+        "twelve_data": {
+          "date": "2026-11-11",
+          "close": 690.38
+        },
+        "yahoo_via_app": null
+      }
+    },
+    "provenance": {
+      "providers": [
+        "Yahoo Finance"
+      ],
+      "primary": "Yahoo Finance",
+      "is_backup": false,
+      "backup_symbols": [],
+      "timeliness": "delayed",
+      "generated_at": "2026-11-12T10:30:19+00:00",
+      "all_rows_carry_source": true
+    },
+    "passed": true
+  }
+}

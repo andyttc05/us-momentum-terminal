@@ -1,0 +1,85 @@
+/* Shared table pagination — used by Screener and Portfolio so both tables keep
+   an identical rhythm. The selected page only cross-fades its background: no
+   motion, no scale, no font-weight change, so the row never shifts. */
+.table-pagination { display: flex; min-height: 72px; align-items: center; justify-content: space-between; gap: 18px; }
+.table-pagination__range { color: var(--color-text-secondary); font-size: 0.94rem; font-weight: var(--font-weight-medium); white-space: nowrap; }
+.table-pagination__controls { display: flex; align-items: center; gap: 8px; }
+.pagination-page-list { display: flex; align-items: center; gap: 7px; }
+.pagination-page-list button {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-ink);
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: var(--font-weight-bold);
+  /* Only the text colour eases here. The yellow is deliberately excluded so that
+     leaving the active state clears in the same frame — see .is-current below. */
+  transition: color 170ms ease;
+}
+.pagination-page-list button:hover:not(.is-current) { background: var(--color-nav-hover); }
+/*
+ * The incoming page eases its background in; the outgoing page has no
+ * background transition (it falls back to the rule above), so it snaps to
+ * transparent immediately. Two yellow circles can never overlap mid-fade.
+ */
+.pagination-page-list button.is-current {
+  background: var(--color-yellow);
+  color: var(--color-ink);
+  transition: background-color 170ms ease, color 170ms ease;
+}
+.pagination-page-list button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+/* The ellipsis takes a full page slot so every composition has the same width:
+   the number row holds its position when the window re-lays out. */
+.pagination-ellipsis { display: grid; width: 42px; flex: 0 0 42px; place-items: center; color: var(--color-text-secondary); text-align: center; }
+.pagination-arrow {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  place-items: center;
+  border: 1px solid var(--color-line);
+  border-radius: 50%;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+.pagination-arrow:hover:not(:disabled) { border-color: #D8D0C6; background: var(--color-surface-soft); }
+.pagination-arrow:disabled { color: #A8A39C; cursor: default; box-shadow: none; }
+
+@media (max-height: 800px) and (min-width: 1101px) {
+  .table-pagination { min-height: 60px; }
+  .pagination-page-list { gap: 3px; }
+  .pagination-page-list button { width: 36px; height: 36px; flex-basis: 36px; }
+  .pagination-ellipsis { width: 36px; flex-basis: 36px; }
+  .pagination-arrow { width: 38px; height: 38px; flex-basis: 38px; }
+}
+
+@media (max-width: 680px) {
+  /* The range description is hidden on phones, so the controls stay on one row. */
+  .table-pagination { min-height: 56px; align-items: center; justify-content: center; padding: 9px 0; }
+  .table-pagination__controls { width: 100%; justify-content: space-between; gap: 2px; }
+  .pagination-page-list { gap: 1px; }
+  .pagination-page-list button { width: 34px; height: 34px; flex-basis: 34px; font-size: 0.88rem; }
+  .pagination-ellipsis { width: 34px; flex-basis: 34px; }
+  .pagination-arrow { width: 36px; height: 36px; flex-basis: 36px; }
+}
+
+@media (max-width: 400px) {
+  .pagination-page-list { gap: 0; }
+  .pagination-page-list button { width: 30px; height: 32px; flex-basis: 30px; }
+  .pagination-ellipsis { width: 30px; flex-basis: 30px; }
+}
+
+/* On phones the range description takes more room than the page controls
+   need, so it is dropped — the pagination itself stays fully functional. */
+@media (max-width: 767px) {
+  .table-pagination__range { display: none; }
+}

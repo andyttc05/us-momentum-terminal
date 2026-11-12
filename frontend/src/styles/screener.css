@@ -1,0 +1,248 @@
+/* Screener — page-specific content only.
+   Container, header, section gaps and card framing come from the layout system. */
+
+/* The screener fills the desktop viewport: the toolbar keeps its height and
+   the table card takes the rest, so the pagination ends near the bottom of
+   the window and the ten rows share the leftover space. */
+.screener-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.screener-toolbar {
+  position: relative;
+  z-index: 5;
+  display: grid;
+  flex: 0 0 auto;
+  grid-template-columns: minmax(230px, 0.85fr) minmax(280px, 1.75fr) auto;
+  gap: var(--card-gap);
+  align-items: center;
+  margin-bottom: var(--section-gap);
+}
+.screener-scope {
+  display: grid;
+  min-height: 56px;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 5px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+.screener-scope button {
+  min-width: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-ink);
+  cursor: pointer;
+  font-size: 1.05rem;
+  font-weight: var(--font-weight-bold);
+  transition: color 180ms ease, background-color 180ms ease;
+}
+.screener-scope button:hover:not(.is-selected) { background: var(--color-surface-soft); }
+.screener-scope button.is-selected { background: var(--color-yellow); color: var(--color-ink); }
+.screener-search {
+  display: flex;
+  min-width: 0;
+  min-height: 56px;
+  align-items: center;
+  gap: 13px;
+  padding: 0 18px 0 22px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+  color: var(--color-ink);
+}
+.screener-search > svg { flex: 0 0 auto; }
+.screener-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--color-ink);
+  font-size: 1.05rem;
+}
+.screener-search input::placeholder { color: var(--color-text-secondary); opacity: 1; }
+.screener-search:focus-within { border-color: #CFC7BD; box-shadow: 0 0 0 3px rgb(169 211 239 / 35%); }
+.screener-search__clear { display: grid; width: 30px; height: 30px; flex: 0 0 auto; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--color-text-secondary); cursor: pointer; transition: color 160ms ease, background-color 160ms ease; }
+.screener-search__clear:hover { background: var(--color-nav-hover); color: var(--color-ink); }
+.screener-toolbar__actions { display: flex; align-items: center; gap: var(--card-gap); }
+.screener-filter-wrap { position: relative; }
+.screener-toolbar__button { min-height: 56px; padding-inline: 24px; border-color: var(--color-line); font-size: 1.05rem; box-shadow: var(--shadow-card); }
+.screener-toolbar__button > svg { width: 22px; height: 22px; }
+.screener-toolbar__button.has-active-filters { border-color: #D6B955; }
+.active-filter-dot { width: 8px; height: 8px; margin-left: -2px; border-radius: 50%; background: #B58A0B; }
+.screener-filter-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 25;
+  width: 350px;
+  padding: 19px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-float);
+}
+.screener-filter-panel__heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.screener-filter-panel__heading strong { font-size: 1.1rem; font-weight: var(--font-weight-black); }
+.screener-filter-panel__heading span { color: var(--color-text-secondary); font-size: var(--font-size-meta); }
+.screener-filter-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 10px; margin-top: 12px; }
+.screener-filter-field { display: grid; min-width: 0; gap: 6px; color: var(--color-text-secondary); font-size: var(--font-size-label); font-weight: var(--font-weight-bold); }
+.screener-filter-field select, .screener-filter-field input {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 11px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-xs);
+  outline: 0;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: 0.9rem;
+  font-weight: var(--font-weight-medium);
+}
+.screener-filter-field select:focus, .screener-filter-field input:focus { border-color: #B7AA96; box-shadow: 0 0 0 2px rgb(169 211 239 / 35%); }
+.screener-filter-panel__actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--color-line); }
+.filter-reset-button, .filter-apply-button { min-height: 38px; padding: 0 14px; border: 1px solid transparent; border-radius: var(--radius-pill); cursor: pointer; font-size: 0.82rem; font-weight: var(--font-weight-bold); transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease; }
+.filter-reset-button { background: transparent; color: var(--color-text-secondary); }
+.filter-reset-button:hover { background: var(--color-surface-soft); color: var(--color-ink); }
+.filter-apply-button { background: var(--color-ink); color: #fff; }
+.filter-apply-button:hover { background: #2A2927; }
+
+/* Table shell — same card radius/shadow as every other panel. */
+.screener-table-card { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 6px var(--card-padding-inline) 6px; border-radius: var(--radius-lg); }
+/* flex-basis 0 gives the scroll area a definite height, so the table inside can
+   resolve `height: 100%` against it and share the space with its rows. */
+.screener-table-scroll { width: 100%; min-height: 0; flex: 1 1 0; overflow-x: auto; overscroll-behavior-x: contain; }
+/* A table height is a minimum for the browser, so the rows share the space
+   the card has left over instead of leaving it blank under the last row. */
+.screener-table { width: 100%; height: 100%; min-width: 1140px; table-layout: fixed; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+/* On phones the list keeps compact rows instead of stretching to fill the
+   card height, so the stock list stays dense and readable. */
+@media (max-width: 767px) {
+  .screener-table { height: auto; }
+}
+
+.stock-col-rank { width: 4.5%; }
+.stock-col-ticker { width: 9%; }
+.stock-col-company { width: 16%; }
+.stock-col-market-cap { width: 11%; }
+.stock-col-price { width: 8.5%; }
+.stock-col-change { width: 13%; }
+.stock-col-momentum { width: 14%; }
+.stock-col-score { width: 9.5%; }
+.stock-col-sector { width: 14.5%; }
+.screener-table thead tr { height: var(--table-head-height); border-bottom: 1px solid var(--color-line); }
+.screener-table th { padding: 0 8px; color: var(--color-text-secondary); font-size: var(--font-size-table-heading); font-weight: var(--font-weight-black); letter-spacing: var(--letter-spacing-table-heading); text-align: left; text-transform: uppercase; white-space: nowrap; }
+.screener-table .stock-rank-heading { padding-left: 12px; text-align: center; }
+.stock-heading button { display: inline-flex; max-width: 100%; align-items: center; gap: 5px; padding: 5px 0; border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; letter-spacing: inherit; text-align: left; text-transform: inherit; white-space: nowrap; transition: color 150ms ease; }
+.stock-heading button:hover { color: var(--color-ink); }
+.stock-heading button svg { flex: 0 0 auto; }
+.stock-heading--price, .stock-heading--change, .stock-heading--momentum, .stock-heading--score { text-align: center; }
+.stock-heading--price button, .stock-heading--change button, .stock-heading--momentum button, .stock-heading--score button { justify-content: center; }
+/* Right aligned like the values below it (needs the extra specificity to beat
+   the shared `.screener-table th` rule). */
+.screener-table th.stock-heading--market-cap { text-align: right; }
+.screener-table tbody tr { height: var(--table-row-height); border-bottom: 1px solid var(--color-line); transition: background-color 140ms ease; }
+.screener-table tbody tr:hover { background: #FCFAF7; }
+.screener-table td { overflow: hidden; padding: 4px 8px; color: var(--color-ink); font-size: var(--font-size-table-cell); text-overflow: ellipsis; white-space: nowrap; }
+.stock-rank-cell { padding-left: 6px !important; text-align: center; }
+.stock-rank-cell span { display: inline-grid; width: 32px; height: 32px; place-items: center; border-radius: 50%; background: var(--color-yellow-soft); font-size: 1rem; font-weight: var(--font-weight-black); }
+.stock-ticker-cell { font-size: 1.15rem !important; font-weight: var(--font-weight-black); letter-spacing: -0.02em; }
+.stock-company-cell { font-weight: var(--font-weight-medium); }
+.stock-company-link {
+  display: inline;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color 160ms ease;
+}
+.stock-company-link:hover { color: #8D6500; }
+.stock-company-link:focus-visible { outline: 2px solid #D7AB2E; outline-offset: 2px; border-radius: 3px; }
+/* Market cap reads as an ordinary column: same type, right aligned. */
+.stock-market-cap-cell { text-align: right; font-variant-numeric: tabular-nums; }
+.stock-price-cell { text-align: center; }
+.stock-change-cell { text-align: center; }
+.change-pill { display: inline-flex; min-width: 86px; min-height: 31px; align-items: center; justify-content: center; padding: 0 10px; border-radius: var(--radius-pill); font-size: var(--font-size-table-cell); font-weight: var(--font-weight-black); }
+.change-pill.is-positive { background: var(--color-positive-soft); color: var(--color-positive); }
+.change-pill.is-negative { background: var(--color-negative-soft); color: #D74B5B; }
+.stock-momentum-cell { display: flex; align-items: center; justify-content: space-between; gap: 7px; }
+.stock-momentum-cell .sparkline { width: 70px; height: 22px; flex: 0 1 70px; }
+.stock-momentum-cell .sparkline polyline { stroke: #12A95B; stroke-width: 2; }
+.stock-momentum-cell .sparkline--negative polyline { stroke: #E45E6C; }
+.momentum-value { flex: 0 0 auto; font-size: 1rem; font-weight: var(--font-weight-black); }
+.momentum-value.is-positive { color: #078C47; }
+.momentum-value.is-negative { color: #D74B5B; }
+.stock-score-cell { text-align: center; }
+.stock-score-cell span { display: inline-flex; min-width: 82px; min-height: 31px; align-items: center; justify-content: center; border-radius: var(--radius-pill); background: var(--color-positive-soft); color: var(--color-positive); font-size: 1rem; font-weight: var(--font-weight-black); }
+.stock-sector-cell { font-size: var(--font-size-table-cell) !important; font-weight: var(--font-weight-medium); }
+.screener-empty-row { height: 250px !important; }
+.screener-empty-row:hover { background: transparent !important; }
+.screener-empty-row td { text-align: center; }
+.screener-empty-row strong, .screener-empty-row span { display: block; white-space: normal; }
+.screener-empty-row strong { margin-bottom: 5px; font-size: 1rem; }
+.screener-empty-row span { color: var(--color-text-secondary); font-size: var(--font-size-sm); }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; clip-path: inset(50%); }
+
+@media (max-height: 830px) and (min-width: 1101px) {
+  .screener-scope, .screener-search, .screener-toolbar__button { min-height: 50px; }
+  .stock-ticker-cell { font-size: 1.08rem !important; }
+  .change-pill, .stock-score-cell span { min-height: 28px; }
+  .stock-change-cell .change-pill { min-width: 76px; font-size: 0.9rem; }
+  .stock-momentum-cell .sparkline { width: 60px; flex-basis: 60px; }
+  .momentum-value, .stock-score-cell span { font-size: 0.92rem; }
+  .screener-table td { padding-block: 3px; font-size: 0.95rem; }
+  .stock-rank-cell span { width: 30px; height: 30px; }
+}
+
+@media (max-width: 1399px) and (min-width: 1101px) {
+  .screener-toolbar { grid-template-columns: minmax(215px, 0.82fr) minmax(260px, 1.7fr) auto; gap: 12px; }
+  .screener-toolbar__actions { gap: 10px; }
+  .screener-toolbar__button { padding-inline: 18px; }
+  .screener-table { min-width: 1115px; }
+}
+
+@media (max-width: 1100px) {
+  .screener-toolbar { grid-template-columns: minmax(210px, 0.9fr) minmax(240px, 1.7fr); grid-template-areas: "scope search" "actions actions"; }
+  .screener-scope { grid-area: scope; }
+  .screener-search { grid-area: search; }
+  .screener-toolbar__actions { grid-area: actions; justify-content: flex-end; }
+  .screener-table { min-width: 1130px; }
+}
+
+@media (max-width: 680px) {
+  .screener-toolbar { grid-template-columns: minmax(0, 1fr); grid-template-areas: "scope" "search" "actions"; gap: 10px; }
+  .screener-scope, .screener-search { min-height: 48px; }
+  .screener-scope button, .screener-search input { font-size: 0.95rem; }
+  .screener-search { gap: 10px; padding-inline: 16px; }
+  .screener-search > svg { width: 20px; height: 20px; }
+  .screener-toolbar__actions { justify-content: stretch; gap: 10px; }
+  .screener-filter-wrap, .screener-filter-wrap > .app-button, .screener-export-button { flex: 1 1 0; }
+  .screener-toolbar__button { min-height: 46px; justify-content: center; padding-inline: 12px; font-size: 0.9rem; }
+  .screener-filter-panel { position: fixed; top: auto; right: 16px; bottom: 20px; left: 16px; width: auto; max-height: min(80vh, 520px); overflow-y: auto; }
+  .screener-table-card { padding: 4px 12px 5px; border-radius: var(--radius-md); }
+  .screener-table { min-width: 1130px; }
+}
+
+@media (max-width: 400px) {
+  .screener-toolbar__actions { gap: 7px; }
+  .screener-toolbar__button { padding-inline: 8px; }
+}
+.stock-ticker-link { display: inline; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; font-weight: inherit; text-align: left; text-decoration: none; transition: color 160ms ease; }
+.stock-ticker-link:hover { color: #8D6500; }
+.stock-ticker-link:focus-visible { outline: 2px solid #D7AB2E; outline-offset: 2px; border-radius: 3px; }

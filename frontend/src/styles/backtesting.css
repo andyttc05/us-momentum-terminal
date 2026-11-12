@@ -1,0 +1,162 @@
+/* Backtesting — a fit-to-screen dashboard. Rows use the shared header height
+   and section gap tokens, so its rhythm matches the scrolling pages. */
+
+.backtest-page {
+  display: grid;
+  height: 100vh;
+  min-height: 660px;
+  grid-template-rows: var(--page-header-height) auto auto minmax(0, 1fr);
+  gap: var(--section-gap);
+  overflow: hidden;
+}
+
+.backtest-controls {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(212px, 1.1fr) minmax(212px, 1.1fr) 1px minmax(190px, 0.95fr) minmax(185px, 0.9fr);
+  align-items: center;
+  gap: var(--card-gap);
+  min-width: 0;
+  padding: 7px 18px;
+  border: 1px solid rgb(234 228 220 / 78%);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+.backtest-date-field { display: flex; min-width: 0; align-items: center; gap: 10px; color: var(--color-ink); font-size: var(--font-size-sm); font-weight: var(--font-weight-bold); white-space: nowrap; }
+.backtest-date-field input { width: 100%; min-width: 0; height: 42px; padding: 0 12px; border: 1px solid var(--color-line); border-radius: var(--radius-pill); background: var(--color-surface-soft); color: var(--color-ink); font-size: 0.82rem; font-weight: 700; }
+.backtest-date-field input:hover { border-color: #D8D0C6; }
+.backtest-control-separator { width: 1px; height: 32px; background: var(--color-line); }
+.backtest-segmented { display: inline-flex; min-width: 0; gap: 3px; padding: 4px; border: 1px solid var(--color-line); border-radius: var(--radius-pill); background: var(--color-surface-soft); }
+.backtest-segmented button { min-width: 0; min-height: 38px; flex: 1 1 0; padding: 0 10px; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--color-ink); cursor: pointer; font-size: 0.88rem; font-weight: var(--font-weight-bold); white-space: nowrap; transition: background-color 180ms ease, color 180ms ease; }
+.backtest-segmented button:hover:not([aria-pressed="true"]) { background: #F3EFE9; }
+.backtest-segmented button[aria-pressed="true"] { background: var(--color-yellow); }
+.backtest-run-button { min-height: 44px; gap: 12px; font-size: 0.9rem; white-space: nowrap; }
+.backtest-run-button svg { fill: currentColor; }
+.backtest-date-error { position: absolute; right: 18px; bottom: -23px; z-index: 4; margin: 0; padding: 2px 10px; border-radius: var(--radius-pill); background: var(--color-negative-soft); color: var(--color-negative); font-size: 0.73rem; font-weight: 800; }
+
+.backtest-kpis { display: grid; min-width: 0; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--card-gap); }
+.backtest-kpis .kpi-card:nth-child(1) .kpi-card__value,
+.backtest-kpis .kpi-card:nth-child(2) .kpi-card__value { color: var(--color-positive); }
+.backtest-kpis .kpi-card:nth-child(3) .kpi-card__value { color: var(--color-ink); }
+.backtest-kpis .kpi-card:nth-child(4) .kpi-card__value { color: #EB3B44; }
+
+.backtest-main-grid { display: grid; min-height: 0; min-width: 0; grid-template-columns: minmax(0, 1.72fr) minmax(340px, 1fr); gap: var(--card-gap); }
+.backtest-cumulative-card, .backtest-side-grid > .dashboard-card { min-height: 0; }
+.backtest-cumulative-card { display: flex; flex-direction: column; }
+.backtest-cumulative-card > .dashboard-card__body { display: flex; min-height: 0; flex: 1 1 auto; flex-direction: column; --card-body-padding-start: 6px; --card-body-padding-end: 12px; }
+.backtest-chart-toolbar { display: flex; min-height: 38px; align-items: center; justify-content: space-between; gap: 10px; }
+.backtest-chart-toolbar .performance-legend { gap: 16px; }
+.backtest-chart-toolbar .performance-legend__item { font-size: 0.83rem; }
+.backtest-chart-toolbar .performance-legend__item i { width: 11px; height: 11px; }
+.backtest-chart-toolbar .performance-legend__item--strategy { --legend-color: #FFC83D; }
+.backtest-chart-toolbar .performance-legend__item--spy { --legend-color: #69A5F5; }
+.backtest-chart-toolbar .performance-legend__item--spmo { --legend-color: #AA8BF2; }
+.backtest-range-control { padding: 3px; }
+.backtest-range-control button { min-width: 38px; min-height: 29px; padding-inline: 9px; font-size: 0.78rem; }
+.backtest-cumulative-chart { display: flex; min-height: 0; flex: 1 1 auto; align-items: stretch; }
+.backtest-chart-canvas { flex: 1 1 auto; min-width: 0; min-height: 0; }
+.backtest-chart-svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.backtest-gridline { stroke: var(--color-line); stroke-width: 1; }
+.backtest-axis-label { fill: var(--color-text-secondary); font-family: var(--font-family); font-size: 12px; font-weight: 700; }
+.backtest-series-line { fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.backtest-series-line--strategy, .backtest-endpoint--strategy, .backtest-leader--strategy { stroke: #FFC83D; }
+.backtest-series-line--spy, .backtest-endpoint--spy, .backtest-leader--spy { stroke: #69A5F5; }
+.backtest-series-line--spmo, .backtest-endpoint--spmo, .backtest-leader--spmo { stroke: #AA8BF2; }
+.backtest-endpoint { fill: var(--color-surface); stroke-width: 2; }
+.backtest-leader { fill: none; stroke-width: 1.4; }
+.backtest-value-pill--strategy { fill: var(--color-yellow-soft); }
+.backtest-value-pill--spy { fill: var(--color-blue-soft); }
+.backtest-value-pill--spmo { fill: var(--color-lavender-soft); }
+.backtest-value-label { fill: var(--color-ink); font-family: var(--font-family); font-size: 12px; font-weight: var(--font-weight-bold); letter-spacing: 0.01em; font-variant-numeric: tabular-nums; }
+
+/* The Annual Return card now lists five years, so it gets a slightly larger
+   share of the column than the drawdown chart. */
+.backtest-side-grid { display: grid; min-height: 0; grid-template-rows: minmax(0, 0.85fr) minmax(0, 1.15fr); gap: var(--card-gap); }
+.backtest-drawdown-card, .backtest-annual-card { display: flex; flex-direction: column; }
+.backtest-drawdown-card > .dashboard-card__body { display: flex; min-height: 0; flex: 1 1 auto; --card-body-padding-start: 3px; --card-body-padding-end: 10px; padding-inline: 14px; }
+.backtest-drawdown-chart { position: relative; display: flex; width: 100%; min-height: 0; flex: 1 1 auto; }
+.backtest-drawdown-canvas { flex: 1 1 auto; min-width: 0; min-height: 0; }
+.backtest-drawdown-svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.backtest-drawdown-line { fill: none; stroke: #F46E7D; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.backtest-drawdown-point { fill: #F46E7D; stroke: var(--color-surface); stroke-width: 2; }
+.backtest-drawdown-connector { position: absolute; width: 1px; transform: translateX(-50%); border-left: 1px solid rgb(244 110 125 / 45%); pointer-events: none; }
+.backtest-drawdown-callout {
+  position: absolute;
+  left: clamp(52px, var(--callout-x, 50%), calc(100% - 52px));
+  top: var(--callout-y, 50%);
+  display: flex;
+  width: 104px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  transform: translateX(-50%);
+  border-radius: var(--radius-pill);
+  background: var(--color-pink);
+  color: var(--color-ink);
+  font-family: var(--font-family);
+  font-size: 12px;
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  pointer-events: none;
+}
+.backtest-annual-card > .dashboard-card__body { display: flex; min-height: 0; flex: 1 1 auto; --card-body-padding-start: 2px; --card-body-padding-end: 12px; }
+.backtest-annual-table { width: 100%; height: auto; flex: 0 0 auto; align-self: flex-start; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.backtest-annual-table thead tr { height: 30px; border-bottom: 1px solid var(--color-line); }
+.backtest-annual-table th { color: var(--color-text-secondary); font-size: var(--font-size-table-heading); font-weight: var(--font-weight-black); letter-spacing: var(--letter-spacing-table-heading); text-align: right; text-transform: uppercase; }
+.backtest-annual-table thead th:first-child { text-align: left; }
+.backtest-annual-table tbody tr { height: 34px; border-bottom: 1px solid var(--color-line); }
+.backtest-annual-table tbody tr:last-child { border-bottom: 0; }
+.backtest-annual-ytd { color: var(--color-text-secondary); font-size: 0.62rem; font-weight: var(--font-weight-bold); letter-spacing: 0.06em; }
+.backtest-annual-table td.is-missing { color: var(--color-text-muted); font-weight: var(--font-weight-bold); }
+.backtest-annual-table tbody th { color: var(--color-ink); font-size: 0.86rem; font-weight: 900; text-align: left; }
+.backtest-annual-table td { font-size: var(--font-size-table-cell); font-weight: 900; text-align: right; }
+.backtest-annual-table td.is-positive { color: #178D4A; }
+.backtest-annual-table td.is-negative { color: #EB3B44; }
+
+@media (max-height: 830px) and (min-width: 1101px) {
+  .backtest-controls { gap: 10px; padding: 5px 14px; }
+  .backtest-date-field { gap: 7px; font-size: 0.8rem; }
+  .backtest-date-field input { height: 38px; padding-inline: 9px; font-size: 0.75rem; }
+  .backtest-segmented button { min-height: 34px; padding-inline: 7px; font-size: 0.78rem; }
+  .backtest-run-button { min-height: 40px; font-size: 0.82rem; }
+  .backtest-main-grid { grid-template-columns: minmax(0, 1.72fr) minmax(315px, 1fr); }
+  .backtest-chart-toolbar .performance-legend { gap: 10px; }
+  .backtest-chart-toolbar .performance-legend__item { font-size: 0.74rem; gap: 5px; }
+  .backtest-range-control button { min-width: 34px; min-height: 27px; font-size: 0.73rem; }
+  .backtest-annual-table thead tr { height: 26px; }
+  .backtest-annual-table tbody tr { height: 29px; }
+  .backtest-annual-table thead th,
+  .backtest-annual-table td,
+  .backtest-annual-table tbody th { font-size: 0.74rem; }
+}
+
+@media (max-width: 1100px) {
+  .backtest-page { height: auto; min-height: 100vh; overflow: visible; grid-template-rows: auto auto auto auto; }
+  .backtest-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 13px; }
+  .backtest-control-separator { display: none; }
+  .backtest-portfolio-choice, .backtest-run-button { width: 100%; }
+  .backtest-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .backtest-main-grid { min-height: 710px; grid-template-columns: 1fr; }
+  .backtest-cumulative-card { min-height: 430px; }
+  .backtest-side-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: 260px; }
+  .backtest-drawdown-card, .backtest-annual-card { min-height: 250px; }
+}
+
+@media (max-width: 680px) {
+  .backtest-controls { grid-template-columns: 1fr; gap: 9px; padding: 12px; }
+  .backtest-date-field { display: grid; grid-template-columns: 84px minmax(0, 1fr); }
+  .backtest-date-field input { width: 100%; }
+  .backtest-run-button { width: 100%; }
+  .backtest-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .backtest-main-grid { min-height: 0; }
+  .backtest-cumulative-card { min-height: 365px; }
+  .backtest-chart-toolbar { align-items: flex-start; flex-direction: column; padding-inline: 4px; }
+  .backtest-chart-toolbar .performance-legend { gap: 9px; }
+  .backtest-chart-toolbar .performance-legend__item { font-size: 0.72rem; gap: 5px; }
+  .backtest-axis-label { font-size: 10px; }
+  .backtest-chart-svg { height: 290px; }
+  .backtest-side-grid { grid-template-columns: 1fr; grid-template-rows: 240px 245px; gap: 10px; }
+}
