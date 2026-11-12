@@ -154,25 +154,71 @@
 }
 
 @media (max-width: 680px) {
-  .backtest-controls { grid-template-columns: 1fr; gap: 9px; padding: 12px; }
+  /* iOS Safari sizes a date input from its native content, so two fields can
+     never share one row with a fixed label column without fighting: the box
+     ends up wider than its track, the text sits off centre, and the second
+     field no longer lines up with the first. Stacking the label above a
+     full-width field removes that competition entirely — both fields are then
+     identical boxes, whatever date format the device locale renders. */
+  .backtest-controls {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+    padding: 16px;
+  }
+  .backtest-date-group { width: 100%; }
   .backtest-date-field {
     display: grid;
     width: 100%;
     min-width: 0;
-    grid-template-columns: 84px minmax(0, 1fr);
-    align-items: center;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+    gap: 7px;
   }
-  .backtest-date-field > span { display: block; min-width: 0; }
-  .backtest-date-field input {
+  .backtest-date-field > span {
     display: block;
+    min-width: 0;
+    font-size: 0.8rem;
+    letter-spacing: 0.01em;
+  }
+  .backtest-date-field input {
+    display: flex;
     box-sizing: border-box;
     width: 100%;
     max-width: 100%;
     min-width: 0;
     min-inline-size: 0;
     inline-size: 100%;
+    height: 48px;
+    align-items: center;
+    justify-content: center;
+    padding: 0 16px;
+    /* 16px is the floor that stops iOS Safari from zooming the page when a
+       field is focused; anything smaller shifts the whole layout on tap. */
+    font-size: 16px;
+    line-height: normal;
+    text-align: center;
   }
-  .backtest-run-button { width: 100%; }
+  /* WebKit gives the internal date value its own inline box and copies the
+     input padding into it, which is what pushes the text off centre on iOS.
+     Normalising both boxes keeps the value centred in the field. */
+  .backtest-date-field input::-webkit-datetime-edit {
+    display: block;
+    min-width: 0;
+    padding: 0;
+    overflow: hidden;
+    text-align: center;
+  }
+  .backtest-date-field input::-webkit-date-and-time-value {
+    min-height: 1.2em;
+    margin: 0;
+    text-align: center;
+  }
+  .backtest-date-error { margin: 8px 0 0; font-size: 0.8rem; }
+  /* The two portfolio choices keep their even split, and every control gets a
+     full-width, thumb-sized box. */
+  .backtest-controls .backtest-segmented { display: flex; width: 100%; }
+  .backtest-controls .backtest-segmented button { min-height: 44px; font-size: 0.9rem; }
+  .backtest-run-button { width: 100%; min-height: 50px; }
   .backtest-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .backtest-main-grid { min-height: 0; }
   .backtest-cumulative-card { min-height: 365px; }

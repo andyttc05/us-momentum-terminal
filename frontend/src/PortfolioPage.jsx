@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -25,12 +25,13 @@ import { downloadCsvFile } from "./utils/csv.js";
 import { buildPortfolioCsv, portfolioCsvFilename, validatePortfolioForExport } from "./utils/portfolioExport.js";
 
 const rowsPerPage = 10;
+// [field, label, class suffix, short label used on phones]
 const sortableFields = [
   ["rank", "#", "rank"],
   ["ticker", "Ticker", "ticker"],
   ["sector", "Sector", "sector"],
   ["score", "Score", "score"],
-  ["floatAdjustedMarketCapValue", "Float-Adj. Market Cap", "market-cap"],
+  ["floatAdjustedMarketCapValue", "Float-Adj. Market Cap", "market-cap", "Mkt Cap"],
   ["rawWeight", "Raw Weight", "raw-weight"],
   ["finalWeight", "Final Weight", "final-weight"],
 ];
@@ -42,6 +43,39 @@ function SortIcon({ active, direction }) {
   return direction === "asc"
     ? <ArrowUp size={13} weight="bold" aria-hidden="true" />
     : <ArrowDown size={13} weight="bold" aria-hidden="true" />;
+}
+
+/**
+ * Tracks whether the holdings table has columns off-screen and whether the
+ * reader has reached the end of it. The stylesheet uses that to draw a soft
+ * fade on the right edge — the only cue a phone needs that the table scrolls
+ * sideways — and to drop it again at the end of the scroll.
+ */
+function useTableScrollHint(ref, dependencies) {
+  const [state, setState] = useState({ scrollable: false, atEnd: false });
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return undefined;
+
+    const update = () => {
+      const max = node.scrollWidth - node.clientWidth;
+      setState({ scrollable: max > 1, atEnd: max > 1 && node.scrollLeft >= max - 1 });
+    };
+
+    update();
+    node.addEventListener("scroll", update, { passive: true });
+    const observer = typeof ResizeObserver === "function" ? new ResizeObserver(update) : null;
+    observer?.observe(node);
+    if (node.firstElementChild) observer?.observe(node.firstElementChild);
+
+    return () => {
+      node.removeEventListener("scroll", update);
+      observer?.disconnect();
+    };
+  }, [ref, ...dependencies]);
+
+  return state;
 }
 
 export function PortfolioPage({ onSelectStock, hidden = false }) {
@@ -77,6 +111,9 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
     () => [...portfolioHoldings].sort((left, right) => right.finalWeight - left.finalWeight).slice(0, 5),
     [portfolioHoldings],
   );
+
+  const tableScrollRef = useRef(null);
+  const tableScroll = useTableScrollHint(tableScrollRef, [visibleHoldings, sort]);
 
   function toggleSort(key) {
     setSort((current) => current.key === key
@@ -205,52 +242,62 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
             </AppButton>
           )}
         >
-          <div className="portfolio-table-scroll">
-            <table className="portfolio-table">
-              <colgroup>
-                <col className="portfolio-col-rank" />
-                <col className="portfolio-col-ticker" />
-                <col className="portfolio-col-sector" />
-                <col className="portfolio-col-score" />
-                <col className="portfolio-col-market-cap" />
-                <col className="portfolio-col-raw-weight" />
-                <col className="portfolio-col-final-weight" />
-              </colgroup>
-              <thead>
-                <tr>
-                  <th scope="col" className="portfolio-heading portfolio-heading--rank"><span>#</span></th>
-                  {sortableFields.slice(1).map(([key, label, className]) => (
-                    <th scope="col" key={key} className={`portfolio-heading portfolio-heading--${className}`} aria-sort={sort.key === key ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}>
-                      <button type="button" aria-label={`Sort by ${label}`} onClick={() => toggleSort(key)}>
-                        <span>{label}</span><SortIcon active={sort.key === key} direction={sort.direction} />
-                      </button>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {visibleHoldings.map((holding) => (
-                  <tr key={holding.ticker}>
-                    <td className="portfolio-rank-cell"><span>{holding.rank}</span></td>
-                    <td className="portfolio-ticker-cell">
-                      <button
-                        type="button"
-                        className="portfolio-ticker-link"
-                        onClick={() => onSelectStock?.(holding.ticker)}
-                        aria-label={`Open ${holding.ticker} stock analysis`}
-                      >
-                        {holding.ticker}
-                      </button>
-                    </td>
-                    <td className="portfolio-sector-cell" title={holding.sector}>{holding.sector}</td>
-                    <td className="portfolio-score-cell"><span>{holding.score.toFixed(2)}</span></td>
-                    <td className="portfolio-market-cap-cell">{holding.floatAdjustedMarketCap}</td>
-                    <td className="portfolio-weight-value-cell">{displayPercent(holding.rawWeight)}</td>
-                    <td className="portfolio-weight-value-cell is-final">{displayPercent(holding.finalWeight)}</td>
+          <div className={`portfolio-table-shell${tableScroll.scrollable ? " is-scrollable" : ""}${tableScroll.atEnd ? " is-at-end" : ""}`}>
+            <div
+              className="portfolio-table-scroll"
+              ref={tableScrollRef}
+              role="region"
+              aria-label="Holdings table — scroll horizontally for the remaining columns"
+              tabIndex={0}
+            >
+              <table className="portfolio-table">
+                <colgroup>
+                  <col className="portfolio-col-rank" />
+                  <col className="portfolio-col-ticker" />
+                  <col className="portfolio-col-sector" />
+                  <col className="portfolio-col-score" />
+                  <col className="portfolio-col-market-cap" />
+                  <col className="portfolio-col-raw-weight" />
+                  <col className="portfolio-col-final-weight" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th scope="col" className="portfolio-heading portfolio-heading--rank"><span>#</span></th>
+                    {sortableFields.slice(1).map(([key, label, className, shortLabel]) => (
+                      <th scope="col" key={key} className={`portfolio-heading portfolio-heading--${className}`} aria-sort={sort.key === key ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}>
+                        <button type="button" aria-label={`Sort by ${label}`} onClick={() => toggleSort(key)}>
+                          <span className={shortLabel ? "portfolio-heading__full" : undefined}>{label}</span>
+                          {shortLabel && <span className="portfolio-heading__short" aria-hidden="true">{shortLabel}</span>}
+                          <SortIcon active={sort.key === key} direction={sort.direction} />
+                        </button>
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {visibleHoldings.map((holding) => (
+                    <tr key={holding.ticker}>
+                      <td className="portfolio-rank-cell"><span>{holding.rank}</span></td>
+                      <td className="portfolio-ticker-cell">
+                        <button
+                          type="button"
+                          className="portfolio-ticker-link"
+                          onClick={() => onSelectStock?.(holding.ticker)}
+                          aria-label={`Open ${holding.ticker} stock analysis`}
+                        >
+                          {holding.ticker}
+                        </button>
+                      </td>
+                      <td className="portfolio-sector-cell" title={holding.sector}>{holding.sector}</td>
+                      <td className="portfolio-score-cell"><span>{holding.score.toFixed(2)}</span></td>
+                      <td className="portfolio-market-cap-cell">{holding.floatAdjustedMarketCap}</td>
+                      <td className="portfolio-weight-value-cell">{displayPercent(holding.rawWeight)}</td>
+                      <td className="portfolio-weight-value-cell is-final">{displayPercent(holding.finalWeight)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
           <Pagination
             page={currentPage}

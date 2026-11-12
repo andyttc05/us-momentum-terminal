@@ -145,6 +145,36 @@
 .sector-allocation__other { min-height: 21px; justify-content: space-between; }
 .sector-allocation__other > .sector-legend__name { font-weight: var(--font-weight-bold); }
 
+/* Phones (≤ 767px): Sector Allocation renders fewer named sectors (the
+   component drops to Top 5 + Other), so each row can afford a comfortable
+   height and a readable size instead of the dense desktop list. This is a
+   presentation-only change — the legend still comes from the same aggregated
+   groups as the donut. */
+.sector-allocation--compact .sector-legend { width: 100%; align-content: start; gap: 0; }
+.sector-allocation--compact .sector-legend li {
+  min-height: 36px;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--color-line);
+  font-size: 0.92rem;
+  line-height: 1.3;
+}
+.sector-allocation--compact .sector-legend li:last-child { border-bottom: 0; }
+.sector-allocation--compact .sector-legend__name {
+  align-items: center;
+  gap: 9px;
+  font-size: 0.92rem;
+  font-weight: var(--font-weight-medium);
+}
+.sector-allocation--compact .sector-legend__name i {
+  width: 11px;
+  height: 11px;
+  flex: 0 0 11px;
+  margin-top: 0;
+}
+.sector-allocation--compact .sector-legend strong { font-size: 0.95rem; font-weight: var(--font-weight-black); }
+.sector-allocation--compact .sector-allocation__other { min-height: 36px; }
+
 .model-banner {
   position: relative;
   display: flex;

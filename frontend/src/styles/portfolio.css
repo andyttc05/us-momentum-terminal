@@ -116,6 +116,7 @@
 }
 .portfolio-export-button > svg { width: 18px; height: 18px; }
 .portfolio-table-scroll { width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
+.portfolio-table-shell { position: relative; min-width: 0; }
 .portfolio-table { width: 100%; min-width: 850px; table-layout: fixed; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 .portfolio-col-rank { width: 7%; }
 .portfolio-col-ticker { width: 12%; }
@@ -156,6 +157,9 @@
 }
 .portfolio-table th button:hover { color: var(--color-ink); }
 .portfolio-table th button svg { flex: 0 0 auto; }
+/* Phones swap the long "Float-Adj. Market Cap" heading for a short one so the
+   column keeps its full width without clipping; desktop keeps the full label. */
+.portfolio-heading__short { display: none; }
 .portfolio-heading--rank,
 .portfolio-heading--score,
 .portfolio-heading--market-cap,
@@ -253,17 +257,121 @@
   .portfolio-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
   .portfolio-kpis .kpi-card { min-height: 92px; }
   .portfolio-summary-grid { grid-template-columns: 1fr; }
-  .portfolio-sector-content { min-height: 158px; grid-template-columns: minmax(120px, 0.9fr) minmax(150px, 1.1fr); }
-  .portfolio-sector-card .sector-donut { width: min(100%, 160px); }
-  .portfolio-sector-content .sector-legend li { font-size: 0.75rem; }
+  /* Sector Allocation on a phone: the donut sits above a full-width legend, so
+     the five named sectors and Other each get their own comfortable row
+     instead of being squeezed into a narrow side column. */
+  .portfolio-sector-content {
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    align-content: start;
+    row-gap: 14px;
+  }
+  .portfolio-sector-card .sector-donut { width: min(100%, 150px); }
+  /* The legend rows override this file's own desktop values, so they are
+     restated here rather than in the shared compact block in app.css — a page
+     rule further up this file would otherwise win the cascade at ≥ 400px. */
+  .portfolio-sector-content .sector-legend { width: 100%; gap: 0; }
+  .portfolio-sector-content .sector-legend li {
+    min-height: 36px;
+    gap: 12px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--color-line);
+    font-size: 0.92rem;
+    line-height: 1.3;
+  }
+  .portfolio-sector-content .sector-legend li:last-child { border-bottom: 0; }
+  .portfolio-sector-content .sector-legend__name {
+    align-items: center;
+    gap: 9px;
+    font-size: 0.92rem;
+    font-weight: var(--font-weight-medium);
+  }
+  .portfolio-sector-content .sector-legend__name i {
+    width: 11px;
+    height: 11px;
+    flex: 0 0 11px;
+    margin-top: 0;
+  }
+  .portfolio-sector-content .sector-legend strong { font-size: 0.95rem; font-weight: var(--font-weight-black); }
   .portfolio-constraints { grid-column: auto; }
   .portfolio-constraint-list { grid-template-columns: 1fr; }
   .portfolio-holdings-card { --card-body-padding-start: 0px; }
-  .portfolio-table { min-width: 850px; }
+  /* The table is the one place where scrolling is the layout: it runs edge to
+     edge inside the card so the next column is visibly cut off, which is the
+     cue that more columns exist. The pagination keeps the card's inset. */
+  .portfolio-holdings-card > .dashboard-card__body { padding-inline: 0; }
+  .portfolio-holdings-card .table-pagination { padding-inline: var(--card-padding-inline); }
+  .portfolio-table-scroll { -webkit-overflow-scrolling: touch; }
+  .portfolio-table { --rank-col-width: 58px; width: 790px; min-width: 790px; border-collapse: separate; border-spacing: 0; }
+  .portfolio-table th,
+  .portfolio-table td { padding-inline: 12px; }
+  /* Headings may wrap rather than clip, and the long market-cap label is
+     replaced by its short form. */
+  .portfolio-table th {
+    overflow: visible;
+    font-size: 0.7rem;
+    text-overflow: clip;
+    white-space: normal;
+  }
+  .portfolio-heading__full { display: none; }
+  .portfolio-heading__short { display: inline; }
+  .portfolio-col-rank { width: var(--rank-col-width); }
+  .portfolio-col-ticker { width: 96px; }
+  .portfolio-col-sector { width: 144px; }
+  .portfolio-col-score { width: 108px; }
+  .portfolio-col-market-cap { width: 140px; }
+  .portfolio-col-raw-weight { width: 118px; }
+  .portfolio-col-final-weight { width: 126px; }
+  /* A sticky rank + ticker keeps the row identifiable while the rest of the
+     columns scroll. Sticky cells need their own background, and `separate`
+     borders, because `collapse` drops borders on sticky cells in WebKit. */
+  .portfolio-table thead th,
+  .portfolio-table tbody td { border-bottom: 1px solid var(--color-line); }
+  .portfolio-table tbody tr:last-child td { border-bottom: 0; }
+  .portfolio-table thead th:nth-child(1),
+  .portfolio-table tbody td:nth-child(1) {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: var(--color-surface);
+  }
+  .portfolio-table thead th:nth-child(2),
+  .portfolio-table tbody td:nth-child(2) {
+    position: sticky;
+    left: var(--rank-col-width);
+    z-index: 2;
+    background: var(--color-surface);
+    box-shadow: 1px 0 0 var(--color-line);
+  }
+  .portfolio-table th:nth-child(1) { text-align: center; }
+  .portfolio-table th:nth-child(1) button { justify-content: center; }
+  .portfolio-rank-cell { padding-left: 12px !important; }
+}
+
+/* While the table has columns off-screen, a soft fade on its right edge says
+   "there is more" without adding chrome; it disappears at the end of the
+   scroll. The inset shadow keeps that cue visible even when the cut happens to
+   land on a column boundary and there is no text left to fade. */
+@media (max-width: 767px) {
+  .portfolio-table-shell.is-scrollable:not(.is-at-end) .portfolio-table-scroll {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 34px), transparent 100%);
+    mask-image: linear-gradient(to right, #000 calc(100% - 34px), transparent 100%);
+  }
+  .portfolio-table-shell.is-scrollable:not(.is-at-end)::after {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 34px;
+    background: linear-gradient(to right, rgb(255 255 255 / 0), var(--color-surface) 74%);
+    box-shadow: inset -10px 0 10px -10px rgb(56 40 22 / 18%);
+    content: "";
+    pointer-events: none;
+  }
 }
 
 @media (max-width: 400px) {
-  .portfolio-sector-content { grid-template-columns: 122px minmax(132px, 1fr); gap: 8px; }
-  .portfolio-sector-content .sector-legend li { font-size: 0.68rem; }
-  .portfolio-sector-content .sector-legend__name { gap: 5px; }
+  .portfolio-sector-content .sector-legend li { font-size: 0.9rem; }
+  .portfolio-sector-content .sector-legend__name { gap: 8px; }
 }

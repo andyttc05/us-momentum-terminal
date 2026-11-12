@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { formatSectorPercent, getSectorAllocationGroups } from "../src/utils/sectorDisplay.js";
+import { MOBILE_SECTOR_LIMIT, formatSectorPercent, getSectorAllocationGroups } from "../src/utils/sectorDisplay.js";
 
 test("sector display keeps the six largest positive sectors and aggregates the rest", () => {
   const source = [
@@ -36,6 +36,32 @@ test("sector display avoids an empty Other group", () => {
     { name: "Energy", value: 40 },
   ]);
   assert.deepEqual(groups.map(({ name }) => name), ["Technology", "Energy"]);
+});
+
+test("phone grouping names five sectors and keeps the total unchanged", () => {
+  const source = [
+    { name: "Technology", value: 35 },
+    { name: "Communication", value: 14 },
+    { name: "Energy", value: 12.5 },
+    { name: "Healthcare", value: 12.4 },
+    { name: "Consumer Staples", value: 11.1 },
+    { name: "Financials", value: 8.1 },
+    { name: "Other", value: 6.9 },
+  ];
+  const { groups } = getSectorAllocationGroups(source, MOBILE_SECTOR_LIMIT);
+  assert.equal(MOBILE_SECTOR_LIMIT, 5);
+  assert.deepEqual(
+    groups.map(({ name }) => name),
+    ["Technology", "Communication", "Energy", "Healthcare", "Consumer Staples", "Other"],
+  );
+  // The desktop grouping still names six sectors; only the phone view aggregates.
+  assert.equal(getSectorAllocationGroups(source).groups.length, 7);
+  // Presentation only: the aggregated total is identical to the source total.
+  assert.equal(
+    Math.round(groups.reduce((total, sector) => total + sector.value, 0) * 100) / 100,
+    100,
+  );
+  assert.deepEqual(source.map(({ value }) => value), [35, 14, 12.5, 12.4, 11.1, 8.1, 6.9]);
 });
 
 test("sector percentages preserve the precision supplied by the data service", () => {

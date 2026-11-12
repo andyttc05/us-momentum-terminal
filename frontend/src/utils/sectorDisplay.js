@@ -1,8 +1,12 @@
 export const SECTOR_GROUP_LIMIT = 6;
+/** Phones show fewer named sectors so every row stays readable. */
+export const MOBILE_SECTOR_LIMIT = 5;
 
 /**
- * Build the presentation-only Top 6 + Other grouping. The source objects and
+ * Build the presentation-only Top N + Other grouping. The source objects and
  * values remain untouched while all remaining sectors are summed into Other.
+ * Rows are ranked by allocation, descending, so both the donut and the legend
+ * read from the same order.
  */
 export function getSectorAllocationGroups(sectors = [], limit = SECTOR_GROUP_LIMIT) {
   const ranked = sectors
