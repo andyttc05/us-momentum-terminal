@@ -33,14 +33,14 @@ jobs:
       - name: Install dependencies
         run: npm --prefix frontend ci
 
-      - name: Run frontend tests
-        run: npm --prefix frontend run test:unit
-
       - name: Build static site
         run: npm run build
         env:
           VITE_BASE_PATH: /us-momentum-terminal/
           VITE_STATIC_SHOWCASE: "true"
+
+      - name: Run frontend tests
+        run: npm --prefix frontend run test:unit
 
       - name: Add SPA fallback (404.html)
         run: cp frontend/dist/client/index.html frontend/dist/client/404.html
