@@ -8,18 +8,22 @@ export function getDataNoticeState({
   meta,
   refreshing,
   lastRefreshCompletedAt,
+  hasData = false,
   now = Date.now(),
 }) {
   if (error || status === "error" || meta?.cache_state === "error") {
     return { id: "error", message: "Service unavailable" };
   }
   if (status === "loading" || refreshing || meta?.refresh_in_progress || meta?.cache_state === "warming") {
+    // With usable data on screen, the update bar is the quieter loading state.
+    if (hasData) return null;
     return { id: "loading", message: "Updating data…" };
   }
   if (meta?.cache_state === "partial") {
     return { id: "partial", message: "Some data unavailable" };
   }
   if (meta?.cache_state === "cached") {
+    if (hasData) return null;
     return { id: "cached", message: "Cached data" };
   }
   if (lastRefreshCompletedAt && now - new Date(lastRefreshCompletedAt).getTime() < 4200) {

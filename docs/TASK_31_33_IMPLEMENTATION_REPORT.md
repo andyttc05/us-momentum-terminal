@@ -147,6 +147,10 @@ At 390px:
 
 Browser console: no errors or warnings.
 
+Final regression results: 13 Python tests and 21 frontend/Sites tests passed. The production Pages
+build passed. When cached data is already visible, background updates now use the persistent update
+bar instead of a floating loading notice, so the notification cannot obscure the refined cards.
+
 ## Evidence
 
 - `docs/task31-33-screenshots/overview-1440.png`

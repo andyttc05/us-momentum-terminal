@@ -31,7 +31,14 @@ export function StatusToast() {
   const [retrying, setRetrying] = useState(false);
 
   const state = useMemo(() => {
-    const resolved = getDataNoticeState({ error, status, meta, refreshing, lastRefreshCompletedAt });
+    const resolved = getDataNoticeState({
+      error,
+      status,
+      meta,
+      refreshing,
+      lastRefreshCompletedAt,
+      hasData: Boolean(data?.stocks?.length),
+    });
     if (!resolved) return null;
     const visual = {
       error: { Icon: CloudSlash, retry: true },
@@ -41,7 +48,7 @@ export function StatusToast() {
       updated: { Icon: CheckCircle, retry: false },
     }[resolved.id];
     return { ...resolved, ...visual };
-  }, [error, lastRefreshCompletedAt, meta, refreshing, status]);
+  }, [data?.stocks?.length, error, lastRefreshCompletedAt, meta, refreshing, status]);
 
   const key = state
     ? `${state.id}:${meta?.as_of ?? ""}:${data?.universe?.scanned ?? 0}:${lastRefreshCompletedAt?.getTime?.() ?? 0}`

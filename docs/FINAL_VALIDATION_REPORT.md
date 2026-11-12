@@ -57,7 +57,7 @@ Command:
 npm run test:frontend
 ```
 
-Result: **20 passed, 0 failed**
+Result: **21 passed, 0 failed**
 
 Coverage includes portfolio CSV rank preservation and float-adjusted cap values, Sites asset
 serving, route fallback, API-route protection and required build artifacts.

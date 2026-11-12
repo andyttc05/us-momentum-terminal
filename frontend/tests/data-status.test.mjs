@@ -17,6 +17,17 @@ test("partial and cached results remain distinguishable", () => {
   assert.equal(getDataNoticeState({ ...base, meta: { cache_state: "cached" } }).id, "cached");
 });
 
+test("cached and updating data use the quieter update bar instead of a floating notice", () => {
+  assert.equal(
+    getDataNoticeState({ ...base, refreshing: true, hasData: true }),
+    null,
+  );
+  assert.equal(
+    getDataNoticeState({ ...base, meta: { cache_state: "cached" }, hasData: true }),
+    null,
+  );
+});
+
 test("manual refresh success is brief and stale success is hidden", () => {
   const now = Date.parse("2026-11-12T12:00:00Z");
   assert.equal(
