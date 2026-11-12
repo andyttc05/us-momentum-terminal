@@ -136,9 +136,11 @@ page-specific files.
 
 ### Responsive Layout
 
-The application uses a fixed labelled sidebar on desktop, a compact icon sidebar on tablet widths,
-and a top navigation bar on phones. Page headers and the main content grid reflow to one or two
-columns as space decreases. Wide stock tables remain horizontally scrollable on small screens.
+The application uses a fixed labelled sidebar on desktop, preserves the compact icon sidebar on
+tablet widths, and uses a fixed four-icon bottom tab bar on phones. The phone navigation includes
+safe-area padding while reserving matching scroll space so cards, tables and pagination remain
+accessible above it. Page headers and the main content grid reflow to one or two columns as space
+decreases. Wide stock tables remain horizontally scrollable on small screens.
 
 The sidebar includes a secondary About navigation item that opens a responsive native modal. The
 modal supports close-button, Escape-key and outside-click dismissal, keeps background scrolling
@@ -191,8 +193,14 @@ and liquidity checks.
 ### Historical Prices
 
 The default request spans ten years of daily data. The application uses `Adj Close` for momentum,
-benchmarks, Sparkline trends, and backtesting. Raw close is retained for the displayed latest price
-and for historical liquidity checks.
+benchmarks, Screener sparklines, and backtesting. Raw close is retained for the displayed latest
+price and historical liquidity checks.
+
+Each Screener row includes `sparkline12_1`, generated from the same ticker snapshot and daily
+adjusted-close positions used by that row's momentum calculation: `t−252` through `t−21`, excluding
+the latest 21 sessions. Values are normalized to 100 at the start observation. A shared y-domain
+across the current stock set keeps different returns visually comparable. Legacy payloads without
+this field render an unavailable marker instead of the older 12-week trend.
 
 ### Cache and Background Refresh
 

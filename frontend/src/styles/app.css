@@ -381,6 +381,61 @@
 /* Phones (≤ 767px) — a compact reorganisation of the same design.
    Desktop (≥ 1200px) and tablet (768–1199px) are untouched. */
 @media (max-width: 767px) {
+  :root { --sidebar-width: 0px; }
+
+  /* Phones use the app-style navigation at the bottom instead of the sidebar. */
+  .sidebar { display: none; }
+  .app-shell {
+    --toast-edge-right: max(16px, env(safe-area-inset-right));
+    --toast-edge-bottom: calc(88px + max(10px, env(safe-area-inset-bottom)));
+  }
+  .app-main {
+    margin-left: 0;
+    padding-bottom: calc(88px + env(safe-area-inset-bottom));
+  }
+  .mobile-tab-bar {
+    position: fixed;
+    z-index: 30;
+    right: 12px;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    left: 12px;
+    display: grid;
+    min-height: 64px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: center;
+    padding: 8px;
+    border: 1px solid rgb(234 228 220 / 88%);
+    border-radius: 24px;
+    background: var(--color-surface);
+    box-shadow: 0 14px 38px rgb(56 40 22 / 14%), 0 3px 10px rgb(56 40 22 / 6%);
+  }
+  .mobile-tab-bar__item {
+    display: grid;
+    min-width: 0;
+    min-height: 48px;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+  }
+  .mobile-tab-bar__icon {
+    display: grid;
+    width: 44px;
+    height: 44px;
+    place-items: center;
+    border-radius: 50%;
+    color: var(--color-text-secondary);
+    transition: background-color 160ms ease, color 160ms ease;
+  }
+  .mobile-tab-bar__item.is-active .mobile-tab-bar__icon {
+    background: var(--color-yellow);
+    color: var(--color-ink);
+  }
+  .mobile-tab-bar__item:not(.is-active):hover .mobile-tab-bar__icon { background: var(--color-nav-hover); }
+  .mobile-tab-bar__item:focus-visible { outline: none; }
+  .mobile-tab-bar__item:focus-visible .mobile-tab-bar__icon { box-shadow: var(--focus-ring); }
+
   /* The update bar is dropped entirely on phones — it consumed a whole row. */
   .page-header__controls .update-bar { display: none; }
 
@@ -431,16 +486,6 @@
 }
 
 @media (max-width: 520px) {
-  :root { --sidebar-width: 0px; }
-  .sidebar { position: relative; width: 100%; height: auto; flex-direction: row; justify-content: space-between; align-items: center; padding: 10px 16px; border-right: 0; border-bottom: 1px solid var(--color-line); }
-  .brand-lockup { flex-direction: row; align-items: center; gap: 8px; padding-inline: 0; text-align: left; }
-  .brand-lockup__text { font-size: 0.74rem; letter-spacing: -0.01em; line-height: 1.14; text-align: left; }
-  .sidebar__rule { display: none; }
-  .sidebar-nav { display: flex; width: auto; gap: 3px; margin: 0; padding: 0; }
-  .sidebar-nav__item { width: 34px; min-height: 34px; }
-  .sidebar-nav__item .sidebar-nav__label { display: none; }
-  .sidebar-project-info { width: auto; margin-top: 0; padding: 0; }
-  .sidebar-nav__item--secondary { width: 40px; min-height: 40px; }
   .project-info-dialog {
     inset: 0;
     width: calc(100vw - 24px);
@@ -457,7 +502,6 @@
   .project-info__sections { margin-top: 18px; }
   .project-info__sections > div { grid-template-columns: 88px minmax(0, 1fr); gap: 12px; padding: 11px 0; }
   .project-info__links { grid-template-columns: 1fr; }
-  .app-main { margin-left: 0; }
   .status-indicator { font-size: 0.68rem; }
   .overview-grid__side { grid-template-columns: 1fr; }
   .sector-card .dashboard-card__header { align-items: center; flex-direction: row; }
