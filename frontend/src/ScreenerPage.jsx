@@ -17,7 +17,7 @@ import { Toast } from "./components/Toast.jsx";
 import { UpdateBar } from "./components/UpdateBar.jsx";
 import { useMarket } from "./api/MarketProvider.jsx";
 import { formatMarketCap } from "./utils/format.js";
-import { momentumSparklineDomain, momentumSparklineValues } from "./utils/sparkline.js";
+import { momentumSeriesDomain, momentumSeriesValues } from "./utils/momentumSeries.js";
 import { searchMatch } from "./utils/stockSearch.js";
 
 const emptyFilters = { sector: "", minPrice: "", maxPrice: "", minMomentum: "", minScore: "" };
@@ -131,7 +131,10 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
       })
       .map(({ stock }) => stock);
   }, [filters, mode, search, sort, stocks]);
-  const sparklineDomain = useMemo(() => momentumSparklineDomain(stocks), [stocks]);
+  // One scale for the whole universe, not for the visible page: narrowing the
+  // table must never silently rescale the sparklines, and a row keeps its shape
+  // wherever sorting, search and pagination move it.
+  const sparklineDomain = useMemo(() => momentumSeriesDomain(stocks), [stocks]);
 
   const totalPages = Math.max(1, Math.ceil(filteredStocks.length / rowsPerPage));
   const currentPage = Math.min(page, totalPages);
@@ -331,7 +334,7 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
                     <td className="stock-momentum-cell">
                       <div className="stock-momentum-cell__content">
                         <Sparkline
-                          values={momentumSparklineValues(stock)}
+                          values={momentumSeriesValues(stock)}
                           domain={sparklineDomain}
                           label={`${stock.ticker} 12–1 momentum`}
                           className={stock.momentum >= 0 ? "" : "sparkline--negative"}

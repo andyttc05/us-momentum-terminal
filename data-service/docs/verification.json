@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-12T18:10:15+00:00",
+  "generated_at": "2026-11-12T18:58:19+00:00",
   "checks": {
     "universe": {
       "requested": 200,
@@ -13,7 +13,7 @@
       "no_null_prices": true,
       "no_nan_scores": true,
       "score_range": [
-        0.3082,
+        0.3085,
         4.0
       ]
     },
@@ -36,17 +36,17 @@
         [
           3,
           "HPE",
-          3.9906
+          3.9909
         ],
         [
           4,
           "ARW",
-          3.4912
+          3.492
         ],
         [
           5,
           "DAR",
-          3.3911
+          3.3915
         ]
       ]
     },
@@ -58,15 +58,15 @@
           "momentum_12_1_recomputed": 24.94,
           "momentum_12_1_app": 24.9,
           "delta": 0.039,
-          "momentum_6m_recomputed": 19.35,
-          "momentum_6m_app": 19.4,
+          "momentum_6m_recomputed": 19.53,
+          "momentum_6m_app": 19.5,
           "volatility_recomputed": 24.9,
           "volatility_app": 24.9,
           "risk_adjusted_recomputed": 15.9,
           "risk_adjusted_app": 15.9,
           "score_from_displayed_z": 1.73,
-          "score_app": 1.7324,
-          "score_delta_from_displayed_z": 0.0024,
+          "score_app": 1.7325,
+          "score_delta_from_displayed_z": 0.0025,
           "sparkline_start_date": "2025-11-11",
           "sparkline_end_date": "2026-10-14",
           "sparkline_start_adjusted_close": 274.5028,
@@ -83,15 +83,15 @@
           "momentum_12_1_recomputed": 5.78,
           "momentum_12_1_app": 5.8,
           "delta": 0.02,
-          "momentum_6m_recomputed": 29.6,
-          "momentum_6m_app": 29.6,
+          "momentum_6m_recomputed": 28.57,
+          "momentum_6m_app": 29.1,
           "volatility_recomputed": 34.0,
           "volatility_app": 34.0,
           "risk_adjusted_recomputed": 2.7,
           "risk_adjusted_app": 2.7,
           "score_from_displayed_z": 0.813,
-          "score_app": 0.8137,
-          "score_delta_from_displayed_z": 0.0007,
+          "score_app": 0.8138,
+          "score_delta_from_displayed_z": 0.0008,
           "sparkline_start_date": "2025-11-11",
           "sparkline_end_date": "2026-10-14",
           "sparkline_start_adjusted_close": 504.5289,
@@ -108,15 +108,15 @@
           "momentum_12_1_recomputed": 14.84,
           "momentum_12_1_app": 14.8,
           "delta": 0.043,
-          "momentum_6m_recomputed": -29.73,
-          "momentum_6m_app": -29.7,
+          "momentum_6m_recomputed": -29.92,
+          "momentum_6m_app": -29.6,
           "volatility_recomputed": 38.8,
-          "volatility_app": 38.8,
-          "risk_adjusted_recomputed": 6.08,
+          "volatility_app": 38.7,
+          "risk_adjusted_recomputed": 6.07,
           "risk_adjusted_app": 6.08,
           "score_from_displayed_z": 1.02,
-          "score_app": 1.017,
-          "score_delta_from_displayed_z": 0.003,
+          "score_app": 1.0173,
+          "score_delta_from_displayed_z": 0.0027,
           "sparkline_start_date": "2025-11-11",
           "sparkline_end_date": "2026-10-14",
           "sparkline_start_adjusted_close": 192.6983,
@@ -133,15 +133,15 @@
           "momentum_12_1_recomputed": 18.01,
           "momentum_12_1_app": 18.0,
           "delta": 0.014,
-          "momentum_6m_recomputed": 1.22,
-          "momentum_6m_app": 1.2,
+          "momentum_6m_recomputed": 1.12,
+          "momentum_6m_app": 1.4,
           "volatility_recomputed": 41.6,
           "volatility_app": 41.6,
           "risk_adjusted_recomputed": 6.88,
           "risk_adjusted_app": 6.88,
           "score_from_displayed_z": 1.08,
-          "score_app": 1.0753,
-          "score_delta_from_displayed_z": 0.0047,
+          "score_app": 1.0754,
+          "score_delta_from_displayed_z": 0.0046,
           "sparkline_start_date": "2025-11-11",
           "sparkline_end_date": "2026-10-14",
           "sparkline_start_adjusted_close": 624.9601,
@@ -158,8 +158,8 @@
           "momentum_12_1_recomputed": 8.27,
           "momentum_12_1_app": 8.3,
           "delta": 0.025,
-          "momentum_6m_recomputed": 15.88,
-          "momentum_6m_app": 15.9,
+          "momentum_6m_recomputed": 15.66,
+          "momentum_6m_app": 15.8,
           "volatility_recomputed": 23.0,
           "volatility_app": 23.0,
           "risk_adjusted_recomputed": 5.72,
@@ -179,6 +179,65 @@
         }
       },
       "all_within_tolerance": true
+    },
+    "momentum_chart_consistency": {
+      "tickers": {
+        "MPC": {
+          "ticker": "MPC",
+          "start_date": "2025-11-11",
+          "end_date": "2026-10-14",
+          "start_adjusted_close": 196.8421,
+          "end_adjusted_close": 484.92,
+          "momentum_12_1_pct": 146.3,
+          "expected_momentum_pct": 146.3,
+          "first_indexed_value": 100.0,
+          "last_indexed_value": 246.3497,
+          "expected_last_indexed_value": 246.3,
+          "screener_and_stock_analysis_identical": true,
+          "window_matches_bars": true,
+          "endpoint_matches_displayed_momentum": true,
+          "momentum_within_expected_band": true,
+          "base_is_one_hundred": true
+        },
+        "MU": {
+          "ticker": "MU",
+          "start_date": "2025-11-11",
+          "end_date": "2026-10-14",
+          "start_adjusted_close": 240.8365,
+          "end_adjusted_close": 914.13,
+          "momentum_12_1_pct": 279.6,
+          "expected_momentum_pct": 279.6,
+          "first_indexed_value": 100.0,
+          "last_indexed_value": 379.5646,
+          "expected_last_indexed_value": 379.6,
+          "screener_and_stock_analysis_identical": true,
+          "window_matches_bars": true,
+          "endpoint_matches_displayed_momentum": true,
+          "momentum_within_expected_band": true,
+          "base_is_one_hundred": true
+        },
+        "HPE": {
+          "ticker": "HPE",
+          "start_date": "2025-11-11",
+          "end_date": "2026-10-14",
+          "start_adjusted_close": 22.4846,
+          "end_adjusted_close": 63.11,
+          "momentum_12_1_pct": 180.7,
+          "expected_momentum_pct": 180.7,
+          "first_indexed_value": 100.0,
+          "last_indexed_value": 280.6815,
+          "expected_last_indexed_value": 280.7,
+          "screener_and_stock_analysis_identical": true,
+          "window_matches_bars": true,
+          "endpoint_matches_displayed_momentum": true,
+          "momentum_within_expected_band": true,
+          "base_is_one_hundred": true
+        }
+      },
+      "all_identical_across_sizes": true,
+      "all_windows_match_bars": true,
+      "all_endpoints_match": true,
+      "all_bases_are_one_hundred": true
     },
     "bar_hygiene": {
       "AAPL": {
@@ -249,7 +308,7 @@
         "Financials": 8.1,
         "Materials": 1.5,
         "Real Estate": 1.0,
-        "Communication": 14.0,
+        "Communication": 14.1,
         "Utilities": 0.3
       },
       "all_constraints_pass": true,
@@ -294,7 +353,7 @@
       "starts_below_100_by_initial_cost": true,
       "drawdown_non_positive": true,
       "metrics": {
-        "cumulative_return": 367.1,
+        "cumulative_return": 366.9,
         "cagr": 19.6,
         "annualized_volatility": 18.8,
         "max_drawdown": -34.7,
@@ -334,22 +393,444 @@
       "total_one_way_turnover_pct": 1113.0,
       "annualized_one_way_turnover_pct": 129.4
     },
+    "backtest_chart_reconciliation": {
+      "nav_points": 2168,
+      "dates_match_points": true,
+      "drawdown_matches_points": true,
+      "cumulative_return_series": 366.9,
+      "cumulative_return_published": 366.9,
+      "cumulative_return_delta": 0.0,
+      "cagr_series": 19.6,
+      "cagr_published": 19.6,
+      "max_drawdown_series": -34.7,
+      "max_drawdown_published": -34.7,
+      "benchmarks_rebased_to_100": {
+        "spy": true,
+        "spmo": true
+      },
+      "annual_years_match_nav": true,
+      "ytd_label_needed": true,
+      "annual_return_deltas": [
+        {
+          "year": 2019,
+          "published": 36.2,
+          "recomputed": 36.2
+        },
+        {
+          "year": 2020,
+          "published": 27.6,
+          "recomputed": 27.7
+        },
+        {
+          "year": 2021,
+          "published": 34.1,
+          "recomputed": 34.1
+        },
+        {
+          "year": 2022,
+          "published": -11.9,
+          "recomputed": -11.9
+        },
+        {
+          "year": 2023,
+          "published": 26.2,
+          "recomputed": 26.2
+        },
+        {
+          "year": 2024,
+          "published": 26.2,
+          "recomputed": 26.2
+        },
+        {
+          "year": 2025,
+          "published": 17.6,
+          "recomputed": 17.6
+        },
+        {
+          "year": 2026,
+          "published": 18.5,
+          "recomputed": 18.5
+        }
+      ],
+      "all_reconcile": true
+    },
+    "overview_performance": {
+      "periods": [
+        "1Y",
+        "3Y",
+        "5Y",
+        "All"
+      ],
+      "series_ids": [
+        "spmo",
+        "spy",
+        "strategy"
+      ],
+      "all_series_present": true,
+      "strategy_end_matches_backtest": true,
+      "labels_match_points": true,
+      "series_match_points": true,
+      "axis_contains_every_value": true
+    },
+    "portfolio_charts": {
+      "holdings": 100,
+      "total_final_weight": 100.0,
+      "weights_sum_to_100": true,
+      "max_stock_weight": 9.0,
+      "max_sector_weight": 35.0,
+      "donut_matches_holdings": {
+        "Communication": {
+          "donut": 14.1,
+          "holdings": 14.1,
+          "delta": 0.05
+        },
+        "Consumer Discretionary": {
+          "donut": 0.4,
+          "holdings": 0.4,
+          "delta": 0.02
+        },
+        "Consumer Staples": {
+          "donut": 11.1,
+          "holdings": 11.1,
+          "delta": 0.04
+        },
+        "Energy": {
+          "donut": 12.5,
+          "holdings": 12.5,
+          "delta": 0.03
+        },
+        "Financials": {
+          "donut": 8.1,
+          "holdings": 8.1,
+          "delta": 0.01
+        },
+        "Healthcare": {
+          "donut": 12.4,
+          "holdings": 12.4,
+          "delta": 0.03
+        },
+        "Industrials": {
+          "donut": 3.8,
+          "holdings": 3.8,
+          "delta": 0.02
+        },
+        "Materials": {
+          "donut": 1.5,
+          "holdings": 1.5,
+          "delta": 0.03
+        },
+        "Real Estate": {
+          "donut": 1.0,
+          "holdings": 1.0,
+          "delta": 0.04
+        },
+        "Technology": {
+          "donut": 35.0,
+          "holdings": 35.0,
+          "delta": 0.0
+        },
+        "Utilities": {
+          "donut": 0.3,
+          "holdings": 0.3,
+          "delta": 0.03
+        }
+      },
+      "donut_covers_every_sector": true,
+      "overview_allocation_sums_to_100": true,
+      "overview_allocation_matches_donut": {
+        "Technology": {
+          "overview": 35,
+          "donut": 35
+        },
+        "Communication": {
+          "overview": 14,
+          "donut": 14
+        },
+        "Healthcare": {
+          "overview": 12,
+          "donut": 12
+        },
+        "Consumer Discretionary": {
+          "overview": 0,
+          "donut": 0
+        },
+        "Consumer Staples": {
+          "overview": 11,
+          "donut": 11
+        },
+        "Industrials": {
+          "overview": 4,
+          "donut": 4
+        },
+        "Financials": {
+          "overview": 8,
+          "donut": 8
+        },
+        "Energy": {
+          "overview": 13,
+          "donut": 12
+        },
+        "Materials": {
+          "overview": 2,
+          "donut": 2
+        },
+        "Utilities": {
+          "overview": 0,
+          "donut": 0
+        },
+        "Real Estate": {
+          "overview": 1,
+          "donut": 1
+        }
+      },
+      "weight_distribution_uses_final_weight": true,
+      "all_consistent": true
+    },
+    "overview_top_momentum": {
+      "rows": 5,
+      "matches_first_ranks": [
+        {
+          "rank": 1,
+          "ticker": "MPC",
+          "screener_ticker": "MPC",
+          "score": "4.00",
+          "screener_score": "4.00",
+          "price": "$416.29",
+          "screener_price": "$416.29",
+          "consistent": true
+        },
+        {
+          "rank": 2,
+          "ticker": "MU",
+          "screener_ticker": "MU",
+          "score": "4.00",
+          "screener_score": "4.00",
+          "price": "$794.03",
+          "screener_price": "$794.03",
+          "consistent": true
+        },
+        {
+          "rank": 3,
+          "ticker": "HPE",
+          "screener_ticker": "HPE",
+          "score": "3.99",
+          "screener_score": "3.99",
+          "price": "$50.50",
+          "screener_price": "$50.50",
+          "consistent": true
+        },
+        {
+          "rank": 4,
+          "ticker": "ARW",
+          "screener_ticker": "ARW",
+          "score": "3.49",
+          "screener_score": "3.49",
+          "price": "$198.71",
+          "screener_price": "$198.71",
+          "consistent": true
+        },
+        {
+          "rank": 5,
+          "ticker": "DAR",
+          "screener_ticker": "DAR",
+          "score": "3.39",
+          "screener_score": "3.39",
+          "price": "$55.16",
+          "screener_price": "$55.16",
+          "consistent": true
+        }
+      ],
+      "sparkline_series": "trend (12 weekly adjusted closes, rebased to 100)",
+      "same_series_as_screener": false,
+      "all_consistent": true
+    },
+    "cross_page_consistency": {
+      "tickers": {
+        "MPC": {
+          "price": {
+            "screener": 416.29,
+            "stock": 416.29,
+            "equal": true
+          },
+          "marketCap": {
+            "screener": 109686185984.0,
+            "stock": 109686185984.0,
+            "equal": true
+          },
+          "momentum": {
+            "screener": 146.3,
+            "stock": 146.3,
+            "equal": true
+          },
+          "score": {
+            "screener": 4.0,
+            "stock": 4.0,
+            "equal": true
+          },
+          "rank": {
+            "screener": 1,
+            "stock": 1,
+            "equal": true
+          },
+          "sector": {
+            "screener": "Energy",
+            "stock": "Energy",
+            "equal": true
+          },
+          "snapshot_stamp": true
+        },
+        "MU": {
+          "price": {
+            "screener": 794.0275,
+            "stock": 794.0275,
+            "equal": true
+          },
+          "marketCap": {
+            "screener": 917923627008.0,
+            "stock": 917923627008.0,
+            "equal": true
+          },
+          "momentum": {
+            "screener": 279.6,
+            "stock": 279.6,
+            "equal": true
+          },
+          "score": {
+            "screener": 4.0,
+            "stock": 4.0,
+            "equal": true
+          },
+          "rank": {
+            "screener": 2,
+            "stock": 2,
+            "equal": true
+          },
+          "sector": {
+            "screener": "Technology",
+            "stock": "Technology",
+            "equal": true
+          },
+          "snapshot_stamp": true
+        },
+        "HPE": {
+          "price": {
+            "screener": 50.5,
+            "stock": 50.5,
+            "equal": true
+          },
+          "marketCap": {
+            "screener": 66705108992.0,
+            "stock": 66705108992.0,
+            "equal": true
+          },
+          "momentum": {
+            "screener": 180.7,
+            "stock": 180.7,
+            "equal": true
+          },
+          "score": {
+            "screener": 3.9909,
+            "stock": 3.9909,
+            "equal": true
+          },
+          "rank": {
+            "screener": 3,
+            "stock": 3,
+            "equal": true
+          },
+          "sector": {
+            "screener": "Technology",
+            "stock": "Technology",
+            "equal": true
+          },
+          "snapshot_stamp": true
+        },
+        "NVDA": {
+          "price": {
+            "screener": 165.56,
+            "stock": 165.56,
+            "equal": true
+          },
+          "marketCap": {
+            "screener": 4195058188288.0,
+            "stock": 4195058188288.0,
+            "equal": true
+          },
+          "momentum": {
+            "screener": 14.8,
+            "stock": 14.8,
+            "equal": true
+          },
+          "score": {
+            "screener": 1.0173,
+            "stock": 1.0173,
+            "equal": true
+          },
+          "rank": {
+            "screener": 85,
+            "stock": 85,
+            "equal": true
+          },
+          "sector": {
+            "screener": "Technology",
+            "stock": "Technology",
+            "equal": true
+          },
+          "snapshot_stamp": true
+        },
+        "JPM": {
+          "price": {
+            "screener": 344.16,
+            "stock": 344.16,
+            "equal": true
+          },
+          "marketCap": {
+            "screener": 911909847040.0,
+            "stock": 911909847040.0,
+            "equal": true
+          },
+          "momentum": {
+            "screener": 8.3,
+            "stock": 8.3,
+            "equal": true
+          },
+          "score": {
+            "screener": 0.9911,
+            "stock": 0.9911,
+            "equal": true
+          },
+          "rank": {
+            "screener": 91,
+            "stock": 91,
+            "equal": true
+          },
+          "sector": {
+            "screener": "Financials",
+            "stock": "Financials",
+            "equal": true
+          },
+          "snapshot_stamp": true
+        }
+      },
+      "all_equal": true,
+      "same_snapshot": true
+    },
     "cross_provider_prices": {
       "AAPL": {
         "twelve_data": {
           "date": "2026-11-12",
-          "close": 355.52
+          "close": 356.13
         },
         "yahoo_via_app": {
           "date": "2026-11-12",
-          "close": 355.62
+          "close": 356.125
         },
-        "difference_pct": 0.028
+        "difference_pct": -0.001
       },
       "QQQ": {
         "twelve_data": {
           "date": "2026-11-12",
-          "close": 690.31
+          "close": 689.18
         },
         "yahoo_via_app": null
       }
@@ -362,7 +843,7 @@
       "is_backup": false,
       "backup_symbols": [],
       "timeliness": "delayed",
-      "generated_at": "2026-11-12T18:09:15+00:00",
+      "generated_at": "2026-11-12T18:53:48+00:00",
       "all_rows_carry_source": true
     },
     "passed": true

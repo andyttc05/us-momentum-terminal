@@ -16,6 +16,7 @@ import { PageHeader } from "./components/PageHeader.jsx";
 import { Toast } from "./components/Toast.jsx";
 import { useElementSize } from "./components/useElementSize.js";
 import { useMarket } from "./api/MarketProvider.jsx";
+import { computeWindowMetrics } from "./utils/backtestMetrics.js";
 import { buildDrawdownScale } from "./utils/drawdownScale.js";
 
 const ranges = ["1Y", "3Y", "5Y", "All"];
@@ -85,6 +86,8 @@ function sliceWindow(block, startDate, endDate, range) {
     spmo: block.spmo?.length ? normalize(block.spmo) : [],
     drawdown,
     base: 100,
+    startsAtBacktestOrigin,
+    fullWindow: startsAtBacktestOrigin && endDate === block.dates.at(-1),
   };
 }
 
@@ -95,29 +98,6 @@ function sampleIndexes(length, maxPoints) {
   for (let index = 0; index < maxPoints; index += 1) out.add(Math.round(index * step));
   out.add(length - 1);
   return [...out].sort((a, b) => a - b);
-}
-
-function computeMetrics(window) {
-  if (!window) return { totalReturn: null, cagr: null, maxDrawdown: null, sharpe: null };
-  const values = window.strategy;
-  const totalReturn = (values.at(-1) / 100 - 1) * 100;
-  const firstDate = new Date(`${window.dates[0]}T00:00:00`);
-  const lastDate = new Date(`${window.dates.at(-1)}T00:00:00`);
-  const years = Math.max((lastDate - firstDate) / (365.25 * 24 * 3600 * 1000), 1 / 252);
-  const cagr = ((1 + totalReturn / 100) ** (1 / years) - 1) * 100;
-  const returns = [];
-  for (let index = 1; index < values.length; index += 1) {
-    returns.push(values[index] / values[index - 1] - 1);
-  }
-  const mean = returns.reduce((total, value) => total + value, 0) / Math.max(returns.length, 1);
-  const variance = returns.reduce((total, value) => total + (value - mean) ** 2, 0) / Math.max(returns.length - 1, 1);
-  const sharpe = variance > 0 ? (mean / Math.sqrt(variance)) * Math.sqrt(252) : null;
-  return {
-    totalReturn,
-    cagr,
-    maxDrawdown: Math.min(...window.drawdown),
-    sharpe,
-  };
 }
 
 function CumulativeChart({ window, range }) {
@@ -303,7 +283,12 @@ export function BacktestingPage({ hidden = false }) {
     () => (available && submittedWindow.startDate ? sliceWindow(block, submittedWindow.startDate, submittedWindow.endDate, range) : null),
     [available, block, range, submittedWindow],
   );
-  const metrics = useMemo(() => computeMetrics(backtestWindow), [backtestWindow]);
+  // The backend's metrics are authoritative for the full published window; a
+  // narrowed window is the only case that has to be derived on the client.
+  const metrics = useMemo(
+    () => computeWindowMetrics(backtestWindow, block?.metrics ?? null),
+    [backtestWindow, block],
+  );
 
   // Charts render at most ~320 points; metrics always use the full daily series.
   const chartWindow = useMemo(() => {

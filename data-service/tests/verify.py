@@ -18,6 +18,10 @@ ROOT = Path(__file__).resolve().parents[2]
 DOCS = ROOT / "data-service" / "docs"
 BASE = "http://127.0.0.1:8787"
 SAMPLE = ["AAPL", "MSFT", "NVDA", "META", "JPM"]
+# The three symbols the 12-1 chart audit is specified against. Their momentum
+# must stay near +146.3%, +279.6% and +180.7% and both chart sizes must render
+# the identical indexed series.
+CHART_AUDIT = {"MPC": 146.3, "MU": 279.6, "HPE": 180.7}
 
 
 def get(path: str):
@@ -135,6 +139,63 @@ def main() -> int:
         ),
     }
 
+    # 3b. One momentum series for both chart sizes -------------------------- #
+    # The Screener sparkline reads the publication row; the Stock Analysis chart
+    # reads the same block from /api/stock/{ticker}. They must be byte-identical
+    # apart from nothing at all - same window, same base, same endpoint.
+    chart_audit = {}
+    for ticker, expected_momentum in CHART_AUDIT.items():
+        row = next((item for item in stocks if item["ticker"] == ticker), None)
+        detail = get(f"/api/stock/{ticker}") if row else {}
+        publication_series = (row or {}).get("sparkline12_1") or {}
+        detail_series = detail.get("sparkline12_1") or {}
+        pub_values = publication_series.get("values") or []
+        detail_values = detail_series.get("values") or []
+        bars = get(f"/api/bars/{ticker}?days=800")["bars"] if row else []
+        expected_start = bars[-253] if len(bars) >= 253 else {}
+        expected_end = bars[-22] if len(bars) >= 22 else {}
+        endpoint_index = pub_values[-1] if pub_values else None
+        chart_audit[ticker] = {
+            "ticker": ticker,
+            "start_date": publication_series.get("startDate"),
+            "end_date": publication_series.get("endDate"),
+            "start_adjusted_close": publication_series.get("startAdjustedClose"),
+            "end_adjusted_close": publication_series.get("endAdjustedClose"),
+            "momentum_12_1_pct": (row or {}).get("momentum"),
+            "expected_momentum_pct": expected_momentum,
+            "first_indexed_value": pub_values[0] if pub_values else None,
+            "last_indexed_value": endpoint_index,
+            "expected_last_indexed_value": round(100 * (1 + expected_momentum / 100), 4),
+            "screener_and_stock_analysis_identical": bool(
+                pub_values and detail_values and pub_values == detail_values
+            ),
+            "window_matches_bars": bool(
+                publication_series.get("startDate") == expected_start.get("date")
+                and publication_series.get("endDate") == expected_end.get("date")
+                and abs((publication_series.get("startAdjustedClose") or 0) - (expected_start.get("adjusted_close") or 0)) < 0.001
+                and abs((publication_series.get("endAdjustedClose") or 0) - (expected_end.get("adjusted_close") or 0)) < 0.001
+            ),
+            "endpoint_matches_displayed_momentum": bool(
+                endpoint_index is not None
+                and abs((endpoint_index / 100 - 1) * 100 - ((row or {}).get("momentum") or 0)) < 0.05
+            ),
+            "momentum_within_expected_band": bool(
+                row and abs(row["momentum"] - expected_momentum) < 1.0
+            ),
+            "base_is_one_hundred": bool(pub_values and pub_values[0] == 100.0),
+        }
+    checks["momentum_chart_consistency"] = {
+        "tickers": chart_audit,
+        "all_identical_across_sizes": all(
+            item["screener_and_stock_analysis_identical"] for item in chart_audit.values()
+        ),
+        "all_windows_match_bars": all(item["window_matches_bars"] for item in chart_audit.values()),
+        "all_endpoints_match": all(
+            item["endpoint_matches_displayed_momentum"] for item in chart_audit.values()
+        ),
+        "all_bases_are_one_hundred": all(item["base_is_one_hundred"] for item in chart_audit.values()),
+    }
+
     # 4. Bar hygiene --------------------------------------------------------- #
     hygiene = {}
     for ticker in SAMPLE:
@@ -204,6 +265,203 @@ def main() -> int:
     }
     checks["backtest_top20"] = snapshot["backtest"]["top20"]["metrics"]
 
+    # 6b. Every backtest chart reconciles with the published NAV series ------ #
+    nav = bt["strategy"]
+    peak = nav[0]
+    worst = 0.0
+    for value in nav:
+        peak = max(peak, value)
+        worst = min(worst, (value / peak - 1) * 100)
+    observed_days = max(1, (datetime.fromisoformat(bt["end"]) - datetime.fromisoformat(bt["start"])).days)
+    total = nav[-1] / 100.0
+    recomputed_metrics = {
+        "cumulative_return": round((total - 1.0) * 100, 1),
+        "cagr": round((total ** (365.0 / observed_days) - 1.0) * 100, 1) if total > 0 else None,
+        "max_drawdown": round(worst, 1),
+    }
+    checks["backtest_chart_reconciliation"] = {
+        "nav_points": len(nav),
+        "dates_match_points": len(bt["dates"]) == len(nav),
+        "drawdown_matches_points": len(bt["drawdown"]) == len(nav),
+        "cumulative_return_series": recomputed_metrics["cumulative_return"],
+        "cumulative_return_published": bt["metrics"]["cumulative_return"],
+        "cumulative_return_delta": round(abs(recomputed_metrics["cumulative_return"] - bt["metrics"]["cumulative_return"]), 2),
+        "cagr_series": recomputed_metrics["cagr"],
+        "cagr_published": bt["metrics"]["cagr"],
+        "max_drawdown_series": recomputed_metrics["max_drawdown"],
+        "max_drawdown_published": bt["metrics"]["max_drawdown"],
+        "benchmarks_rebased_to_100": {
+            "spy": bool(bt["spy"]) and abs(bt["spy"][0] - 100.0) < 0.02,
+            "spmo": bool(bt["spmo"]) and abs(bt["spmo"][0] - 100.0) < 0.02,
+        },
+        # The annual table is intentionally capped to its most recent eight
+        # calendar years, so only that tail can be reconciled with the NAV.
+        "annual_years_match_nav": sorted({int(date[:4]) for date in bt["dates"]})[-len(bt["annual"]):] == [
+            row["year"] for row in bt["annual"]
+        ],
+        "ytd_label_needed": int(bt["end"][:4]) == bt["annual"][-1]["year"] if bt["annual"] else False,
+        "annual_return_deltas": [
+            {
+                "year": row["year"],
+                "published": row["strategy"],
+                "recomputed": round(
+                    (nav[max(index for index, date in enumerate(bt["dates"]) if int(date[:4]) == row["year"])]
+                     / nav[max(0, min(index for index, date in enumerate(bt["dates"]) if int(date[:4]) == row["year"]) - 1)]
+                     - 1) * 100,
+                    1,
+                ),
+            }
+            for row in bt["annual"]
+        ],
+    }
+    checks["backtest_chart_reconciliation"]["all_reconcile"] = all([
+        checks["backtest_chart_reconciliation"]["dates_match_points"],
+        checks["backtest_chart_reconciliation"]["drawdown_matches_points"],
+        checks["backtest_chart_reconciliation"]["cumulative_return_delta"] < 0.15,
+        abs((checks["backtest_chart_reconciliation"]["cagr_series"] or 0) - (bt["metrics"]["cagr"] or 0)) < 0.15,
+        abs(recomputed_metrics["max_drawdown"] - bt["metrics"]["max_drawdown"]) < 0.15,
+        all(checks["backtest_chart_reconciliation"]["benchmarks_rebased_to_100"].values()),
+        checks["backtest_chart_reconciliation"]["annual_years_match_nav"],
+    ])
+
+    # 6c. Overview performance chart vs the backtest it claims to plot -------- #
+    performance = (snapshot.get("overview") or {}).get("performance") or {}
+    all_period = performance.get("All") or {}
+    series_by_id = {item["id"]: item for item in all_period.get("series", [])}
+    checks["overview_performance"] = {
+        "periods": sorted(performance.keys()),
+        "series_ids": sorted(series_by_id),
+        "all_series_present": {"strategy", "spy", "spmo"} <= set(series_by_id),
+        "strategy_end_matches_backtest": bool(series_by_id.get("strategy")) and abs(
+            float(series_by_id["strategy"]["end"].rstrip("%").replace("+", ""))
+            - bt["metrics"]["cumulative_return"]
+        ) < 0.2,
+        "labels_match_points": all(
+            len(block.get("labels", [])) == block.get("points", 0) for block in performance.values()
+        ),
+        "series_match_points": all(
+            all(len(item["values"]) == block.get("points", 0) for item in block.get("series", []))
+            for block in performance.values()
+        ),
+        "axis_contains_every_value": all(
+            min(min(item["values"]) for item in block["series"]) >= block["axis"]["min"]
+            and max(max(item["values"]) for item in block["series"]) <= block["axis"]["max"]
+            for block in performance.values()
+        ),
+    }
+
+    # 6d. Portfolio charts: donut, legend and holdings are one dataset -------- #
+    overview_alloc = (snapshot.get("overview") or {}).get("sectorAllocation") or []
+    holdings_by_sector: dict[str, float] = {}
+    for holding in holdings:
+        holdings_by_sector[holding["sector"]] = holdings_by_sector.get(holding["sector"], 0.0) + holding["finalWeight"]
+    donut = {row["name"]: row["value"] for row in portfolio.get("sectors") or []}
+    checks["portfolio_charts"] = {
+        "holdings": len(holdings),
+        "total_final_weight": round(total_weight, 6),
+        "weights_sum_to_100": abs(total_weight - 100.0) < 0.01,
+        "max_stock_weight": max(row["finalWeight"] for row in holdings),
+        "max_sector_weight": round(max(holdings_by_sector.values()), 4),
+        "donut_matches_holdings": {
+            name: {
+                "donut": donut.get(name),
+                "holdings": round(value, 1),
+                "delta": round(abs((donut.get(name) or 0.0) - value), 2),
+            }
+            for name, value in sorted(holdings_by_sector.items())
+        },
+        "donut_covers_every_sector": set(donut) == set(holdings_by_sector),
+        "overview_allocation_sums_to_100": sum(row["value"] for row in overview_alloc) == 100,
+        "overview_allocation_matches_donut": {
+            row["name"]: {"overview": row["value"], "donut": round(donut.get(row["name"], 0.0))}
+            for row in overview_alloc
+        },
+        "weight_distribution_uses_final_weight": all(
+            isinstance(row["finalWeight"], (int, float)) and row["finalWeight"] > 0 for row in holdings
+        ),
+    }
+    checks["portfolio_charts"]["all_consistent"] = bool(
+        checks["portfolio_charts"]["weights_sum_to_100"]
+        and checks["portfolio_charts"]["donut_covers_every_sector"]
+        and max(item["delta"] for item in checks["portfolio_charts"]["donut_matches_holdings"].values()) < 0.15
+        and checks["portfolio_charts"]["overview_allocation_sums_to_100"]
+        and checks["portfolio_charts"]["max_stock_weight"] <= 9.0 + 1e-6
+        and checks["portfolio_charts"]["max_sector_weight"] <= 35.0 + 1e-6
+    )
+
+    # 6d2. Overview Top Momentum list is the head of the Screener ------------ #
+    top_momentum = (snapshot.get("overview") or {}).get("topMomentum") or []
+    checks["overview_top_momentum"] = {
+        "rows": len(top_momentum),
+        "matches_first_ranks": [
+            {
+                "rank": item["rank"],
+                "ticker": item["ticker"],
+                "screener_ticker": stocks[index]["ticker"],
+                "score": item["score"],
+                "screener_score": f"{stocks[index]['score']:.2f}",
+                "price": item["price"],
+                "screener_price": f"${stocks[index]['price']:.2f}",
+                "consistent": (
+                    item["ticker"] == stocks[index]["ticker"]
+                    and item["rank"] == stocks[index]["rank"]
+                    and item["score"] == f"{stocks[index]['score']:.2f}"
+                    and item["price"] == f"${stocks[index]['price']:.2f}"
+                ),
+            }
+            for index, item in enumerate(top_momentum)
+        ],
+        # The miniature on this card is a trailing 12-week price path, not the
+        # 12-1 momentum series. Recorded explicitly so the two are never
+        # mistaken for one another.
+        "sparkline_series": "trend (12 weekly adjusted closes, rebased to 100)",
+        "same_series_as_screener": False,
+    }
+    checks["overview_top_momentum"]["all_consistent"] = all(
+        row["consistent"] for row in checks["overview_top_momentum"]["matches_first_ranks"]
+    )
+
+    # 6e. Cross-page field consistency (Screener vs Stock Analysis) ---------- #
+    cross_page = {}
+    for ticker in ("MPC", "MU", "HPE", "NVDA", "JPM"):
+        row = next((item for item in stocks if item["ticker"] == ticker), None)
+        if row is None:
+            continue
+        detail = get(f"/api/stock/{ticker}")
+        cross_page[ticker] = {
+            "price": {"screener": row["price"], "stock": detail.get("price"), "equal": row["price"] == detail.get("price")},
+            "marketCap": {
+                "screener": row["marketCap"],
+                "stock": detail.get("marketCap"),
+                "equal": row["marketCap"] == detail.get("marketCap"),
+            },
+            "momentum": {
+                "screener": row["momentum"],
+                "stock": detail.get("momentum"),
+                "equal": row["momentum"] == detail.get("momentum"),
+            },
+            "score": {
+                "screener": row["score"],
+                "stock": detail.get("score"),
+                "equal": row["score"] == detail.get("score"),
+            },
+            "rank": {"screener": row["rank"], "stock": detail.get("rank"), "equal": row["rank"] == detail.get("rank")},
+            "sector": {
+                "screener": row["sector"],
+                "stock": detail.get("sector"),
+                "equal": row["sector"] == detail.get("sector"),
+            },
+            "snapshot_stamp": detail.get("_snapshot") == snapshot["meta"]["generated_at"],
+        }
+    checks["cross_page_consistency"] = {
+        "tickers": cross_page,
+        "all_equal": all(
+            all(field["equal"] for key, field in item.items() if isinstance(field, dict) and "equal" in field)
+            for item in cross_page.values()
+        ),
+        "same_snapshot": all(item["snapshot_stamp"] for item in cross_page.values()),
+    }
+
     # 7. Cross-provider price comparison ------------------------------------ #
     cross = {}
     demos = {"AAPL": "AAPL", "QQQ": "QQQ"}
@@ -246,6 +504,16 @@ def main() -> int:
             checks["universe"]["single_as_of_date"],
             checks["ranking"]["strictly_ordered"],
             checks["momentum_recompute"]["all_within_tolerance"],
+            checks["momentum_chart_consistency"]["all_identical_across_sizes"],
+            checks["momentum_chart_consistency"]["all_windows_match_bars"],
+            checks["momentum_chart_consistency"]["all_endpoints_match"],
+            checks["momentum_chart_consistency"]["all_bases_are_one_hundred"],
+            checks["backtest_chart_reconciliation"]["all_reconcile"],
+            checks["overview_performance"]["strategy_end_matches_backtest"],
+            checks["portfolio_charts"]["all_consistent"],
+            checks["overview_top_momentum"]["all_consistent"],
+            checks["cross_page_consistency"]["all_equal"],
+            checks["cross_page_consistency"]["same_snapshot"],
             checks["portfolio"]["all_constraints_pass"],
             checks["portfolio"]["raw_formula_max_error"] < 0.001,
             checks["portfolio"]["float_caps_available"],

@@ -61,7 +61,7 @@ PERFORMANCE_PERIODS = ("1Y", "3Y", "5Y", "All")
 SERIES_COLORS = {"strategy": "#FFC83D", "spy": "#69A5F5", "spmo": "#AA8BF2"}
 SUPPORTED_EXCHANGES = {"NYSE", "NASDAQ", "NYSE American"}
 UNIVERSE_VERSION = "2026-11-12-live200-v2"
-PUBLICATION_VERSION = "2026-11-13-momentum-sparkline-v3"
+PUBLICATION_VERSION = "2026-11-13-chart-audit-v4"
 
 
 def publication_is_current(payload: dict | None) -> bool:
@@ -249,6 +249,13 @@ def _performance_payload(backtest: dict) -> dict:
             if values is None or values.dropna().empty:
                 continue
             base = float(values.dropna().iloc[0])
+            if series_id == "strategy" and start == strategy.index[0]:
+                # The first NAV has already netted the entry transaction cost
+                # (100 -> 99.9), but the published cumulative return is measured
+                # from the starting capital of 100. Rebasing the chart on 99.9
+                # would quietly hand back that cost and leave the Overview label
+                # disagreeing with the Backtesting page, so both use 100.
+                base = 100.0
             cumulative = [round((float(value) / base - 1) * 100, 1) for value in values.ffill().fillna(base)]
             series.append(
                 {
