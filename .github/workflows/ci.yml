@@ -39,11 +39,11 @@ jobs:
       - name: Install frontend dependencies
         run: npm --prefix frontend ci
 
-      - name: Run frontend tests
-        run: npm --prefix frontend run test:unit
-
       - name: Build production frontend
         run: npm run build
+
+      - name: Run frontend tests
+        run: npm --prefix frontend run test:unit
 
       - name: Test Sites package
         run: npm run test:sites
