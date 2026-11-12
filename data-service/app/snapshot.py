@@ -61,6 +61,15 @@ PERFORMANCE_PERIODS = ("1Y", "3Y", "5Y", "All")
 SERIES_COLORS = {"strategy": "#FFC83D", "spy": "#69A5F5", "spmo": "#AA8BF2"}
 SUPPORTED_EXCHANGES = {"NYSE", "NASDAQ", "NYSE American"}
 UNIVERSE_VERSION = "2026-11-12-live200-v2"
+PUBLICATION_VERSION = "2026-11-13-momentum-sparkline-v3"
+
+
+def publication_is_current(payload: dict | None) -> bool:
+    meta = (payload or {}).get("meta", {})
+    return bool(
+        meta.get("universe_version") == UNIVERSE_VERSION
+        and meta.get("publication_version") == PUBLICATION_VERSION
+    )
 
 
 def _now() -> str:
@@ -549,13 +558,13 @@ def build_publication(force: bool = False, progress=None) -> dict:
     ttl = 0 if force else settings.ttl_snapshot
     if not force:
         cached = cache.read("publication", "snapshot", ttl)
-        if cached and cached.get("meta", {}).get("universe_version") == UNIVERSE_VERSION:
+        if publication_is_current(cached):
             return cached
 
     with _BUILD_LOCK:
         if not force:
             cached = cache.read("publication", "snapshot", ttl)
-            if cached and cached.get("meta", {}).get("universe_version") == UNIVERSE_VERSION:
+            if publication_is_current(cached):
                 return cached
 
         started = _now()
@@ -702,6 +711,7 @@ def build_publication(force: bool = False, progress=None) -> dict:
                 "warnings": warnings,
                 "history_years": settings.history_years,
                 "universe_version": UNIVERSE_VERSION,
+                "publication_version": PUBLICATION_VERSION,
                 "cache_state": cache_state,
                 "refresh_in_progress": False,
                 "scan_duration_seconds": round(time.perf_counter() - build_started, 1),
@@ -788,7 +798,7 @@ def build_stock_detail(ticker: str) -> dict | None:
         try:
             seeded = json.loads(SEED_PATH.read_text())
             candidate = seeded.get("value", seeded)
-            if candidate.get("meta", {}).get("universe_version") == UNIVERSE_VERSION:
+            if publication_is_current(candidate):
                 publication = candidate
         except (OSError, json.JSONDecodeError):
             publication = None

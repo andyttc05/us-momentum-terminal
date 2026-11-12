@@ -81,6 +81,15 @@ def main() -> int:
         expected_score = 1 + app["zScore"] if app["zScore"] > 0 else (
             1 / (1 - app["zScore"]) if app["zScore"] < 0 else 1
         )
+        sparkline = app.get("sparkline12_1") or {}
+        sparkline_values = sparkline.get("values") or []
+        sparkline_return = (
+            (sparkline_values[-1] / sparkline_values[0] - 1) * 100
+            if len(sparkline_values) >= 2
+            else None
+        )
+        expected_start_bar = bars[-253]
+        expected_end_bar = bars[-22]
         recomputed[ticker] = {
             "bars_endpoint_last_date": bars[-1]["date"],
             "snapshot_date": app["date"],
@@ -96,6 +105,22 @@ def main() -> int:
             "score_from_displayed_z": round(expected_score, 4),
             "score_app": app["score"],
             "score_delta_from_displayed_z": round(abs(expected_score - app["score"]), 4),
+            "sparkline_start_date": sparkline.get("startDate"),
+            "sparkline_end_date": sparkline.get("endDate"),
+            "sparkline_start_adjusted_close": sparkline.get("startAdjustedClose"),
+            "sparkline_end_adjusted_close": sparkline.get("endAdjustedClose"),
+            "sparkline_first_point": sparkline_values[0] if sparkline_values else None,
+            "sparkline_last_point": sparkline_values[-1] if sparkline_values else None,
+            "sparkline_return_pct": round(sparkline_return, 4) if sparkline_return is not None else None,
+            "sparkline_window_matches_bars": bool(
+                sparkline.get("startDate") == expected_start_bar["date"]
+                and sparkline.get("endDate") == expected_end_bar["date"]
+                and abs((sparkline.get("startAdjustedClose") or 0) - expected_start_bar["adjusted_close"]) < 0.001
+                and abs((sparkline.get("endAdjustedClose") or 0) - expected_end_bar["adjusted_close"]) < 0.001
+            ),
+            "sparkline_return_matches_displayed": bool(
+                sparkline_return is not None and abs(sparkline_return - app["momentum"]) < 0.1
+            ),
         }
     checks["momentum_recompute"] = {
         "tickers": recomputed,
@@ -104,6 +129,8 @@ def main() -> int:
             and abs(item["volatility_recomputed"] - item["volatility_app"]) < 0.2
             and abs(item["risk_adjusted_recomputed"] - item["risk_adjusted_app"]) < 0.02
             and item["score_delta_from_displayed_z"] < 0.03
+            and item["sparkline_window_matches_bars"]
+            and item["sparkline_return_matches_displayed"]
             for item in recomputed.values()
         ),
     }

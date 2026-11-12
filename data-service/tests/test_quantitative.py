@@ -23,7 +23,7 @@ from app.momentum import (
     momentum_score,
 )
 from app.portfolio import build_portfolio
-from app.snapshot import UNIVERSE_VERSION
+from app.snapshot import PUBLICATION_VERSION, UNIVERSE_VERSION
 from app.universe import (
     CANDIDATE_TICKERS,
     EXPANDED_UNIVERSE,
@@ -297,6 +297,7 @@ class UniverseTests(unittest.TestCase):
         seed_path = Path(__file__).resolve().parents[1] / "seed" / "publication.json"
         payload = json.loads(seed_path.read_text())["value"]
         self.assertEqual(payload["meta"]["universe_version"], UNIVERSE_VERSION)
+        self.assertNotEqual(payload["meta"].get("publication_version"), PUBLICATION_VERSION)
         self.assertEqual(len(payload["stocks"]), 198)
         self.assertEqual(len({row["ticker"] for row in payload["stocks"]}), 198)
 

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-12T15:06:03+00:00",
+  "generated_at": "2026-11-12T18:10:15+00:00",
   "checks": {
     "universe": {
       "requested": 200,
@@ -13,7 +13,7 @@
       "no_null_prices": true,
       "no_nan_scores": true,
       "score_range": [
-        0.3073,
+        0.3082,
         4.0
       ]
     },
@@ -36,17 +36,17 @@
         [
           3,
           "HPE",
-          3.9878
+          3.9906
         ],
         [
           4,
           "ARW",
-          3.4913
+          3.4912
         ],
         [
           5,
           "DAR",
-          3.3942
+          3.3911
         ]
       ]
     },
@@ -58,15 +58,24 @@
           "momentum_12_1_recomputed": 24.94,
           "momentum_12_1_app": 24.9,
           "delta": 0.039,
-          "momentum_6m_recomputed": 20.32,
-          "momentum_6m_app": 20.3,
+          "momentum_6m_recomputed": 19.35,
+          "momentum_6m_app": 19.4,
           "volatility_recomputed": 24.9,
           "volatility_app": 24.9,
           "risk_adjusted_recomputed": 15.9,
           "risk_adjusted_app": 15.9,
           "score_from_displayed_z": 1.73,
-          "score_app": 1.7321,
-          "score_delta_from_displayed_z": 0.0021
+          "score_app": 1.7324,
+          "score_delta_from_displayed_z": 0.0024,
+          "sparkline_start_date": "2025-11-11",
+          "sparkline_end_date": "2026-10-14",
+          "sparkline_start_adjusted_close": 274.5028,
+          "sparkline_end_adjusted_close": 342.96,
+          "sparkline_first_point": 100.0,
+          "sparkline_last_point": 124.9386,
+          "sparkline_return_pct": 24.9386,
+          "sparkline_window_matches_bars": true,
+          "sparkline_return_matches_displayed": true
         },
         "MSFT": {
           "bars_endpoint_last_date": "2026-11-12",
@@ -74,15 +83,24 @@
           "momentum_12_1_recomputed": 5.78,
           "momentum_12_1_app": 5.8,
           "delta": 0.02,
-          "momentum_6m_recomputed": 28.8,
-          "momentum_6m_app": 28.8,
+          "momentum_6m_recomputed": 29.6,
+          "momentum_6m_app": 29.6,
           "volatility_recomputed": 34.0,
           "volatility_app": 34.0,
           "risk_adjusted_recomputed": 2.7,
           "risk_adjusted_app": 2.7,
           "score_from_displayed_z": 0.813,
-          "score_app": 0.814,
-          "score_delta_from_displayed_z": 0.001
+          "score_app": 0.8137,
+          "score_delta_from_displayed_z": 0.0007,
+          "sparkline_start_date": "2025-11-11",
+          "sparkline_end_date": "2026-10-14",
+          "sparkline_start_adjusted_close": 504.5289,
+          "sparkline_end_adjusted_close": 533.69,
+          "sparkline_first_point": 100.0,
+          "sparkline_last_point": 105.7799,
+          "sparkline_return_pct": 5.7799,
+          "sparkline_window_matches_bars": true,
+          "sparkline_return_matches_displayed": true
         },
         "NVDA": {
           "bars_endpoint_last_date": "2026-11-12",
@@ -90,15 +108,24 @@
           "momentum_12_1_recomputed": 14.84,
           "momentum_12_1_app": 14.8,
           "delta": 0.043,
-          "momentum_6m_recomputed": -31.44,
-          "momentum_6m_app": -31.4,
-          "volatility_recomputed": 39.1,
-          "volatility_app": 39.1,
-          "risk_adjusted_recomputed": 6.02,
-          "risk_adjusted_app": 6.02,
-          "score_from_displayed_z": 1.01,
-          "score_app": 1.0132,
-          "score_delta_from_displayed_z": 0.0032
+          "momentum_6m_recomputed": -29.73,
+          "momentum_6m_app": -29.7,
+          "volatility_recomputed": 38.8,
+          "volatility_app": 38.8,
+          "risk_adjusted_recomputed": 6.08,
+          "risk_adjusted_app": 6.08,
+          "score_from_displayed_z": 1.02,
+          "score_app": 1.017,
+          "score_delta_from_displayed_z": 0.003,
+          "sparkline_start_date": "2025-11-11",
+          "sparkline_end_date": "2026-10-14",
+          "sparkline_start_adjusted_close": 192.6983,
+          "sparkline_end_adjusted_close": 221.3,
+          "sparkline_first_point": 100.0,
+          "sparkline_last_point": 114.8427,
+          "sparkline_return_pct": 14.8427,
+          "sparkline_window_matches_bars": true,
+          "sparkline_return_matches_displayed": true
         },
         "META": {
           "bars_endpoint_last_date": "2026-11-12",
@@ -106,15 +133,24 @@
           "momentum_12_1_recomputed": 18.01,
           "momentum_12_1_app": 18.0,
           "delta": 0.014,
-          "momentum_6m_recomputed": 0.91,
-          "momentum_6m_app": 0.9,
+          "momentum_6m_recomputed": 1.22,
+          "momentum_6m_app": 1.2,
           "volatility_recomputed": 41.6,
           "volatility_app": 41.6,
           "risk_adjusted_recomputed": 6.88,
           "risk_adjusted_app": 6.88,
           "score_from_displayed_z": 1.08,
-          "score_app": 1.0755,
-          "score_delta_from_displayed_z": 0.0045
+          "score_app": 1.0753,
+          "score_delta_from_displayed_z": 0.0047,
+          "sparkline_start_date": "2025-11-11",
+          "sparkline_end_date": "2026-10-14",
+          "sparkline_start_adjusted_close": 624.9601,
+          "sparkline_end_adjusted_close": 737.54,
+          "sparkline_first_point": 100.0,
+          "sparkline_last_point": 118.0139,
+          "sparkline_return_pct": 18.0139,
+          "sparkline_window_matches_bars": true,
+          "sparkline_return_matches_displayed": true
         },
         "JPM": {
           "bars_endpoint_last_date": "2026-11-12",
@@ -122,15 +158,24 @@
           "momentum_12_1_recomputed": 8.27,
           "momentum_12_1_app": 8.3,
           "delta": 0.025,
-          "momentum_6m_recomputed": 15.81,
-          "momentum_6m_app": 15.8,
+          "momentum_6m_recomputed": 15.88,
+          "momentum_6m_app": 15.9,
           "volatility_recomputed": 23.0,
           "volatility_app": 23.0,
           "risk_adjusted_recomputed": 5.72,
           "risk_adjusted_app": 5.72,
           "score_from_displayed_z": 0.9901,
-          "score_app": 0.9913,
-          "score_delta_from_displayed_z": 0.0012
+          "score_app": 0.9911,
+          "score_delta_from_displayed_z": 0.001,
+          "sparkline_start_date": "2025-11-11",
+          "sparkline_end_date": "2026-10-14",
+          "sparkline_start_adjusted_close": 309.6561,
+          "sparkline_end_adjusted_close": 335.28,
+          "sparkline_first_point": 100.0,
+          "sparkline_last_point": 108.275,
+          "sparkline_return_pct": 8.275,
+          "sparkline_window_matches_bars": true,
+          "sparkline_return_matches_displayed": true
         }
       },
       "all_within_tolerance": true
@@ -190,12 +235,12 @@
     "portfolio": {
       "holdings": 100,
       "total_weight": 100.0,
-      "max_single_weight": 8.999997,
+      "max_single_weight": 9.0,
       "max_sector_weight": 35.0,
-      "raw_formula_max_error": 5e-05,
+      "raw_formula_max_error": 4.8e-05,
       "float_caps_available": true,
       "sector_totals": {
-        "Energy": 12.4,
+        "Energy": 12.5,
         "Technology": 35.0,
         "Consumer Staples": 11.1,
         "Industrials": 3.8,
@@ -249,8 +294,8 @@
       "starts_below_100_by_initial_cost": true,
       "drawdown_non_positive": true,
       "metrics": {
-        "cumulative_return": 366.0,
-        "cagr": 19.5,
+        "cumulative_return": 367.1,
+        "cagr": 19.6,
         "annualized_volatility": 18.8,
         "max_drawdown": -34.7,
         "sharpe": 1.05,
@@ -279,8 +324,8 @@
       ]
     },
     "backtest_top20": {
-      "cumulative_return": 495.5,
-      "cagr": 23.0,
+      "cumulative_return": 501.1,
+      "cagr": 23.1,
       "annualized_volatility": 22.2,
       "max_drawdown": -32.1,
       "sharpe": 1.05,
@@ -293,18 +338,18 @@
       "AAPL": {
         "twelve_data": {
           "date": "2026-11-12",
-          "close": 358.525
+          "close": 355.52
         },
         "yahoo_via_app": {
           "date": "2026-11-12",
-          "close": 358.4955
+          "close": 355.62
         },
-        "difference_pct": -0.008
+        "difference_pct": 0.028
       },
       "QQQ": {
         "twelve_data": {
           "date": "2026-11-12",
-          "close": 685.745
+          "close": 690.31
         },
         "yahoo_via_app": null
       }
@@ -317,7 +362,7 @@
       "is_backup": false,
       "backup_symbols": [],
       "timeliness": "delayed",
-      "generated_at": "2026-11-12T15:04:49+00:00",
+      "generated_at": "2026-11-12T18:09:15+00:00",
       "all_rows_carry_source": true
     },
     "passed": true

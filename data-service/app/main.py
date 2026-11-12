@@ -25,10 +25,12 @@ from app.clock import market_state  # noqa: E402
 from app.config import DOCS_DIR, SEED_PATH, settings  # noqa: E402
 from app.providers.registry import registry  # noqa: E402
 from app.snapshot import (  # noqa: E402
+    PUBLICATION_VERSION,
     UNIVERSE_VERSION,
     build_bars,
     build_publication,
     build_stock_detail,
+    publication_is_current,
     refresh,
     snapshot_age_seconds,
 )
@@ -99,7 +101,7 @@ def _start_warm_up(force: bool = False) -> bool:
 
 
 def _is_current(payload: dict | None) -> bool:
-    return bool(payload and payload.get("meta", {}).get("universe_version") == UNIVERSE_VERSION)
+    return publication_is_current(payload)
 
 
 def _publication_state(payload: dict, cache_state: str) -> dict:
@@ -148,6 +150,7 @@ def _loading_payload(error: str | None = None) -> dict:
             "degraded": True,
             "warnings": [error] if error else [],
             "universe_version": UNIVERSE_VERSION,
+            "publication_version": PUBLICATION_VERSION,
             "providers": registry.status(),
         },
         "universe": {
@@ -187,6 +190,7 @@ def health() -> dict:
         "snapshot_age_seconds": snapshot_age_seconds(),
         "warming": {**_WARMING, "timed_out": _refresh_timed_out()},
         "universe_version": UNIVERSE_VERSION,
+        "publication_version": PUBLICATION_VERSION,
         "providers": registry.status(),
         "configured_keys": settings.keys_present(),
         "provider_chain": registry.chain(),
