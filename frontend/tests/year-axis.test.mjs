@@ -62,7 +62,7 @@ test("returns no year labels for empty or malformed date input", () => {
   assert.deepEqual(resolveYearLabelPositions(["invalid"], 54, 1100), []);
 });
 
-test("every chart resolves year labels through the shared collision-safe helper", () => {
+test("no chart calls the removed local year-label helper", () => {
   // The helper used to live in this file. When it moved to yearAxis.js, one
   // call site kept the old name; bundling succeeded and the page threw
   // "yearLabelPositions is not defined" at render. No bare call may remain.
@@ -83,14 +83,14 @@ test("a backtest starting in December keeps 2019 between 2018 and 2020", () => {
   assert.ok(labels[1].x - labels[0].x >= 48);
 });
 
-test("the Drawdown chart uses collision-safe labels rather than hiding close year ticks", () => {
-  const drawdown = functionSource(page, "DrawdownChart");
+test("the cumulative chart still nudges labels instead of dropping them", () => {
+  // The drawdown chart moved to a calendar scale; the cumulative chart keeps
+  // this helper, and the earlier 2019 fix has to survive there.
+  const cumulative = functionSource(page, "CumulativeChart");
 
-  assert.match(drawdown, /resolveYearLabelPositions\(\s*window\.dates,\s*left,\s*plotWidth,\s*compact \? 64 : 48/);
-  assert.match(drawdown, /yearPositions\.map\(\(\{ year, x \}\) => \(/);
+  assert.match(cumulative, /resolveYearLabelPositions\(\s*window\.dates,\s*left,\s*plotWidth,\s*compact \? 66 : 48/);
   // The legacy collision filter dropped the label instead of moving it.
-  assert.doesNotMatch(drawdown, /item\.x - list\[index - 1\]\.x >=/);
-  assert.doesNotMatch(drawdown, /index === list\.length - 1/);
-  // A bare call would mean the chart fell back to the dropping helper.
-  assert.doesNotMatch(drawdown, /(?<!resolve)yearLabelPositions\(/);
+  assert.doesNotMatch(cumulative, /item\.x - list\[index - 1\]\.x >=/);
+  assert.doesNotMatch(cumulative, /index === list\.length - 1/);
+  assert.doesNotMatch(cumulative, /(?<!resolve)yearLabelPositions\(/);
 });

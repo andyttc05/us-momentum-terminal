@@ -46,6 +46,11 @@ import {
 } from "./utils/backtestReport.js";
 import { buildDrawdownScale } from "./utils/drawdownScale.js";
 import { resolveYearLabelPositions } from "./utils/yearAxis.js";
+import {
+  createCalendarScale,
+  visibleYearTicks,
+  yearLabelGap,
+} from "./utils/calendarAxis.js";
 import { getSectionState } from "./utils/dataState.js";
 import { downloadWorkbookFile } from "./utils/exportFiles.js";
 import {
@@ -522,12 +527,23 @@ function DrawdownChart({ window }) {
   const scale = buildDrawdownScale(window.drawdown);
   const low = Math.min(scale.min, -1);
   const values = window.drawdown;
-  const points = values.map((value, index) => ({
-    x: left + index / Math.max(1, values.length - 1) * plotWidth,
-    y: top + Math.abs(value) / Math.abs(low) * plotHeight,
-  }));
+  // Calendar-time x-axis: every point sits at its real date, each calendar year
+  // owns one equal-width segment, and a partial first year simply starts part
+  // way into its segment. Falls back to index spacing only if no date parses.
+  const axis = createCalendarScale(window.dates, left, plotWidth);
+  let previousX = axis ? axis.innerLeft : left;
+  const points = values.map((value, index) => {
+    const x = axis?.xForDate(window.dates[index]) ?? previousX;
+    previousX = x;
+    return {
+      x,
+      y: top + Math.abs(value) / Math.abs(low) * plotHeight,
+    };
+  });
   const line = buildPath(points);
-  const area = `${line} L ${left + plotWidth} ${top} L ${left} ${top} Z`;
+  const area = points.length
+    ? `${line} L ${points.at(-1).x} ${top} L ${points[0].x} ${top} Z`
+    : "";
   let maxIndex = 0;
   values.forEach((value, index) => {
     if (value < values[maxIndex]) maxIndex = index;
@@ -548,12 +564,11 @@ function DrawdownChart({ window }) {
       tooltipHeight: tooltipSize?.height ?? PERIOD_TOOLTIP.height,
     })
     : null;
-  const yearPositions = resolveYearLabelPositions(
-    window.dates,
-    left,
-    plotWidth,
-    compact ? 64 : 48,
-  );
+  // One tick per calendar year, evenly spaced by construction. Labels only thin
+  // out on charts too narrow to hold them; surviving labels keep their grid.
+  const yearTicks = axis
+    ? visibleYearTicks(axis.ticks, axis.segmentWidth, yearLabelGap(compact))
+    : [];
 
   useEffect(() => {
     setSelectedIndex(null);
@@ -599,10 +614,10 @@ function DrawdownChart({ window }) {
               </g>
             );
           })}
-          {yearPositions.map(({ year, x }) => (
+          {yearTicks.map(({ year, x }) => (
             <text
               key={year}
-              x={Math.min(Math.max(x, left + 18), left + plotWidth - 18)}
+              x={x}
               y={top + plotHeight + 25}
               textAnchor="middle"
               className="backtest-axis-label"
