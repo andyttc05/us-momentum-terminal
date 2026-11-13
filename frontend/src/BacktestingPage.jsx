@@ -45,6 +45,7 @@ import {
   getBacktestAvailability,
 } from "./utils/backtestReport.js";
 import { buildDrawdownScale } from "./utils/drawdownScale.js";
+import { resolveYearLabelPositions } from "./utils/yearAxis.js";
 import { getSectionState } from "./utils/dataState.js";
 import { downloadWorkbookFile } from "./utils/exportFiles.js";
 import {
@@ -204,21 +205,6 @@ function buildWindow(block, startDate, endDate, range = "All", reinvestDividends
     startsAtBacktestOrigin,
     fullWindow: dates[0] === block.dates[0] && dates.at(-1) === block.dates.at(-1),
   };
-}
-
-function yearLabelPositions(dates, left, plotWidth) {
-  const positions = [];
-  let currentYear = "";
-  dates.forEach((date, index) => {
-    const year = date.slice(0, 4);
-    if (year === currentYear) return;
-    currentYear = year;
-    positions.push({
-      year,
-      x: left + index / Math.max(1, dates.length - 1) * plotWidth,
-    });
-  });
-  return positions;
 }
 
 function cumulativeScale(high, low) {
@@ -454,7 +440,7 @@ function CumulativeChart({ window, range, logScale, seriesValues, onLogUnavailab
           {labelPositions.map(({ year, x }) => (
             <text
               key={year}
-              x={Math.min(Math.max(x, left + 18), left + plotWidth - 18)}
+              x={x}
               y={top + plotHeight + 25}
               textAnchor="middle"
               className="backtest-axis-label"
@@ -560,12 +546,12 @@ function DrawdownChart({ window }) {
       tooltipHeight: tooltipSize?.height ?? PERIOD_TOOLTIP.height,
     })
     : null;
-  const yearPositions = yearLabelPositions(window.dates, left, plotWidth)
-    .filter((item, index, list) => (
-      index === 0
-      || index === list.length - 1
-      || item.x - list[index - 1].x >= (compact ? 64 : 48)
-    ));
+  const yearPositions = resolveYearLabelPositions(
+    window.dates,
+    left,
+    plotWidth,
+    compact ? 64 : 48,
+  );
 
   useEffect(() => {
     setSelectedIndex(null);
