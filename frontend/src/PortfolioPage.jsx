@@ -6,7 +6,6 @@ import {
   ChartPieSlice,
   CheckCircle,
   DownloadSimple,
-  Info,
   Stack,
   Target,
   WarningCircle,
@@ -43,10 +42,10 @@ const sortableFields = [
 const displayPercent = (value) => `${value.toFixed(1)}%`;
 
 function SortIcon({ active, direction }) {
-  if (!active) return <CaretUpDown size={13} weight="bold" aria-hidden="true" />;
+  if (!active) return <CaretUpDown size={14} weight="bold" aria-hidden="true" />;
   return direction === "asc"
-    ? <ArrowUp size={13} weight="bold" aria-hidden="true" />
-    : <ArrowDown size={13} weight="bold" aria-hidden="true" />;
+    ? <ArrowUp size={14} weight="bold" aria-hidden="true" />
+    : <ArrowDown size={14} weight="bold" aria-hidden="true" />;
 }
 
 /**
@@ -195,19 +194,6 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
             />
           )}
         />
-
-        {(portfolioState.kind === "loading" || portfolioState.kind === "unavailable") && (
-          <div
-            className={`portfolio-data-notice portfolio-data-notice--${portfolioState.kind}`}
-            role={portfolioState.kind === "unavailable" ? "alert" : "status"}
-          >
-            <Info size={18} weight="fill" aria-hidden="true" />
-            <span>
-              <strong>{portfolioState.title}</strong>
-              <span>{portfolioState.detail}</span>
-            </span>
-          </div>
-        )}
 
         <section className="overview-kpis portfolio-kpis" aria-label="Portfolio summary">
           <KpiCard label="Total Holdings" value={portfolioSummary?.totalHoldings ?? pendingKpi} icon={Briefcase} tint="cream" mascotVariant="cream" mascotColor="var(--color-cream)" />

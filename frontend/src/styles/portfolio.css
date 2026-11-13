@@ -15,28 +15,6 @@
 }
 .portfolio-summary-grid > * { min-width: 0; }
 
-.portfolio-data-notice {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 10px;
-  margin-bottom: var(--section-gap);
-  padding: 10px 14px;
-  border: 1px solid var(--color-badge-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-badge-surface);
-  color: var(--color-badge-text);
-  font-size: var(--font-size-xs);
-  line-height: 1.4;
-}
-.portfolio-data-notice > svg { flex: 0 0 auto; }
-.portfolio-data-notice > span { display: grid; gap: 2px; }
-.portfolio-data-notice strong { font-weight: var(--font-weight-bold); }
-.portfolio-data-notice--unavailable {
-  border-color: #E8C7CA;
-  background: #FCEBEC;
-  color: #8F3F47;
-}
 .portfolio-inline-state {
   display: grid;
   min-height: 100%;
@@ -141,7 +119,8 @@
 .portfolio-constraint.is-passed > svg { color: #26C78A; }
 .portfolio-constraint.is-failed > svg { color: var(--color-negative); }
 
-.portfolio-holdings-card { --card-body-padding-start: 2px; }
+.portfolio-holdings-card { --card-body-padding-start: 7px; }
+.portfolio-holdings-card .table-pagination { min-height: 68px; padding: 0 10px; }
 /* The export button shares the card header row with the title: the title stays
    left aligned, the button sits on the right, and the table columns are
    untouched. */
@@ -183,7 +162,7 @@
   max-width: 100%;
   align-items: center;
   gap: 5px;
-  padding: 3px 0;
+  padding: 5px 0;
   border: 0;
   background: transparent;
   color: inherit;
@@ -201,33 +180,44 @@
    column keeps its full width without clipping; desktop keeps the full label. */
 .portfolio-heading__short { display: none; }
 .portfolio-heading--rank,
-.portfolio-heading--score,
+.portfolio-heading--score { text-align: center; }
+.portfolio-table th.portfolio-heading--rank { text-align: center; }
+.portfolio-heading--rank button,
+.portfolio-heading--score button { justify-content: center; }
 .portfolio-heading--market-cap,
 .portfolio-heading--raw-weight,
-.portfolio-heading--final-weight { text-align: center; }
-.portfolio-heading--rank button,
-.portfolio-heading--score button,
+.portfolio-heading--final-weight { text-align: right; }
 .portfolio-heading--market-cap button,
 .portfolio-heading--raw-weight button,
-.portfolio-heading--final-weight button { justify-content: center; }
-.portfolio-table tbody tr { height: var(--table-row-height); border-bottom: 1px solid var(--color-line); }
+.portfolio-heading--final-weight button { justify-content: flex-end; }
+.portfolio-table tbody tr { height: var(--table-row-height); border-bottom: 1px solid var(--color-line); transition: background-color 140ms ease; }
 .portfolio-table tbody tr:last-child { border-bottom: 0; }
+/* Keep the same restrained cream row feedback as Screener. Limiting hover to
+   fine pointers prevents a tapped row from retaining that state on touch. */
+@media (hover: hover) and (pointer: fine) {
+  .portfolio-table tbody tr:hover { background: #FCFAF7; }
+}
+/* A focused row pairs with the ticker's focus ring to make the keyboard
+   position clear without changing the table's visual hierarchy. */
+.portfolio-table tbody tr:focus-within { background: #FCFAF7; }
 .portfolio-table td {
   overflow: hidden;
-  padding: 3px 8px;
+  padding: 4px 8px;
   color: var(--color-ink);
   font-size: var(--font-size-table-cell);
   text-overflow: ellipsis;
+  vertical-align: middle;
   white-space: nowrap;
 }
-.portfolio-rank-cell { padding-left: 4px !important; text-align: center; }
+.portfolio-rank-cell { padding-left: 6px !important; text-align: center; }
 .portfolio-rank-cell span {
   display: inline-grid;
-  width: 31px;
-  height: 31px;
+  width: 32px;
+  height: 32px;
   place-items: center;
   border-radius: 50%;
   background: var(--color-yellow-soft);
+  font-size: 1rem;
   font-weight: var(--font-weight-black);
 }
 .portfolio-ticker-cell { font-size: 1.15rem !important; font-weight: var(--font-weight-black); letter-spacing: -0.02em; }
@@ -237,20 +227,26 @@
 .portfolio-sector-cell { font-weight: var(--font-weight-medium); }
 .portfolio-score-cell,
 .portfolio-market-cap-cell,
-.portfolio-weight-value-cell { text-align: center; }
+.portfolio-weight-value-cell { text-align: right; }
+.portfolio-score-cell { text-align: center; }
 .portfolio-score-cell span {
   display: inline-flex;
-  min-width: 80px;
-  min-height: 29px;
+  min-width: 82px;
+  min-height: 31px;
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-pill);
   background: var(--color-positive-soft);
   color: var(--color-positive);
-  font-size: var(--font-size-table-cell);
+  font-size: 1rem;
   font-weight: var(--font-weight-black);
 }
 .portfolio-weight-value-cell.is-final { font-weight: var(--font-weight-black); }
+
+@media (min-height: 831px) and (min-width: 1101px) {
+  .portfolio-table tbody tr { height: 50px; }
+  .portfolio-holdings-card .table-pagination { min-height: 72px; }
+}
 
 @media (max-height: 830px) and (min-width: 1101px) {
   .portfolio-kpis .kpi-card__mascot { width: 92px; height: 92px; bottom: -41px; }
@@ -271,10 +267,11 @@
   .portfolio-constraint { min-height: 32px; padding-inline: 11px 8px; font-size: 0.73rem; }
   .portfolio-constraint strong { font-size: 0.81rem; }
   .portfolio-constraint svg { width: 21px; height: 21px; }
-  .portfolio-table td { padding-block: 2px; font-size: 0.89rem; }
-  .portfolio-rank-cell span { width: 28px; height: 28px; }
-  .portfolio-ticker-cell { font-size: 1.05rem !important; }
-  .portfolio-score-cell span { min-width: 74px; min-height: 26px; }
+  .portfolio-table tbody tr { height: 44px; }
+  .portfolio-table td { padding-block: 3px; font-size: 0.95rem; }
+  .portfolio-rank-cell span { width: 30px; height: 30px; }
+  .portfolio-ticker-cell { font-size: 1.08rem !important; }
+  .portfolio-score-cell span { min-width: 82px; min-height: 28px; font-size: 0.92rem; }
 }
 
 @media (max-width: 1399px) and (min-width: 1101px) {
@@ -337,11 +334,10 @@
   .portfolio-constraints { grid-column: auto; }
   .portfolio-constraint-list { grid-template-columns: 1fr; }
   .portfolio-holdings-card { --card-body-padding-start: 0px; }
-  /* The table is the one place where scrolling is the layout: it runs edge to
-     edge inside the card so the next column is visibly cut off, which is the
-     cue that more columns exist. The pagination keeps the card's inset. */
-  .portfolio-holdings-card > .dashboard-card__body { padding-inline: 0; }
-  .portfolio-holdings-card .table-pagination { padding-inline: var(--card-padding-inline); }
+  /* Match the Screener card inset. The table still clips the next column at
+     the scroll edge, keeping the cue that more columns exist. */
+  .portfolio-holdings-card > .dashboard-card__body { padding: 4px 10px 0; }
+  .portfolio-holdings-card .table-pagination { padding-inline: 10px; }
   .portfolio-table-scroll { -webkit-overflow-scrolling: touch; }
   /* 740px is the sum of the six phone columns below. The rank column is not
      rendered on phones, so nothing is left over where it used to sit. */
@@ -382,6 +378,10 @@
     box-shadow: 1px 0 0 var(--color-line), 7px 0 9px -5px rgb(56 40 22 / 26%);
   }
   .portfolio-table thead .portfolio-heading--ticker { z-index: 3; }
+  @media (hover: hover) and (pointer: fine) {
+    .portfolio-table tbody tr:hover .portfolio-ticker-cell { background: #FCFAF7; }
+  }
+  .portfolio-table tbody tr:focus-within .portfolio-ticker-cell { background: #FCFAF7; }
 }
 
 /* While the table has columns off-screen, a soft fade on its right edge says
