@@ -136,11 +136,22 @@ export function MarketProvider({ children }) {
   }, [load, publishFinalNotice]);
 
   const runBacktest = useCallback(async (config) => {
+    const frequency = config.rebalance_frequency || "semiannual";
+    const published = data?.backtestSchedules?.[config.portfolio]?.[frequency];
+    if (
+      published?.available
+      && config.start === published.start
+      && config.end === published.end
+    ) {
+      return published;
+    }
     try {
       return await api.backtest(config);
     } catch (requestError) {
-      const frequency = config.rebalance_frequency || "semiannual";
-      const fallback = data?.backtestSchedules?.[config.portfolio]?.[frequency];
+      const fallback = data?.backtestSchedules?.[config.portfolio]?.[frequency]
+        ?? (frequency === "semiannual"
+          ? data?.backtest?.[config.portfolio]
+          : null);
       if (fallback?.available) return fallback;
       throw requestError;
     }

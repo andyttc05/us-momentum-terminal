@@ -48,4 +48,6 @@ test("Run Backtest forwards the latest frequency and can use published schedules
   assert.match(page, /Results still use \$\{rebalanceLabel\(submittedConfig\.rebalanceFrequency\)\}/);
   assert.match(provider, /api\.backtest\(config\)/);
   assert.match(provider, /backtestSchedules\?\.\[config\.portfolio\]\?\.\[frequency\]/);
+  assert.match(provider, /config\.start === published\.start/);
+  assert.match(provider, /config\.end === published\.end/);
 });
