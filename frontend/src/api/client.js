@@ -6,9 +6,9 @@
 // it to the hosted Render backend. Either way the base is resolved once here,
 // never hardcoded across components.
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
+import { DATA_REQUEST_TIMEOUT_MS } from "./timeouts.js";
 
-const TIMEOUT_MS = 30_000;
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
 
 export class ApiError extends Error {
   constructor(message, { status = 0, code = "request_failed" } = {}) {
@@ -19,7 +19,7 @@ export class ApiError extends Error {
   }
 }
 
-async function request(path, { method = "GET", timeout = TIMEOUT_MS, body } = {}) {
+async function request(path, { method = "GET", timeout = DATA_REQUEST_TIMEOUT_MS, body } = {}) {
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), timeout);
   try {
