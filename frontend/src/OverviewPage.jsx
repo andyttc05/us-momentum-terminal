@@ -15,7 +15,7 @@ import { useMarket } from "./api/MarketProvider.jsx";
 import { useUniverse } from "./api/UniverseProvider.jsx";
 import { getSectionState } from "./utils/dataState.js";
 import { getPortfolioState } from "./utils/portfolioState.js";
-import { datasetForUniverse } from "./utils/universeState.js";
+import { datasetForUniverse, targetHoldingsForDataset } from "./utils/universeState.js";
 
 const periods = ["1Y", "3Y", "5Y", "All"];
 const placeholderSeries = [
@@ -41,6 +41,7 @@ export function OverviewPage({ onNavigate, onSelectStock, hidden = false }) {
     status,
     meta,
     error,
+    targetHoldings: targetHoldingsForDataset(dataset, activeUniverse),
   });
   const portfolioCount = snapshot?.portfolioStocks;
   const portfolioTitle = portfolioCount && portfolioCount !== "—"
