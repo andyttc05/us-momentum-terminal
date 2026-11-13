@@ -15,6 +15,7 @@ import {
 import { AppButton } from "./components/AppButton.jsx";
 import { ChartState, DataState, Skeleton, TableSkeletonRows, TableStateRow } from "./components/DataState.jsx";
 import { DashboardCard } from "./components/DashboardCard.jsx";
+import { ExportMenu } from "./components/ExportMenu.jsx";
 import { KpiCard } from "./components/KpiCard.jsx";
 import { MascotDuo } from "./components/Mascot.jsx";
 import { PageHeader } from "./components/PageHeader.jsx";
@@ -32,7 +33,12 @@ import { UpdateBar } from "./components/UpdateBar.jsx";
 import { useElementSize } from "./components/useElementSize.js";
 import { useMarket } from "./api/MarketProvider.jsx";
 import { useUniverse } from "./api/UniverseProvider.jsx";
-import { computeWindowMetrics } from "./utils/backtestMetrics.js";
+import {
+  backtestFilename,
+  buildBacktestExportData,
+  downloadBacktestCsv,
+} from "./utils/backtestExport.js";
+import { computeWindowMetrics, formatBacktestDuration } from "./utils/backtestMetrics.js";
 import {
   applyInflationAdjustment,
   calculateBacktestReport,
@@ -41,6 +47,7 @@ import {
 } from "./utils/backtestReport.js";
 import { buildDrawdownScale } from "./utils/drawdownScale.js";
 import { getSectionState } from "./utils/dataState.js";
+import { downloadWorkbookFile } from "./utils/exportFiles.js";
 import {
   fitTooltipWidth,
   nearestObservationIndex,
@@ -668,7 +675,7 @@ function AnnualReturnTable({ rows = [], includeYtd, state = "ready" }) {
   );
 }
 
-function PerformanceSummary({ report, config, state = "ready" }) {
+function PerformanceSummary({ report, reportWindow, metrics, config, state = "ready" }) {
   const settings = [
     { label: "Initial Capital", value: report ? formatMoney(report.initialCapital) : "—", icon: Bank },
     { label: "Reinvest Dividends", value: config ? (config.reinvestDividends ? "Yes" : "No") : "—", icon: TrendUp },
@@ -677,6 +684,44 @@ function PerformanceSummary({ report, config, state = "ready" }) {
       label: "Rebalancing",
       value: config ? rebalanceLabel(config.rebalanceFrequency) : "—",
       icon: Scales,
+    },
+  ];
+  const performanceMetrics = [
+    {
+      label: "Duration",
+      value: formatBacktestDuration(reportWindow?.dates?.[0], reportWindow?.dates?.at(-1)),
+      tip: "Completed calendar months between the first and last effective backtest observations.",
+    },
+    {
+      label: "CAGR",
+      value: formatPercent(metrics?.cagr),
+      tone: valueTone(metrics?.cagr),
+      tip: "Annualised strategy NAV growth over the effective dates. External contributions are excluded, so the result remains cashflow-safe.",
+    },
+    {
+      label: "Sharpe Ratio",
+      value: typeof metrics?.sharpe === "number" && Number.isFinite(metrics.sharpe)
+        ? metrics.sharpe.toFixed(2)
+        : "—",
+      tip: "Annualised daily excess return using the existing 0% risk-free-rate assumption.",
+    },
+    {
+      label: "Time-Weighted Return",
+      value: formatPercent(report?.timeWeightedReturnPct, 2),
+      tone: valueTone(report?.timeWeightedReturnPct),
+      tip: "Daily portfolio growth linked across external contributions. Cashflow timing does not change this return.",
+    },
+    {
+      label: "Money-Weighted Return / XIRR",
+      value: formatPercent(report?.moneyWeightedReturnPct, 2),
+      tone: valueTone(report?.moneyWeightedReturnPct),
+      tip: "The annualised rate that makes the dated initial investment, contributions and ending account value net to zero.",
+    },
+    {
+      label: "vs. SPY (Total Return)",
+      value: report ? `${formatPercent(report.relativeToSpyPct)} pp` : "—",
+      tone: valueTone(report?.relativeToSpyPct),
+      tip: "Time-weighted strategy return minus the matched-date SPY return. Both sides use the selected nominal or inflation-adjusted basis.",
     },
   ];
   return (
@@ -709,27 +754,20 @@ function PerformanceSummary({ report, config, state = "ready" }) {
           ))}
         </div>
       </div>
-      <div className="backtest-return-metrics">
-        <span>
-          <small>Time-Weighted Return <InfoTooltip label="Time-weighted return">Daily portfolio growth linked across external contributions. Cashflow timing does not change this return.</InfoTooltip></small>
-          <strong className={`is-${valueTone(report?.timeWeightedReturnPct)}`}>
-            {state === "loading" ? <Skeleton width="72px" height="16px" /> : report ? formatPercent(report.timeWeightedReturnPct, 2) : "—"}
-          </strong>
-        </span>
-        <span>
-          <small>Money-Weighted Return / XIRR <InfoTooltip label="money-weighted return">The annualised rate that makes the dated initial investment, contributions and ending account value net to zero.</InfoTooltip></small>
-          <strong className={`is-${valueTone(report?.moneyWeightedReturnPct)}`}>
-            {state === "loading" ? <Skeleton width="72px" height="16px" /> : report ? formatPercent(report.moneyWeightedReturnPct, 2) : "—"}
-          </strong>
-        </span>
-        <span>
-          <small>{config?.inflationAdjusted ? "vs. SPY (Real Return)" : "vs. SPY (Total Return)"} <InfoTooltip label="relative performance">Strategy time-weighted return minus the matching SPY return over the submitted period, shown in percentage points.</InfoTooltip></small>
-          <strong className={`is-${valueTone(report?.relativeToSpyPct)}`}>
-            {state === "loading"
-              ? <Skeleton width="72px" height="16px" />
-              : report ? `${formatPercent(report.relativeToSpyPct)} pp` : "—"}
-          </strong>
-        </span>
+      <div className="backtest-return-metrics" aria-label="Performance metrics">
+        {performanceMetrics.map(({ label, value, tone = "", tip }) => (
+          <div className="backtest-metric-tile" key={label}>
+            <span className="backtest-metric-tile__label">
+              {label}
+              <InfoTooltip label={label}>{tip}</InfoTooltip>
+            </span>
+            <strong className={tone ? `is-${tone}` : undefined}>
+              {state === "loading"
+                ? <Skeleton width="72px" height="16px" />
+                : value}
+            </strong>
+          </div>
+        ))}
       </div>
       {state !== "ready" && state !== "loading" && (
         <DataState
@@ -1327,10 +1365,9 @@ export function BacktestingPage({ hidden = false }) {
             />
             <KpiCard
               loading={resultsLoading}
-              label="CAGR"
-              value={formatPercent(metrics.cagr)}
-              valueTone={valueTone(metrics.cagr)}
-              icon={ChartBar}
+              label="Duration"
+              value={formatBacktestDuration(reportWindow?.dates?.[0], reportWindow?.dates?.at(-1))}
+              icon={CalendarBlank}
               tint="cream"
               mascotVariant="cream"
               mascotColor="var(--color-cream)"
@@ -1419,6 +1456,8 @@ export function BacktestingPage({ hidden = false }) {
           </section>
           <PerformanceSummary
             report={report}
+            reportWindow={reportWindow}
+            metrics={metrics}
             config={submittedConfig}
             state={resultsReady ? "ready" : resultsState}
           />

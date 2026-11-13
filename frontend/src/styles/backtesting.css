@@ -730,32 +730,43 @@
 .backtest-return-metrics {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  align-items: center;
+  align-items: stretch;
+  grid-auto-rows: minmax(102px, auto);
   gap: 14px;
   margin-top: 14px;
 }
-.backtest-return-metrics > span {
+.backtest-metric-tile {
   display: grid;
-  min-height: 90px;
-  align-content: center;
-  gap: 5px;
-  padding: 13px 16px;
+  min-width: 0;
+  align-content: space-between;
+  gap: 10px;
+  padding: 15px 17px;
   border: 1px solid var(--color-line);
   border-radius: 16px;
   background: var(--color-surface-soft);
 }
-.backtest-return-metrics small {
+.backtest-metric-tile__label {
   display: flex;
+  min-width: 0;
   align-items: center;
   gap: 3px;
   color: var(--color-text-muted);
-  font-size: 0.69rem;
+  font-size: 0.72rem;
   font-weight: 800;
+  line-height: 1.3;
   letter-spacing: 0.02em;
 }
-.backtest-return-metrics strong { font-size: clamp(1.35rem, 1.9vw, 1.7rem); font-weight: 900; font-variant-numeric: tabular-nums; }
-.backtest-return-metrics strong.is-positive { color: #178D4A; }
-.backtest-return-metrics strong.is-negative { color: #EB3B44; }
+.backtest-metric-tile > strong {
+  min-width: 0;
+  color: var(--color-ink);
+  font-size: clamp(1.35rem, 1.9vw, 1.7rem);
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.025em;
+  line-height: 1.08;
+}
+.backtest-metric-tile > strong.is-positive { color: #178D4A; }
+.backtest-metric-tile > strong.is-negative { color: #EB3B44; }
 
 @media (prefers-reduced-motion: reduce) {
   .backtest-advanced__reveal,
@@ -877,6 +888,7 @@
   .backtest-analytics-grid { grid-template-columns: 1fr; }
   .backtest-summary-top { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .backtest-summary-settings { grid-column: 1 / -1; }
+  .backtest-return-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 680px) {
@@ -1031,5 +1043,4 @@
   .backtest-summary-settings { grid-column: auto; }
   .backtest-summary-tile { min-height: 112px; padding: 17px; }
   .backtest-return-metrics { grid-template-columns: minmax(0, 1fr); gap: 10px; }
-  .backtest-return-metrics > span:last-child { grid-column: auto; }
 }

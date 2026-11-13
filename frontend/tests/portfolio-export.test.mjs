@@ -6,6 +6,7 @@ test("portfolio CSV keeps strategy rank and writes float-adjusted market cap", (
   const holdings = Array.from({ length: 100 }, (_, index) => ({
     rank: index + 1,
     ticker: `T${index + 1}`,
+    company: `Company ${index + 1}`,
     sector: index % 2 ? "Technology" : "Consumer",
     score: 1.25,
     market_cap: 10_000_000_000,
@@ -22,8 +23,10 @@ test("portfolio CSV keeps strategy rank and writes float-adjusted market cap", (
   const lastHolding = lines.at(-1).split(",");
   assert.equal(firstHolding[0], "1");
   assert.equal(firstHolding[1], "T1");
-  assert.equal(firstHolding[4], "5000000000");
+  assert.equal(firstHolding[2], "Company 1");
+  assert.equal(firstHolding[5], "5000000000");
   assert.equal(lastHolding[0], "100");
   assert.equal(lastHolding[1], "T100");
-  assert.equal(lastHolding[4], "5000000099");
+  assert.equal(lastHolding[2], "Company 100");
+  assert.equal(lastHolding[5], "5000000099");
 });

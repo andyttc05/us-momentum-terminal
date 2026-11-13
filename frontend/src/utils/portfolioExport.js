@@ -1,4 +1,6 @@
 import { csvRow } from "./csv.js";
+import { EXCEL_FORMAT, exportTimestamp } from "./exportFiles.js";
+import { universeLabel } from "./universeState.js";
 
 /**
  * Portfolio CSV export.
@@ -10,6 +12,7 @@ import { csvRow } from "./csv.js";
 export const PORTFOLIO_CSV_COLUMNS = [
   "Rank",
   "Ticker",
+  "Company",
   "Sector",
   "Momentum Score",
   "Float-Adjusted Market Cap (USD)",
@@ -129,6 +132,7 @@ export function buildPortfolioCsv(holdings) {
   const rows = sortHoldingsByFinalWeight(holdings).map((holding) => csvRow([
     holding.rank,
     holding.ticker,
+    holding.company ?? null,
     holding.sector,
     holding.score,
     holding.float_market_cap,
@@ -146,4 +150,138 @@ export function portfolioCsvFilename(date = new Date()) {
     String(date.getDate()).padStart(2, "0"),
   ].join("-");
   return `US_Momentum_Portfolio_${stamp}.csv`;
+}
+
+export function portfolioFilename(universe, extension) {
+  return `US_Momentum_Portfolio_${universe === "top20" ? "Top20" : "Top100"}.${extension}`;
+}
+
+function holdingRows(holdings) {
+  return sortHoldingsByFinalWeight(holdings).map((holding) => [
+    holding.rank,
+    holding.ticker,
+    holding.company ?? null,
+    holding.sector,
+    holding.score,
+    holding.float_market_cap,
+    holding.rawWeight,
+    holding.finalWeight,
+  ]);
+}
+
+function observedConstraintValue(constraintId, portfolio) {
+  const validation = portfolio?.validation ?? {};
+  if (constraintId === "max-stock") return validation.maximumHoldingWeight ?? null;
+  if (constraintId === "max-sector") return validation.maximumSectorWeight ?? null;
+  if (constraintId === "target-holdings") return portfolio?.holdings?.length ?? null;
+  if (constraintId === "target-allocation") return validation.totalFinalWeight ?? null;
+  return null;
+}
+
+export function buildPortfolioExportData({
+  portfolio,
+  universe,
+  meta,
+  exportedAt = exportTimestamp(),
+}) {
+  if (!portfolio?.holdings?.length) {
+    throw new Error("The selected portfolio has no holdings to export.");
+  }
+  const holdings = portfolio.holdings;
+  const summary = portfolio.summary ?? {};
+  const sectorRows = (portfolio.sectors ?? []).map((sector) => [sector.name, sector.value]);
+  const distributionRows = [...holdings]
+    .sort((left, right) => right.finalWeight - left.finalWeight)
+    .map((holding) => [holding.rank, holding.ticker, holding.finalWeight]);
+  const constraintRows = (portfolio.constraints ?? []).map((constraint) => [
+    constraint.label,
+    constraint.rule,
+    observedConstraintValue(constraint.id, portfolio),
+    constraint.status,
+  ]);
+  const settings = [
+    ["Universe Selection", universeLabel(universe)],
+    ["Portfolio Methodology", portfolio.weighting?.rawFormula ?? null],
+    ["Constraint Solver", portfolio.weighting?.solver ?? null],
+    ["Solver Converged", typeof portfolio.weighting?.converged === "boolean"
+      ? (portfolio.weighting.converged ? "Yes" : "No")
+      : null],
+    ["Data As Of", meta?.as_of ?? null],
+    ["Data Generated At", meta?.generated_at ?? null],
+    ["Data Freshness", meta?.client_cache ? "Browser cache" : (meta?.cache_state ?? null)],
+    ["Export Timestamp", exportedAt],
+  ];
+
+  return {
+    workbookSheets: [
+      {
+        name: "Holdings",
+        rows: [
+          [
+            "Rank",
+            "Ticker",
+            "Company",
+            "Sector",
+            "Momentum Score",
+            "Float-Adjusted Market Cap (USD)",
+            "Raw Weight (%)",
+            "Final Weight (%)",
+          ],
+          ...holdingRows(holdings),
+        ],
+        widths: [9, 12, 34, 24, 18, 31, 17, 18],
+        formats: {
+          4: EXCEL_FORMAT.number,
+          5: EXCEL_FORMAT.currency,
+          6: EXCEL_FORMAT.weight,
+          7: EXCEL_FORMAT.weight,
+        },
+        autoFilter: true,
+        freezeHeader: true,
+      },
+      {
+        name: "Portfolio Summary",
+        rows: [
+          ["Summary", "Value"],
+          ["Total Holdings", summary.totalHoldings ?? holdings.length],
+          [
+            "Largest Holding",
+            summary.largestHolding?.ticker
+              ? `${summary.largestHolding.ticker} (${Number(summary.largestHolding.finalWeight).toFixed(2)}%)`
+              : null,
+          ],
+          ["Top 10 Weight (%)", summary.topTenWeight ?? null],
+          [],
+          ["Sector Allocation", "Weight (%)"],
+          ...sectorRows,
+          [],
+          ["Stock Weight Distribution", "Final Weight (%)"],
+          ["Rank", "Ticker", "Final Weight (%)"],
+          ...distributionRows,
+        ],
+        widths: [32, 65],
+        formats: { 1: EXCEL_FORMAT.weight },
+        freezeHeader: true,
+      },
+      {
+        name: "Portfolio Constraints",
+        rows: [
+          ["Constraint", "Rule", "Observed Value", "Status"],
+          ...constraintRows,
+        ],
+        widths: [28, 15, 20, 15],
+        formats: { 2: EXCEL_FORMAT.weight },
+        autoFilter: true,
+        freezeHeader: true,
+      },
+      {
+        name: "Portfolio Settings",
+        rows: [["Setting", "Value"], ...settings],
+        widths: [30, 64],
+        formats: { 1: null },
+        freezeHeader: true,
+      },
+    ],
+    rowCount: holdings.length,
+  };
 }

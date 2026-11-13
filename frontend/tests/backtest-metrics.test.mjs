@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { computeWindowMetrics } from "../src/utils/backtestMetrics.js";
+import { computeWindowMetrics, formatBacktestDuration } from "../src/utils/backtestMetrics.js";
 
 const PUBLISHED = { cumulative_return: 366.9, cagr: 19.6, max_drawdown: -34.7, sharpe: 1.05 };
 
@@ -79,4 +79,17 @@ test("a missing window reports nothing rather than zero", () => {
 test("a zero-variance window has no Sharpe ratio", () => {
   const metrics = computeWindowMetrics(navWindow([100, 100, 100]));
   assert.equal(metrics.sharpe, null);
+});
+
+test("duration uses completed calendar months from the effective backtest dates", () => {
+  assert.equal(formatBacktestDuration("2018-02-05", "2019-08-20"), "1y 6m");
+  assert.equal(formatBacktestDuration("2019-01-02", "2024-04-02"), "5y 3m");
+  assert.equal(formatBacktestDuration("2018-02-05", "2026-09-20"), "8y 7m");
+  assert.equal(formatBacktestDuration("2024-03-15", "2024-07-14"), "3m");
+  assert.equal(formatBacktestDuration("2024-03-15", "2024-03-20"), "<1m");
+});
+
+test("duration reports no value for missing or reversed dates", () => {
+  assert.equal(formatBacktestDuration(null, "2024-01-01"), "—");
+  assert.equal(formatBacktestDuration("2024-02-01", "2024-01-01"), "—");
 });
