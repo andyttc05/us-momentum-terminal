@@ -314,12 +314,14 @@ function CumulativeChart({ window, range, logScale, seriesValues, onLogUnavailab
     y: yForValue(value),
   }));
 
-  const labelPositions = yearLabelPositions(window.dates, left, plotWidth)
-    .filter((item, index, list) => (
-      index === 0
-      || index === list.length - 1
-      || item.x - list[index - 1].x >= (compact ? 66 : 48)
-    ));
+  // Same collision-safe treatment as the drawdown chart, with this chart's own
+  // spacing. The helper clamps to the plot edges, so labels need no extra clamp.
+  const labelPositions = resolveYearLabelPositions(
+    window.dates,
+    left,
+    plotWidth,
+    compact ? 66 : 48,
+  );
   const endLabels = computedSeries
     .map((series) => ({ series, point: pointsFor(series.values).at(-1) }))
     .sort((a, b) => a.point.y - b.point.y);

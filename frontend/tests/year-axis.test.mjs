@@ -62,6 +62,13 @@ test("returns no year labels for empty or malformed date input", () => {
   assert.deepEqual(resolveYearLabelPositions(["invalid"], 54, 1100), []);
 });
 
+test("every chart resolves year labels through the shared collision-safe helper", () => {
+  // The helper used to live in this file. When it moved to yearAxis.js, one
+  // call site kept the old name; bundling succeeded and the page threw
+  // "yearLabelPositions is not defined" at render. No bare call may remain.
+  assert.doesNotMatch(page, /(?<!resolve)yearLabelPositions\(/);
+});
+
 test("a backtest starting in December keeps 2019 between 2018 and 2020", () => {
   const labels = resolveYearLabelPositions(
     ["2018-12-03", "2019-01-02", "2020-01-02", "2021-01-04"],
