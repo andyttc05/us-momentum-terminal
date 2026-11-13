@@ -75,6 +75,7 @@
 .stock-rank-pill--low { background: #FCE4E6; color: #D64545; }
 .stock-rank-pill--unknown { background: #EFECE7; color: var(--color-text-secondary); }
 .stock-rank-pill svg { color: currentColor; }
+.stock-rank-pill--top svg { color: #F5C400; }
 .stock-rank-pill strong { font-weight: var(--font-weight-black); }
 
 .stock-price-card { display: flex; min-height: 0; flex-direction: column; padding: 14px 14px 10px; }

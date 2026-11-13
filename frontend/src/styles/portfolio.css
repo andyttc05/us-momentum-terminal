@@ -94,10 +94,11 @@
   background: var(--color-surface);
   color: var(--color-ink);
   font-size: 0.82rem;
+  font-weight: 700;
   line-height: 1.2;
   white-space: nowrap;
 }
-.portfolio-constraint strong { font-size: 0.91rem; font-weight: var(--font-weight-black); font-variant-numeric: tabular-nums; }
+.portfolio-constraint strong { font-size: 0.91rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .portfolio-constraint.is-passed > svg { color: #26C78A; }
 .portfolio-constraint.is-failed > svg { color: var(--color-negative); }
 
