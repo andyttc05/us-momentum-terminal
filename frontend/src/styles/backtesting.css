@@ -39,9 +39,9 @@
   background: var(--color-surface);
   box-shadow: var(--shadow-card);
 }
-/* A date is one field group: the label and its input share row 1, so the input's
-   left edge follows from the label's own width. On phones the validation message
-   takes row 3 of the same column. */
+/* A date is one field group: the label and its control wrapper share row 1, so
+   the input's left edge follows from the label's own width. On phones the
+   validation message takes row 3 of the same column. */
 .backtest-date-group {
   display: grid;
   min-width: 0;
@@ -51,10 +51,23 @@
   column-gap: var(--bt-label-gap);
 }
 .backtest-date-label { grid-column: 1; grid-row: 1; color: var(--color-ink); font-size: var(--font-size-sm); font-weight: var(--font-weight-bold); white-space: nowrap; }
+/* The wrapper owns the available track width. Keeping the native input inside a
+   bounded, zero-minimum box prevents its intrinsic date chrome from sizing the
+   grid item independently. The wrapper is visually transparent on desktop, so
+   the established input appearance and dimensions are unchanged there. */
+.backtest-date-control {
+  display: block;
+  box-sizing: border-box;
+  grid-column: 2;
+  grid-row: 1;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
 /* A date input is a replaced element: flex on the input would re-flow WebKit's
    internal date text and calendar indicator, so the box stays block-level and
    the indicator keeps its native position at the trailing edge. */
-.backtest-date-input { display: block; grid-column: 2; grid-row: 1; box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; min-inline-size: 0; max-inline-size: 100%; height: 42px; padding: 0 12px; border: 1px solid var(--color-line); border-radius: var(--radius-pill); background: var(--color-surface-soft); color: var(--color-ink); font-size: 0.82rem; font-weight: 700; line-height: normal; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; overflow: hidden; }
+.backtest-date-input { display: block; box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; min-inline-size: 0; max-inline-size: 100%; height: 42px; margin: 0; padding: 0 12px; border: 1px solid var(--color-line); border-radius: var(--radius-pill); background: var(--color-surface-soft); color: var(--color-ink); font-size: 0.82rem; font-weight: 700; line-height: normal; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; overflow: hidden; }
 .backtest-date-input::-webkit-datetime-edit,
 .backtest-date-input::-webkit-date-and-time-value { min-width: 0; max-width: 100%; overflow: hidden; }
 .backtest-date-input:hover { border-color: #D8D0C6; }
@@ -220,44 +233,69 @@
     gap: 14px;
     padding: 16px;
   }
-  /* Stacked field group: the label takes row 1, the input row 2, and the
+  /* Stacked field group: the label takes row 1, the control row 2, and the
      message row 3 — all in the same single column, so nothing can drift out of
-     the card and the message wraps inside the input's width. */
+     the card and the message wraps inside the control's width. */
   .backtest-date-group {
     width: 100%;
     grid-template-columns: minmax(0, 1fr);
     row-gap: 7px;
   }
-  .backtest-date-label, .backtest-date-input, .backtest-date-error { grid-column: 1; }
+  .backtest-date-label, .backtest-date-control, .backtest-date-error { grid-column: 1; }
   .backtest-date-label { grid-row: 1; font-size: 0.8rem; letter-spacing: 0.01em; }
-  .backtest-date-input { grid-row: 2; }
+  .backtest-date-control {
+    display: flex;
+    grid-row: 2;
+    align-items: center;
+    width: 100%;
+    height: 48px;
+    min-width: 0;
+    max-width: 100%;
+    padding: 0 16px;
+    overflow: hidden;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-pill);
+    background: var(--color-surface-soft);
+  }
   .backtest-date-error { grid-row: 3; }
   .backtest-date-input {
+    flex: 1 1 0;
     box-sizing: border-box;
     width: 100%;
     max-width: 100%;
     min-width: 0;
     min-inline-size: 0;
-    inline-size: 100%;
-    height: 48px;
-    padding: 0 16px;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
     /* 16px is the floor that stops iOS Safari from zooming the page when a
        field is focused; anything smaller shifts the whole layout on tap. */
     font-size: 16px;
     line-height: normal;
-    /* Safari positions the date value from the host input's own `text-align`;
-       it ignores `text-align` written on the WebKit date pseudo-elements below
-       (Chromium does the opposite). Centring must be declared here, on the
-       input, or the value sits at the leading edge on iPhone while desktop
-       Chrome and every device emulator still look centred. */
     text-align: center;
+    /* iOS gives the native date control an intrinsic width that can win over
+       width: 100%. Resetting only this control's appearance makes it size like
+       a normal bounded form element while retaining its native date picker. */
+    -webkit-appearance: none;
+    appearance: none;
   }
-  /* Kept for Chromium, where the pseudo-elements do control the value's
-     alignment. They are harmless on WebKit, which simply ignores them. */
+  .backtest-date-control:hover { border-color: #D8D0C6; }
+  .backtest-date-group.is-invalid .backtest-date-control { border-color: #D8848B; }
+  /* Centre both the host value and WebKit's internal date box. A fixed line box
+     keeps the date text on the control's vertical centre in Chromium and WebKit. */
   .backtest-date-input::-webkit-datetime-edit {
+    height: 100%;
+    padding: 0;
     text-align: center;
   }
   .backtest-date-input::-webkit-date-and-time-value {
+    min-height: 1.5em;
+    height: 1.5em;
+    line-height: 1.5em;
     text-align: center;
   }
   .backtest-date-error { margin: 0; font-size: 0.8rem; }

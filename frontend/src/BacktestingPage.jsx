@@ -372,36 +372,40 @@ export function BacktestingPage({ hidden = false }) {
             it stays inside the field group, directly under its input. */}
         <div className="backtest-controls-stack">
           <section className="backtest-controls" aria-label="Backtest controls">
-            {/* Each date is one field group: a label and its input share a row,
-                so the input's left edge is derived from the label rather than a
-                measured offset. */}
+            {/* Each date is one field group: a label and a bounded control share
+                a row, so the input's left edge is derived from the label rather
+                than a measured offset. */}
             <div className="backtest-date-group">
               <label className="backtest-date-label" htmlFor="backtest-start-date">Start Date</label>
-              <input
-                className="backtest-date-input"
-                id="backtest-start-date"
-                type="date"
-                min={block?.start ?? ""}
-                max={block?.end ?? ""}
-                value={startDate}
-                onInput={(event) => setStartDate(event.target.value)}
-                onChange={(event) => setStartDate(event.target.value)}
-              />
+              <div className="backtest-date-control">
+                <input
+                  className="backtest-date-input"
+                  id="backtest-start-date"
+                  type="date"
+                  min={block?.start ?? ""}
+                  max={block?.end ?? ""}
+                  value={startDate}
+                  onInput={(event) => setStartDate(event.target.value)}
+                  onChange={(event) => setStartDate(event.target.value)}
+                />
+              </div>
             </div>
             <div className={`backtest-date-group${dateError ? " is-invalid" : ""}`}>
               <label className="backtest-date-label" htmlFor="backtest-end-date">End Date</label>
-              <input
-                className="backtest-date-input"
-                id="backtest-end-date"
-                type="date"
-                min={block?.start ?? ""}
-                max={block?.end ?? ""}
-                value={endDate}
-                aria-invalid={Boolean(dateError)}
-                aria-describedby={dateError ? "backtest-date-error" : undefined}
-                onInput={(event) => setEndDate(event.target.value)}
-                onChange={(event) => setEndDate(event.target.value)}
-              />
+              <div className="backtest-date-control">
+                <input
+                  className="backtest-date-input"
+                  id="backtest-end-date"
+                  type="date"
+                  min={block?.start ?? ""}
+                  max={block?.end ?? ""}
+                  value={endDate}
+                  aria-invalid={Boolean(dateError)}
+                  aria-describedby={dateError ? "backtest-date-error" : undefined}
+                  onInput={(event) => setEndDate(event.target.value)}
+                  onChange={(event) => setEndDate(event.target.value)}
+                />
+              </div>
               {!isDesktop && dateError && (
                 <p className="backtest-date-error" id="backtest-date-error" role="alert">
                   <WarningCircle size={15} weight="fill" aria-hidden="true" />

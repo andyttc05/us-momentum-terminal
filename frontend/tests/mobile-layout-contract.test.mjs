@@ -86,7 +86,24 @@ test("the date fields centre through the host input, which is what WebKit reads"
   // alignment from the input element. Centring only the pseudo-elements looks
   // correct in Chrome and every device emulator, and left-aligned on iPhone.
   assert.match(block, /\.backtest-date-input\s*\{[^}]*text-align:\s*center/s);
-  assert.match(block, /::-webkit-date-and-time-value\s*\{\s*text-align:\s*center/, "Chromium still needs the pseudo-element");
-  // Both fields must stay identical boxes.
-  assert.match(block, /\.backtest-date-input\s*\{[^}]*height:\s*48px/s);
+  assert.match(block, /::-webkit-date-and-time-value\s*\{[^}]*text-align:\s*center/s, "Chromium still needs the pseudo-element");
+  // Both visible controls must stay identical boxes.
+  assert.match(block, /\.backtest-date-control\s*\{[^}]*height:\s*48px/s);
+});
+
+test("the phone date controls are bounded wrappers with iOS intrinsic sizing reset", () => {
+  const block = phoneBlock(read("backtesting.css"), 680);
+  const source = readFileSync(fileURLToPath(new URL("../src/BacktestingPage.jsx", import.meta.url)), "utf8");
+
+  assert.equal(
+    (source.match(/className="backtest-date-control"/g) ?? []).length,
+    2,
+    "both native date inputs must sit in a control wrapper",
+  );
+  assert.match(block, /\.backtest-date-control\s*\{[^}]*width:\s*100%[^}]*min-width:\s*0[^}]*max-width:\s*100%/s);
+  assert.match(block, /\.backtest-date-input\s*\{[^}]*-webkit-appearance:\s*none/s, "iOS must stop applying intrinsic native width");
+  assert.match(block, /\.backtest-date-input\s*\{[^}]*appearance:\s*none/s);
+  assert.match(block, /\.backtest-date-input\s*\{[^}]*padding:\s*0/s, "padding must live on the bounded wrapper");
+  assert.match(block, /\.backtest-date-input\s*\{[^}]*text-align:\s*center/s);
+  assert.match(block, /\.backtest-date-input::-webkit-date-and-time-value\s*\{[^}]*line-height:\s*1\.5em[^}]*text-align:\s*center/s);
 });
