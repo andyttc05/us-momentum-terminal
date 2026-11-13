@@ -303,7 +303,9 @@
   .portfolio-holdings-card > .dashboard-card__body { padding-inline: 0; }
   .portfolio-holdings-card .table-pagination { padding-inline: var(--card-padding-inline); }
   .portfolio-table-scroll { -webkit-overflow-scrolling: touch; }
-  .portfolio-table { --rank-col-width: 58px; width: 790px; min-width: 790px; border-collapse: separate; border-spacing: 0; }
+  /* 740px is the sum of the six phone columns below. The rank column is not
+     rendered on phones, so nothing is left over where it used to sit. */
+  .portfolio-table { width: 740px; min-width: 740px; border-collapse: separate; border-spacing: 0; }
   .portfolio-table th,
   .portfolio-table td { padding-inline: 12px; }
   /* Headings may wrap rather than clip, and the long market-cap label is
@@ -316,37 +318,30 @@
   }
   .portfolio-heading__full { display: none; }
   .portfolio-heading__short { display: inline; }
-  .portfolio-col-rank { width: var(--rank-col-width); }
   .portfolio-col-ticker { width: 96px; }
-  .portfolio-col-sector { width: 144px; }
-  .portfolio-col-score { width: 108px; }
-  .portfolio-col-market-cap { width: 140px; }
+  .portfolio-col-sector { width: 148px; }
+  .portfolio-col-score { width: 112px; }
+  .portfolio-col-market-cap { width: 148px; }
   .portfolio-col-raw-weight { width: 118px; }
-  .portfolio-col-final-weight { width: 126px; }
-  /* A sticky rank + ticker keeps the row identifiable while the rest of the
-     columns scroll. Sticky cells need their own background, and `separate`
-     borders, because `collapse` drops borders on sticky cells in WebKit. */
+  .portfolio-col-final-weight { width: 118px; }
+  /* A sticky ticker keeps the row identifiable while the rest of the columns
+     scroll. Sticky cells need their own background, and `separate` borders,
+     because `collapse` drops borders on sticky cells in WebKit. */
   .portfolio-table thead th,
   .portfolio-table tbody td { border-bottom: 1px solid var(--color-line); }
   .portfolio-table tbody tr:last-child td { border-bottom: 0; }
-  .portfolio-table thead th:nth-child(1),
-  .portfolio-table tbody td:nth-child(1) {
+  /* The ticker is the first column on phones, so it pins at the leading edge
+     with no offset. The opaque background hides the cells scrolling underneath
+     and the hairline marks the boundary. */
+  .portfolio-table thead .portfolio-heading--ticker,
+  .portfolio-table tbody .portfolio-ticker-cell {
     position: sticky;
     left: 0;
     z-index: 2;
     background: var(--color-surface);
+    box-shadow: 1px 0 0 var(--color-line), 7px 0 9px -5px rgb(56 40 22 / 26%);
   }
-  .portfolio-table thead th:nth-child(2),
-  .portfolio-table tbody td:nth-child(2) {
-    position: sticky;
-    left: var(--rank-col-width);
-    z-index: 2;
-    background: var(--color-surface);
-    box-shadow: 1px 0 0 var(--color-line);
-  }
-  .portfolio-table th:nth-child(1) { text-align: center; }
-  .portfolio-table th:nth-child(1) button { justify-content: center; }
-  .portfolio-rank-cell { padding-left: 12px !important; }
+  .portfolio-table thead .portfolio-heading--ticker { z-index: 3; }
 }
 
 /* While the table has columns off-screen, a soft fade on its right edge says

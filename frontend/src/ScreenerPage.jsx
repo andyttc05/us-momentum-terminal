@@ -15,7 +15,9 @@ import { Pagination } from "./components/Pagination.jsx";
 import { Sparkline } from "./components/Sparkline.jsx";
 import { Toast } from "./components/Toast.jsx";
 import { UpdateBar } from "./components/UpdateBar.jsx";
+import { useMediaQuery } from "./components/useMediaQuery.js";
 import { useMarket } from "./api/MarketProvider.jsx";
+import { PHONE_TABLE_MEDIA_QUERY } from "./utils/breakpoints.js";
 import { formatMarketCap } from "./utils/format.js";
 import { momentumSeriesDomain, momentumSeriesValues } from "./utils/momentumSeries.js";
 import { searchMatch } from "./utils/stockSearch.js";
@@ -66,6 +68,12 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
   const [toast, setToast] = useState("");
   const filterControlRef = useRef(null);
   const { data, refresh } = useMarket();
+  // The rank column is dropped on phones so the ticker can stay pinned at the
+  // left edge with no dead space beside it. It is not rendered there at all —
+  // hiding the cells with CSS would leave the column's width behind in the
+  // fixed table layout — but the rank itself stays on every row's data, in the
+  // CSV export and in the desktop table.
+  const isPhone = useMediaQuery(PHONE_TABLE_MEDIA_QUERY);
 
   const stocks = data?.stocks ?? [];
   const sectors = useMemo(() => [...new Set(stocks.map((stock) => stock.sector))].sort(), [stocks]);
@@ -291,7 +299,7 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
           <div className="screener-table-scroll">
             <table className="screener-table">
               <colgroup>
-                <col className="stock-col-rank" />
+                {!isPhone && <col className="stock-col-rank" />}
                 <col className="stock-col-ticker" />
                 <col className="stock-col-company" />
                 <col className="stock-col-market-cap" />
@@ -303,7 +311,7 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
               </colgroup>
               <thead>
                 <tr>
-                  <th scope="col" className="stock-rank-heading">#</th>
+                  {!isPhone && <th scope="col" className="stock-rank-heading">#</th>}
                   {sortableColumns.map(([key, label, slug]) => (
                     <th scope="col" key={key} className={`stock-heading stock-heading--${slug}`} aria-sort={sort.key === key ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}>
                       <button type="button" onClick={() => toggleSort(key)} aria-label={`Sort by ${label}`}>
@@ -316,7 +324,7 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
               <tbody>
                 {visibleStocks.length ? visibleStocks.map((stock) => (
                   <tr key={stock.ticker}>
-                    <td className="stock-rank-cell"><span>{stock.rank}</span></td>
+                    {!isPhone && <td className="stock-rank-cell"><span>{stock.rank}</span></td>}
                     <td className="stock-ticker-cell"><button type="button" className="stock-ticker-link" onClick={() => onSelectStock?.(stock.ticker)} aria-label={`Open ${stock.ticker} stock analysis`}>{stock.ticker}</button></td>
                     <td className="stock-company-cell" title={stock.company}>
                       <button
@@ -346,7 +354,7 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
                     <td className="stock-sector-cell" title={stock.sector}>{stock.sector}</td>
                   </tr>
                 )) : (
-                  <tr className="screener-empty-row"><td colSpan="9">{stocks.length ? <><strong>No stocks match your search or filters.</strong><span>Try adjusting your criteria.</span></> : <><strong>Waiting for verified market data.</strong><span>Nothing is shown until the provider responds.</span></>}</td></tr>
+                  <tr className="screener-empty-row"><td colSpan={isPhone ? 8 : 9}>{stocks.length ? <><strong>No stocks match your search or filters.</strong><span>Try adjusting your criteria.</span></> : <><strong>Waiting for verified market data.</strong><span>Nothing is shown until the provider responds.</span></>}</td></tr>
                 )}
               </tbody>
             </table>
