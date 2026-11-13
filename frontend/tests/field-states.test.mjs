@@ -28,13 +28,14 @@ const allCss = [screenerRules, componentsRules, backtestingRules, formsRules].jo
 
 test("fields rest on a 1px beige edge", () => {
   assert.match(tokensCss, /--color-field-border:\s*#E9E2D9/);
-  // The four visible edges of the app: search pill, filter controls, money
-  // field, dropdown, date field.
+  // The five visible edges of the app: search pill, filter controls, money
+  // field, dropdown, date field. The date edge lives on the wrapper that the
+  // user actually sees, not on the input inside it.
   assert.match(screenerCss, /\.screener-search \{[^}]*border: 1px solid var\(--color-field-border\);/s);
   assert.match(screenerCss, /\.screener-filter-field select, \.screener-filter-field input \{[^}]*border: 1px solid var\(--color-field-border\);/s);
   assert.match(componentsCss, /\.currency-input \{[^}]*border: 1px solid var\(--color-field-border\);/s);
   assert.match(componentsCss, /\.dropdown-control select \{[^}]*border: 1px solid var\(--color-field-border\);/s);
-  assert.match(backtestingCss, /\.backtest-date-input \{[^}]*border: 1px solid var\(--color-field-border\);/s);
+  assert.match(backtestingCss, /\.backtest-date-control \{[^}]*border: 1px solid var\(--color-field-border\);/s);
 });
 
 test("focus paints the warm-yellow edge", () => {
@@ -102,13 +103,30 @@ test("the ring adds no width to the box", () => {
 
 test("a pill's inner input never draws a second ring", () => {
   // The wrapper owns the edge; the inputs inside it are border-less.
-  assert.match(formsCss, /\.backtest-date-control input:focus \{\s*outline: none;/);
+  assert.match(formsCss, /\.backtest-date-control > \.backtest-date-input \{[^}]*outline: 0;/s);
   // ...and the page rules that clear the outline for the other two pills must
   // survive, otherwise those inputs draw a rectangle inside the pill.
   assert.match(screenerCss, /\.screener-search input \{[^}]*outline: 0;/s);
   assert.match(backtestingCss, /\.backtest-amount-control input \{[^}]*outline: 0;/s);
   // Real fields must not clear it, or the ring silently disappears.
   assert.doesNotMatch(screenerCss, /\.screener-filter-field select, \.screener-filter-field input \{[^}]*outline: 0;/s);
+});
+
+test("the date field has exactly one animated edge", () => {
+  // The wrapper carries the border that is painted and the ring that focuses.
+  assert.match(backtestingCss, /\.backtest-date-control \{[^}]*border: 1px solid var\(--color-field-border\);/s);
+  // The input inside it withdraws from every paint channel the shared field
+  // layer controls, `transition` included: a transitioning outline colour is
+  // what used to fade a second, darker ring over the yellow one on blur.
+  const reset = formsCss.match(/\.backtest-date-control > \.backtest-date-input \{([^}]*)\}/s);
+  assert.ok(reset, "the date input reset rule must exist");
+  assert.match(reset[1], /border: 0;/);
+  assert.match(reset[1], /outline: 0;/);
+  assert.match(reset[1], /box-shadow: none;/);
+  assert.match(reset[1], /transition: none;/);
+  // The input may not pick an edge back up anywhere else either.
+  assert.doesNotMatch(backtestingRules, /\.backtest-date-input \{[^}]*border: 1px/s);
+  assert.doesNotMatch(formsRules, /\.backtest-date-control input:focus/);
 });
 
 test("field states never paint a glow", () => {
@@ -132,7 +150,9 @@ test("blur leaves no residue", () => {
 test("disabled and invalid fields keep their own appearance", () => {
   assert.match(formsCss, /:focus:not\(:disabled\)/);
   assert.match(formsCss, /input:where\([^\n]*:is\(:focus, :focus-visible\):not\(:disabled\):not\(\[aria-invalid="true"\]\)/);
-  assert.match(formsCss, /\.backtest-date-group\.is-invalid \.backtest-date-control \{\s*border-color: #D8848B;\s*outline: none;/);
+  // The red edge sits on the same wrapper that owns the beige one, and only its
+  // colour is overridden — no geometry change, no hidden outline to resurface.
+  assert.match(formsCss, /\.backtest-date-group\.is-invalid \.backtest-date-control \{\s*border-color: #D8848B;\s*outline-color: transparent;\s*\}/);
 });
 
 test("pages no longer paint their own field focus glow", () => {

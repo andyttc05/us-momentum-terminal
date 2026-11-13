@@ -26,15 +26,25 @@
    edge is the one the user sees. Their border-less inner inputs are excluded
    below, so nothing draws a second ring inside the pill. */
 
-/* The date wrapper owns the ring at every width; it needs the field's radius so
-   that ring follows the pill on desktop, where the wrapper is border-less. */
-.backtest-date-control { border-radius: var(--radius-pill); }
+/* The date wrapper owns its whole edge at every width — the beige border, the
+   yellow focus edge and the transition between them all sit on
+   `.backtest-date-control` (see backtesting.css). The inner input is a
+   transparent child of that pill and must never paint an edge of its own, so
+   all four paint channels are cleared here, at a specificity the shared field
+   rules below cannot reach.
 
-/* Inner inputs of a pill wrapper must never draw their own ring: the wrapper's
-   edge is the field's edge. The page rules already clear the outline for the
-   search bar and the money field; the date input needs it spelled out here. */
-.backtest-date-control input:focus {
-  outline: none;
+   `transition: none` is the load-bearing part. Clearing the outline with
+   `outline: none` still leaves it carrying a colour (currentColor, the ink), and
+   the shared `transition: outline-color` would then animate that colour from ink
+   to transparent the moment blur switched the outline's style back on — a second
+   dark ring fading over the yellow one, which reads as a grey edge appearing and
+   dissolving. Withdrawing from the transition entirely means the wrapper is the
+   only thing that can animate, and blur has nothing to fade but the yellow. */
+.backtest-date-control > .backtest-date-input {
+  border: 0;
+  outline: 0;
+  box-shadow: none;
+  transition: none;
 }
 
 /* Resting state: 1px beige edge, no shadow, and a transparent outline of the
@@ -111,10 +121,11 @@ textarea:where(:focus:not(:disabled)) {
    field cannot revive it. */
 
 /* A field that failed validation keeps its red edge. The error colour is more
-   important than the interaction ring, and it also has to survive on the date
-   wrapper, whose own edge is the border that shows. */
-.backtest-date-group.is-invalid .backtest-date-input,
+   important than the interaction ring, and it lands on the date wrapper, whose
+   own edge is the border that shows. Only the colour is overridden: the ring's
+   width and style stay put, so entering or leaving the error state changes no
+   geometry and cannot resurrect a hidden outline the way `outline: none` does. */
 .backtest-date-group.is-invalid .backtest-date-control {
   border-color: #D8848B;
-  outline: none;
+  outline-color: transparent;
 }

@@ -68,12 +68,23 @@
   font-weight: var(--font-weight-bold);
   white-space: nowrap;
 }
+/* The wrapper owns the whole visible field at every width: the beige edge, the
+   surface fill, and the yellow edge that focus paints on it (forms.css). The
+   inner input is a transparent child of that pill, so exactly one element has
+   an edge to animate — the same division the search bar and the money field
+   already use. The wrapper's 1px border sits exactly where the input's border
+   used to, so the outside dimensions and the text offsets do not move. */
 .backtest-date-control {
-  display: block;
+  display: flex;
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
   max-width: 100%;
+  height: 36px;
+  align-items: center;
+  border: 1px solid var(--color-field-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-soft);
 }
 .backtest-date-input {
   display: block;
@@ -82,13 +93,13 @@
   min-width: 0;
   max-width: 100%;
   min-inline-size: 0;
-  height: 36px;
+  height: 100%;
   margin: 0;
   padding: 0 10px;
   overflow: hidden;
-  border: 1px solid var(--color-field-border);
-  border-radius: var(--radius-pill);
-  background: var(--color-surface-soft);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: var(--color-ink);
   font-size: 0.76rem;
   font-weight: 700;
@@ -102,7 +113,7 @@
   max-width: 100%;
   overflow: hidden;
 }
-.backtest-date-group.is-invalid .backtest-date-input { border-color: #D8848B; }
+.backtest-date-group.is-invalid .backtest-date-control { border-color: #D8848B; }
 .backtest-config__divider {
   width: 1px;
   height: 84px;
@@ -908,41 +919,29 @@
   .backtest-date-label,
   .backtest-date-control { grid-column: 1; }
   .backtest-date-label { grid-row: 1; font-size: 0.8rem; }
+  /* Only the phone-sized geometry changes here. The edge, the fill and the
+     focus transition stay on the wrapper as declared above, so the field keeps
+     a single animated border at every width. The width bounds are restated in
+     this block because the phone layout is the one that collapses to a single
+     column, where an intrinsic iOS date width would otherwise overflow. */
   .backtest-date-control {
-    display: flex;
     grid-row: 2;
-    align-items: center;
     width: 100%;
-    height: 48px;
     min-width: 0;
     max-width: 100%;
+    height: 48px;
     padding: 0 16px;
     overflow: hidden;
-    border: 1px solid var(--color-field-border);
-    border-radius: var(--radius-pill);
-    background: var(--color-surface-soft);
   }
   .backtest-date-input {
     flex: 1 1 0;
-    box-sizing: border-box;
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
-    min-inline-size: 0;
-    height: 100%;
-    margin: 0;
     padding: 0;
-    overflow: hidden;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
     font-size: 16px;
     line-height: 46px;
     text-align: center;
     -webkit-appearance: none;
     appearance: none;
   }
-  .backtest-date-group.is-invalid .backtest-date-control { border-color: #D8848B; }
   .backtest-date-input::-webkit-datetime-edit {
     height: 100%;
     min-height: 0;
