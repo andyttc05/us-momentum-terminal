@@ -858,7 +858,7 @@ class UniverseTests(unittest.TestCase):
         seed_path = Path(__file__).resolve().parents[1] / "seed" / "publication.json"
         payload = json.loads(seed_path.read_text())["value"]
         self.assertEqual(payload["meta"]["universe_version"], UNIVERSE_VERSION)
-        self.assertNotEqual(payload["meta"].get("publication_version"), PUBLICATION_VERSION)
+        self.assertEqual(payload["meta"].get("publication_version"), PUBLICATION_VERSION)
         self.assertEqual(len(payload["stocks"]), 198)
         self.assertEqual(len({row["ticker"] for row in payload["stocks"]}), 198)
 
