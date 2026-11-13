@@ -8,3 +8,6 @@
 @import "./styles/backtesting.css";
 @import "./styles/stock-analysis.css";
 @import "./styles/data-source.css";
+/* Loaded last on purpose: it owns the hover/focus states of every editable
+   field, and those states have to beat the pages' resting border colours. */
+@import "./styles/forms.css";

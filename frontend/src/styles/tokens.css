@@ -45,6 +45,13 @@
   --color-accent-text: #80652D;
   --color-accent-copy: #665B45;
 
+  /* Editable fields. One interaction language for every input, select and
+     textarea: the neutral resting border (--color-line) turns pastel yellow on
+     hover and stays yellow while the field holds focus. Colour only — the
+     border width never changes, so nothing reflows, and no shadow is used, so
+     there is no glow. Set in forms.css, never re-declared per page. */
+  --color-field-border-active: #E4C35A;
+
   /* Typography — family and weights */
   --font-family: "Nunito Sans", "Avenir Next", Avenir, "Segoe UI", sans-serif;
   --font-weight-regular: 400;

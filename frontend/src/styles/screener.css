@@ -67,7 +67,6 @@
   font-size: 1.05rem;
 }
 .screener-search input::placeholder { color: var(--color-text-secondary); opacity: 1; }
-.screener-search:focus-within { border-color: #CFC7BD; box-shadow: 0 0 0 3px rgb(169 211 239 / 35%); }
 .screener-search__clear { display: grid; width: 30px; height: 30px; flex: 0 0 auto; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--color-text-secondary); cursor: pointer; transition: color 160ms ease, background-color 160ms ease; }
 .screener-search__clear:hover { background: var(--color-nav-hover); color: var(--color-ink); }
 .screener-toolbar__actions { display: flex; align-items: center; gap: var(--card-gap); }
@@ -106,7 +105,6 @@
   font-size: 0.9rem;
   font-weight: var(--font-weight-medium);
 }
-.screener-filter-field select:focus, .screener-filter-field input:focus { border-color: #B7AA96; box-shadow: 0 0 0 2px rgb(169 211 239 / 35%); }
 .screener-filter-panel__actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--color-line); }
 .filter-reset-button, .filter-apply-button { min-height: 38px; padding: 0 14px; border: 1px solid transparent; border-radius: var(--radius-pill); cursor: pointer; font-size: 0.82rem; font-weight: var(--font-weight-bold); transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease; }
 .filter-reset-button { background: transparent; color: var(--color-text-secondary); }

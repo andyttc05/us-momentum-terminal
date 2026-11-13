@@ -1,0 +1,62 @@
+/* Editable fields — one interaction language for the whole app -------------
+   Every text input, search bar, date field, money field, select and textarea
+   keeps its neutral border at rest and paints the same 1px pastel-yellow
+   border on hover and on focus.
+
+   Three rules keep it consistent:
+   - Only the border *colour* changes. The width is never touched, so hovering
+     cannot nudge the layout by a pixel.
+   - No box-shadow is added anywhere, so there is no glow. The browser's
+     default focus ring is replaced rather than merely deleted, so keyboard
+     users get the identical yellow edge.
+   - Hover lives behind `(hover: hover) and (pointer: fine)`, so a tap on a
+     touch device cannot leave the field stuck in a yellow hover state.
+
+   Fields that sit inside a bordered pill (the Screener search bar, the money
+   field, the mobile date field) carry the state on the wrapper, because the
+   wrapper's edge is the one the user sees. */
+
+/* Focus: same yellow edge for mouse, keyboard and touch. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):focus:not([aria-invalid="true"]),
+select:focus:not(:disabled),
+textarea:focus:not(:disabled) {
+  border-color: var(--color-field-border-active);
+  outline: none;
+  box-shadow: none;
+}
+
+/* Pill fields with no resting elevation: the glow is cleared outright, so the
+   yellow edge is the only thing that changes. (The search bar is styled apart
+   below because it keeps its card shadow while focused.) */
+.backtest-amount-control:focus-within,
+.backtest-date-control:focus-within {
+  border-color: var(--color-field-border-active);
+  outline: none;
+  box-shadow: none;
+}
+
+/* The search bar carries the card shadow at rest; focusing must not change it,
+   only the border colour. */
+.screener-search:focus-within {
+  border-color: var(--color-field-border-active);
+}
+
+/* Hover: same colour, only where a real pointer can hover. */
+@media (hover: hover) and (pointer: fine) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):hover:not(:disabled):not([aria-invalid="true"]),
+  select:hover:not(:disabled),
+  textarea:hover:not(:disabled),
+  .screener-search:hover,
+  .backtest-amount-control:hover,
+  .backtest-date-control:hover {
+    border-color: var(--color-field-border-active);
+  }
+}
+
+/* A field that failed validation keeps its red edge. The error colour is more
+   important than the interaction tint, and it also has to survive on the mobile
+   date wrapper, whose own edge is the border that shows. */
+.backtest-date-group.is-invalid .backtest-date-input,
+.backtest-date-group.is-invalid .backtest-date-control {
+  border-color: #D8848B;
+}
