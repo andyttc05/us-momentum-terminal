@@ -21,7 +21,7 @@ test("Screener keeps controls and complete table structure during loading", () =
   assert.match(screener, /className="screener-scope"/);
   assert.match(screener, /className="screener-search"/);
   assert.match(screener, /Filters/);
-  assert.match(screener, />Export</);
+  assert.match(screener, /<ExportMenu[\s\S]*?ariaLabel="Export current Screener results"/);
   assert.match(screener, /<thead>/);
   assert.match(screener, /<TableSkeletonRows columns=\{columnCount\} rows=\{rowsPerPage\}/);
   assert.match(screener, /<Pagination/);

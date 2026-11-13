@@ -78,15 +78,18 @@ for (const [universe, expectedCount] of [["top100", 100], ["top20", 20]]) {
   });
 }
 
-test("Backtesting is the only page with a universe control and both pages read one shared state", () => {
+test("Backtesting, Screener and Portfolio read one shared universe state", () => {
   const app = source("../src/App.jsx");
   const backtesting = source("../src/BacktestingPage.jsx");
+  const screener = source("../src/ScreenerPage.jsx");
   const portfolio = source("../src/PortfolioPage.jsx");
   assert.match(app, /<UniverseProvider>[\s\S]*<MarketProvider>/);
   assert.match(app, /<RouterProvider>[\s\S]*<UniverseProvider>/);
   assert.match(backtesting, /const \{ universe, selectUniverse \} = useUniverse\(\)/);
+  assert.match(screener, /const \{ universe, selectUniverse \} = useUniverse\(\)/);
   assert.match(portfolio, /const \{ universe \} = useUniverse\(\)/);
   assert.match(backtesting, /universe !== submittedConfig\.portfolio/);
   assert.match(backtesting, /backtest-results-outdated/);
   assert.doesNotMatch(portfolio, /selectUniverse|aria-label="Portfolio selection"/);
+  assert.match(screener, /const source = mode === "top20" \? stocks\.slice\(0, 20\) : stocks\.slice\(0, 100\)/);
 });

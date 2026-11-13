@@ -1019,15 +1019,15 @@
   .backtest-range-control button { min-width: 36px; min-height: 29px; padding-inline: 8px; }
   .backtest-chart-frame { height: 292px; min-height: 292px; flex-basis: 292px; }
   .backtest-axis-label { font-size: 10px; }
-  .backtest-chart-tooltip { width: 196px; min-height: 128px; gap: 7px; padding: 11px 9px; }
-  .backtest-chart-tooltip__date { font-size: 0.62rem; }
+  .backtest-chart-tooltip { width: 196px; min-height: 126px; gap: 7px; padding: 10px 7px; }
+  .backtest-chart-tooltip__date { font-size: 0.58rem; }
   .backtest-chart-tooltip__row {
-    grid-template-columns: 7px minmax(0, 1fr) max-content max-content;
-    gap: 4px;
-    font-size: 0.59rem;
+    grid-template-columns: 5px minmax(0, 1fr) max-content max-content;
+    gap: 2px;
+    font-size: 0.55rem;
   }
-  .backtest-chart-tooltip__row i { width: 7px; height: 7px; }
-  .backtest-chart-tooltip__row strong { font-size: 0.61rem; }
+  .backtest-chart-tooltip__row i { width: 5px; height: 5px; }
+  .backtest-chart-tooltip__row strong { font-size: 0.57rem; }
   .backtest-chart-tooltip__return { min-width: 0; }
   .backtest-chart-tooltip--compact { width: 182px; min-height: 82px; }
   .backtest-drawdown-card { min-height: 305px; }

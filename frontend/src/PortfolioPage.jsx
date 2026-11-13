@@ -6,7 +6,6 @@ import {
   ChartBar,
   ChartPieSlice,
   CheckCircle,
-  DownloadSimple,
   ShareNetwork,
   ShieldCheck,
   Stack,
@@ -14,9 +13,9 @@ import {
   WarningCircle,
   Briefcase,
 } from "@phosphor-icons/react";
-import { AppButton } from "./components/AppButton.jsx";
 import { DataState, Skeleton, TableSkeletonRows, TableStateRow } from "./components/DataState.jsx";
 import { DashboardCard } from "./components/DashboardCard.jsx";
+import { ExportMenu } from "./components/ExportMenu.jsx";
 import { KpiCard } from "./components/KpiCard.jsx";
 import { MascotDuo } from "./components/Mascot.jsx";
 import { PageHeader } from "./components/PageHeader.jsx";
@@ -30,8 +29,14 @@ import { useUniverse } from "./api/UniverseProvider.jsx";
 import { PHONE_TABLE_MEDIA_QUERY } from "./utils/breakpoints.js";
 import { downloadCsvFile } from "./utils/csv.js";
 import { getSectionState } from "./utils/dataState.js";
+import { downloadWorkbookFile } from "./utils/exportFiles.js";
 import { evaluatePortfolioConstraints } from "./utils/portfolioConstraints.js";
-import { buildPortfolioCsv, portfolioCsvFilename, validatePortfolioForExport } from "./utils/portfolioExport.js";
+import {
+  buildPortfolioCsv,
+  buildPortfolioExportData,
+  portfolioFilename,
+  validatePortfolioForExport,
+} from "./utils/portfolioExport.js";
 import { getPortfolioState } from "./utils/portfolioState.js";
 import { shouldOpenRow, shouldRouteTickerClick, stockLinkLabel } from "./utils/rowNavigation.js";
 import {
@@ -200,8 +205,8 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
     showToast.timeout = window.setTimeout(() => setToast(""), duration);
   }
 
-  /** Export the complete portfolio — every holding, not the visible page. */
-  function exportHoldingsCsv() {
+  /** Export the complete selected portfolio — every holding, not the visible page. */
+  async function exportPortfolio(format) {
     if (isExporting) return;
     const holdings = portfolio?.holdings ?? [];
     const report = validatePortfolioForExport({
@@ -217,12 +222,22 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
 
     setIsExporting(true);
     try {
-      const csv = buildPortfolioCsv(holdings);
-      const filename = portfolioCsvFilename(new Date());
-      downloadCsvFile(filename, csv);
-      showToast("Export complete");
+      const filename = portfolioFilename(universe, format);
+      if (format === "csv") {
+        downloadCsvFile(filename, buildPortfolioCsv(holdings));
+        showToast("CSV export downloaded");
+      } else {
+        const exportData = buildPortfolioExportData({
+          portfolio,
+          universe,
+          meta,
+          exportedAt: new Date().toISOString(),
+        });
+        await downloadWorkbookFile(filename, exportData.workbookSheets);
+        showToast("Excel workbook downloaded");
+      }
     } catch (error) {
-      showToast("Export failed", "error", 4200);
+      showToast(error?.message || "Export failed", "error", 4200);
     } finally {
       setIsExporting(false);
     }
@@ -347,16 +362,14 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
           title="Holdings"
           className="portfolio-holdings-card"
           action={(
-            <AppButton
-              variant="secondary"
-              icon={DownloadSimple}
-              className="portfolio-export-button"
-              onClick={exportHoldingsCsv}
-              disabled={isExporting || !portfolioReady}
-              ariaLabel="Export the complete portfolio to CSV"
-            >
-              Export
-            </AppButton>
+            <div className="portfolio-export-control">
+              <ExportMenu
+                onExport={exportPortfolio}
+                disabled={!portfolioReady}
+                busy={isExporting}
+                ariaLabel="Export the complete portfolio"
+              />
+            </div>
           )}
         >
           <div className={`portfolio-table-shell${tableScroll.scrollable ? " is-scrollable" : ""}${tableScroll.atEnd ? " is-at-end" : ""}`}>

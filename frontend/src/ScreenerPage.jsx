@@ -3,13 +3,13 @@ import {
   ArrowDown,
   ArrowUp,
   CaretUpDown,
-  DownloadSimple,
   MagnifyingGlass,
   SlidersHorizontal,
   X,
 } from "@phosphor-icons/react";
 import { AppButton } from "./components/AppButton.jsx";
 import { TableSkeletonRows, TableStateRow } from "./components/DataState.jsx";
+import { ExportMenu } from "./components/ExportMenu.jsx";
 import { MascotDuo } from "./components/Mascot.jsx";
 import { PageHeader } from "./components/PageHeader.jsx";
 import { Pagination } from "./components/Pagination.jsx";
@@ -18,11 +18,15 @@ import { Toast } from "./components/Toast.jsx";
 import { UpdateBar } from "./components/UpdateBar.jsx";
 import { useMediaQuery } from "./components/useMediaQuery.js";
 import { useMarket } from "./api/MarketProvider.jsx";
+import { useUniverse } from "./api/UniverseProvider.jsx";
 import { PHONE_TABLE_MEDIA_QUERY } from "./utils/breakpoints.js";
+import { downloadCsvFile } from "./utils/csv.js";
 import { getSectionState } from "./utils/dataState.js";
+import { downloadWorkbookFile } from "./utils/exportFiles.js";
 import { formatMarketCap } from "./utils/format.js";
 import { momentumSeriesDomain, momentumSeriesValues } from "./utils/momentumSeries.js";
 import { shouldOpenRow, shouldRouteTickerClick, stockLinkLabel } from "./utils/rowNavigation.js";
+import { buildScreenerExportData, screenerFilename } from "./utils/screenerExport.js";
 import { searchMatch } from "./utils/stockSearch.js";
 import { stockPath } from "./router.jsx";
 
@@ -49,11 +53,6 @@ function formatPercent(value, digits = 2) {
   return `${value > 0 ? "+" : ""}${value.toFixed(digits)}%`;
 }
 
-function escapeCsv(value) {
-  const stringValue = String(value ?? "");
-  return /[",\r\n]/.test(stringValue) ? `"${stringValue.replaceAll('"', '""')}"` : stringValue;
-}
-
 function SortIcon({ active, direction }) {
   if (!active) return <CaretUpDown size={14} weight="bold" aria-hidden="true" />;
   return direction === "asc"
@@ -62,7 +61,6 @@ function SortIcon({ active, direction }) {
 }
 
 export function ScreenerPage({ isActive = true, onSelectStock }) {
-  const [mode, setMode] = useState("top100");
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState(emptyFilters);
   const [draftFilters, setDraftFilters] = useState(emptyFilters);
@@ -70,14 +68,17 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
   const [sort, setSort] = useState({ key: "score", direction: "desc" });
   const [page, setPage] = useState(1);
   const [toast, setToast] = useState("");
+  const [isExporting, setIsExporting] = useState(false);
   const filterControlRef = useRef(null);
   const { data, refresh, status, error, refreshing } = useMarket();
+  const { universe, selectUniverse } = useUniverse();
   // The rank column is dropped on phones so the ticker can stay pinned at the
   // left edge with no dead space beside it. It is not rendered there at all —
   // hiding the cells with CSS would leave the column's width behind in the
   // fixed table layout — but the rank itself stays on every row's data, in the
   // CSV export and in the desktop table.
   const isPhone = useMediaQuery(PHONE_TABLE_MEDIA_QUERY);
+  const mode = universe;
 
   const stocks = data?.stocks ?? [];
   const sectors = useMemo(() => [...new Set(stocks.map((stock) => stock.sector))].sort(), [stocks]);
@@ -114,13 +115,7 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
 
   const filteredStocks = useMemo(() => {
     const query = search.trim();
-    // Search is a discovery tool across the full eligible universe. The Top
-    // 100 / Top 20 scopes still control the unfiltered table.
-    const source = query
-      ? stocks
-      : mode === "top20"
-        ? stocks.slice(0, 20)
-        : stocks.slice(0, 100);
+    const source = mode === "top20" ? stocks.slice(0, 20) : stocks.slice(0, 100);
     return source
       .map((stock) => ({ stock, searchPriority: searchMatch(stock, query) }))
       .filter((entry) => entry.searchPriority !== null)
@@ -169,7 +164,7 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
   }
 
   function selectMode(nextMode) {
-    setMode(nextMode);
+    selectUniverse(nextMode);
     setPage(1);
   }
 
@@ -198,29 +193,31 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
     setPage(1);
   }
 
-  function exportCsv() {
-    if (!stocks.length) return;
-    const headers = ["Rank", "Ticker", "Company", "Price", "1D Change (%)", "12-1 Momentum (%)", "Score", "Sector"];
-    const rows = filteredStocks.map((stock) => [
-      stock.rank,
-      stock.ticker,
-      stock.company,
-      stock.price.toFixed(2),
-      stock.change.toFixed(2),
-      stock.momentum.toFixed(2),
-      stock.score.toFixed(2),
-      stock.sector,
-    ]);
-    const csv = [headers, ...rows].map((row) => row.map(escapeCsv).join(",")).join("\r\n");
-    const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" }));
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `us-momentum-screener-${mode === "top20" ? "top20" : "top100"}.csv`;
-    document.body.append(link);
-    link.click();
-    link.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    showToast("Export complete");
+  async function exportResults(format) {
+    if (!filteredStocks.length || isExporting) return;
+    setIsExporting(true);
+    try {
+      const exportData = buildScreenerExportData({
+        stocks: filteredStocks,
+        universe,
+        filters,
+        search,
+        meta: data?.meta ?? null,
+        exportedAt: new Date().toISOString(),
+      });
+      const filename = screenerFilename(universe, format);
+      if (format === "csv") {
+        downloadCsvFile(filename, exportData.csv);
+        showToast("CSV export downloaded");
+      } else {
+        await downloadWorkbookFile(filename, exportData.workbookSheets);
+        showToast("Excel workbook downloaded");
+      }
+    } catch {
+      showToast("Export failed", "error");
+    } finally {
+      setIsExporting(false);
+    }
   }
 
   return (
@@ -303,13 +300,14 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
                 </form>
               )}
             </div>
-            <AppButton
-              variant="secondary"
-              icon={DownloadSimple}
-              className="screener-toolbar__button screener-export-button"
-              onClick={exportCsv}
-              disabled={!stocks.length}
-            >Export</AppButton>
+            <div className="screener-export-control">
+              <ExportMenu
+                onExport={exportResults}
+                disabled={!filteredStocks.length}
+                busy={isExporting}
+                ariaLabel="Export current Screener results"
+              />
+            </div>
           </div>
         </section>
 

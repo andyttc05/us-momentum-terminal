@@ -70,6 +70,7 @@
 .screener-search__clear { display: grid; width: 30px; height: 30px; flex: 0 0 auto; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--color-text-secondary); cursor: pointer; transition: color 160ms ease, background-color 160ms ease; }
 .screener-search__clear:hover { background: var(--color-nav-hover); color: var(--color-ink); }
 .screener-toolbar__actions { display: flex; align-items: center; gap: var(--card-gap); }
+.screener-export-control { display: flex; flex: 0 0 auto; align-items: center; }
 .screener-filter-wrap { position: relative; }
 .screener-toolbar__button { min-height: 56px; padding-inline: 24px; border-color: var(--color-line); font-size: 1.05rem; box-shadow: var(--shadow-card); }
 .screener-toolbar__button > svg { width: 22px; height: 22px; }
@@ -229,7 +230,7 @@
   .screener-search { gap: 10px; padding-inline: 16px; }
   .screener-search > svg { width: 20px; height: 20px; }
   .screener-toolbar__actions { justify-content: stretch; gap: 10px; }
-  .screener-filter-wrap, .screener-filter-wrap > .app-button, .screener-export-button { flex: 1 1 0; }
+  .screener-filter-wrap, .screener-filter-wrap > .app-button, .screener-export-control { flex: 1 1 0; }
   .screener-toolbar__button { min-height: 46px; justify-content: center; padding-inline: 12px; font-size: 0.9rem; }
   .screener-filter-panel { position: fixed; top: auto; right: 16px; bottom: 20px; left: 16px; width: auto; max-height: min(80vh, 520px); overflow-y: auto; }
   .screener-table-card { padding: 4px 10px 0; border-radius: var(--radius-md); }

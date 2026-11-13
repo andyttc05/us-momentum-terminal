@@ -49,6 +49,8 @@ import { buildDrawdownScale } from "./utils/drawdownScale.js";
 import { getSectionState } from "./utils/dataState.js";
 import { downloadWorkbookFile } from "./utils/exportFiles.js";
 import {
+  CHART_TOOLTIP_GAP,
+  CHART_TOOLTIP_MARGIN,
   fitTooltipWidth,
   nearestObservationIndex,
   placePriceTooltip,
@@ -353,9 +355,13 @@ function CumulativeChart({ window, range, logScale, seriesValues, onLogUnavailab
 
   const selectedPoint = selectedIndex == null ? null : pointsFor(computedSeries[0].values)[selectedIndex];
   const labelBoundary = left + plotWidth + (compact ? 9 : 14);
+  const tooltipGap = compact ? 14 : CHART_TOOLTIP_GAP;
+  const tooltipMargin = compact ? 8 : CHART_TOOLTIP_MARGIN;
   const tooltipWidth = fitTooltipWidth({
     containerWidth: width,
     preferredWidth: compact ? 260 : CHART_TOOLTIP.width,
+    gap: tooltipGap,
+    margin: tooltipMargin,
   });
   const placement = selectedPoint
     ? placePriceTooltip({
@@ -367,6 +373,8 @@ function CumulativeChart({ window, range, logScale, seriesValues, onLogUnavailab
       rightBoundary: labelBoundary,
       tooltipWidth: tooltipSize?.width ?? tooltipWidth,
       tooltipHeight: tooltipSize?.height ?? CHART_TOOLTIP.height,
+      gap: tooltipGap,
+      margin: tooltipMargin,
     })
     : null;
 
@@ -920,6 +928,7 @@ export function BacktestingPage({ hidden = false }) {
   const [logScale, setLogScale] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [notification, setNotification] = useState(null);
   const [dismissedOutdatedKey, setDismissedOutdatedKey] = useState("");
   const [validationTouched, setValidationTouched] = useState(false);
@@ -1231,6 +1240,45 @@ export function BacktestingPage({ hidden = false }) {
     await refresh();
   }
 
+  async function exportBacktest(format) {
+    if (!reportWindow || !submittedConfig || isExporting) return;
+    setIsExporting(true);
+    try {
+      const exportedAt = new Date();
+      const exportData = buildBacktestExportData({
+        window: reportWindow,
+        block: resultBlock,
+        config: submittedConfig,
+        stocks: data?.stocks ?? [],
+        portfolios: data?.portfolios ?? {},
+        meta: data?.meta ?? null,
+        exportedAt: exportedAt.toISOString(),
+      });
+      if (format === "csv") {
+        downloadBacktestCsv(
+          backtestFilename(submittedConfig, "csv", exportedAt),
+          exportData.csv,
+        );
+        showNotification("CSV export downloaded", "updated", 3200, "backtest-export-complete");
+      } else {
+        await downloadWorkbookFile(
+          backtestFilename(submittedConfig, "xlsx", exportedAt),
+          exportData.workbookSheets,
+        );
+        showNotification("Excel workbook downloaded", "updated", 3200, "backtest-export-complete");
+      }
+    } catch (exportError) {
+      showNotification(
+        exportError?.message || "The backtest export could not be created.",
+        "error",
+        5200,
+        "backtest-export-error",
+      );
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
   return (
     <main className="app-main" hidden={hidden}>
       <div className="page backtest-page" id="backtesting">
@@ -1395,6 +1443,12 @@ export function BacktestingPage({ hidden = false }) {
                     <button key={item} type="button" aria-pressed={range === item} onClick={() => setRange(item)}>{item}</button>
                   ))}
                 </div>
+                <ExportMenu
+                  onExport={exportBacktest}
+                  disabled={!resultsReady}
+                  busy={isExporting}
+                  ariaLabel="Export complete backtest results"
+                />
               </div>
             )}
           >

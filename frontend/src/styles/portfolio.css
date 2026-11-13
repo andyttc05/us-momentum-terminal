@@ -127,19 +127,11 @@
 
 .portfolio-holdings-card { --card-body-padding-start: 7px; }
 .portfolio-holdings-card .table-pagination { min-height: 68px; padding: 0 10px; }
-/* The export button shares the card header row with the title: the title stays
-   left aligned, the button sits on the right, and the table columns are
-   untouched. */
+/* The shared export control shares the card header row with the title: the
+   title stays left aligned, the button sits on the right, and the table
+   columns are untouched. */
 .portfolio-holdings-card > .dashboard-card__header { align-items: center; }
-.portfolio-export-button {
-  min-height: 40px;
-  padding-inline: var(--space-4);
-  border-color: var(--color-line);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-card);
-  font-size: 0.88rem;
-}
-.portfolio-export-button > svg { width: 18px; height: 18px; }
+.portfolio-export-control { display: flex; align-items: center; justify-content: flex-end; }
 .portfolio-table-scroll { width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
 .portfolio-table-shell { position: relative; min-width: 0; }
 .portfolio-table { width: 100%; min-width: 850px; table-layout: fixed; border-collapse: collapse; font-variant-numeric: tabular-nums; }
