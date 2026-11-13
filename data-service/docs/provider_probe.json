@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-11-11T19:14:22+00:00",
-  "duration_seconds": 154.6,
+  "generated_at": "2026-11-13T15:22:08+00:00",
+  "duration_seconds": 170.2,
   "tickers": [
     "AAPL",
     "MSFT",
@@ -29,7 +29,7 @@
       "connection": "Connected",
       "direct_endpoint": {
         "status": 429,
-        "elapsed_ms": 1313,
+        "elapsed_ms": 1377,
         "note": "Raw chart endpoint is aggressively rate limited without cookie/crumb; the yfinance client performs the cookie+crumb handshake automatically."
       },
       "authentication": "Not required",
@@ -41,275 +41,275 @@
       "symbols_ok": 20,
       "symbols_failed": [],
       "min_observations": 502,
-      "latest_data": "2026-11-11",
-      "median_latency_ms": 466,
+      "latest_data": "2026-11-13",
+      "median_latency_ms": 596,
       "market_cap_detail": {
         "available": true,
-        "market_cap": 5154347155456,
+        "market_cap": 5207316496384,
         "sector": "Technology",
         "name": "Apple Inc.",
-        "elapsed_ms": 1270
+        "elapsed_ms": 1227
       },
       "rows": [
         {
           "symbol": "AAPL",
           "status": "ok",
           "rows": 502,
-          "first_date": "2024-11-11",
-          "last_date": "2026-11-11",
+          "first_date": "2024-11-13",
+          "last_date": "2026-11-13",
           "has_adj_close": true,
           "has_dividends": true,
           "has_splits": true,
           "ohlcv_complete": true,
-          "last_close": 354.71,
-          "elapsed_ms": 3313
+          "last_close": 358.22,
+          "elapsed_ms": 3708
         },
         {
           "symbol": "MSFT",
           "status": "ok",
           "rows": 502,
-          "first_date": "2024-11-11",
-          "last_date": "2026-11-11",
+          "first_date": "2024-11-13",
+          "last_date": "2026-11-13",
           "has_adj_close": true,
           "has_dividends": true,
           "has_splits": true,
           "ohlcv_complete": true,
-          "last_close": 520.3,
-          "elapsed_ms": 492
+          "last_close": 519.93,
+          "elapsed_ms": 624
         },
         {
           "symbol": "NVDA",
           "status": "ok",
           "rows": 502,
-          "first_date": "2024-11-11",
-          "last_date": "2026-11-11",
+          "first_date": "2024-11-13",
+          "last_date": "2026-11-13",
           "has_adj_close": true,
           "has_dividends": true,
           "has_splits": true,
           "ohlcv_complete": true,
-          "last_close": 175.9101,
-          "elapsed_ms": 429
+          "last_close": 160.76,
+          "elapsed_ms": 668
         },
         {
           "symbol": "AMZN",
           "status": "ok",
           "rows": 502,
-          "first_date": "2024-11-11",
-          "last_date": "2026-11-11",
+          "first_date": "2024-11-13",
+          "last_date": "2026-11-13",
           "has_adj_close": true,
           "has_dividends": true,
           "has_splits": true,
           "ohlcv_complete": true,
-          "last_close": 265.77,
-          "elapsed_ms": 376
+          "last_close": 266.18,
+          "elapsed_ms": 388
         },
         {
           "symbol": "META",
           "status": "ok",
           "rows": 502,
-          "first_date": "2024-11-11",
-          "last_date": "2026-11-11",
+          "first_date": "2024-11-13",
+          "last_date": "2026-11-13",
           "has_adj_close": true,
           "has_dividends": true,
           "has_splits": true,
           "ohlcv_complete": true,
-          "last_close": 635.745,
-          "elapsed_ms": 420
+          "last_close": 631.8,
+          "elapsed_ms": 581
         },
         {
           "symbol": "AVGO",
           "status": "ok",
           "rows": 502,
-          "first_date": "2024-11-11",
-          "last_date": "2026-11-11",
+          "first_date": "2024-11-13",
+          "last_date": "2026-11-13",
           "has_adj_close": true,
           "has_dividends": true,
           "has_splits": true,
           "ohlcv_complete": true,
-          "last_close": 350.5801,
-          "elapsed_ms": 710
+          "last_close": 342.82,
+          "elapsed_ms": 724
         },
         {
           "symbol": "GOOGL",
           "status": "ok",
           "rows": 502,
-          "first_date": "2024-11-11",
-          "last_date": "2026-11-11",
+          "first_date": "2024-11-13",
+          "last_date": "2026-11-13",
           "has_adj_close": true,
           "has_dividends": true,
           "has_splits": true,
           "ohlcv_complete": true,
-          "last_close": 293.71,
-          "elapsed_ms": 608
+          "last_close": 296.19,
+          "elapsed_ms": 572
         },
         {
           "symbol": "TSLA",
           "status": "ok",
           "rows": 502,
-          "first_date": "2024-11-11",
-          "last_date": "2026-11-11",
+          "first_date": "2024-11-13",
+          "last_date": "2026-11-13",
           "has_adj_close": true,
           "has_dividends": true,
           "has_splits": true,
           "ohlcv_complete": true,
-          "last_close": 392.8401,
-          "elapsed_ms": 402
+          "last_close": 388.33,
+          "elapsed_ms": 579
         },
         {
           "symbol": "AMD",
           "status": "ok",
           "rows": 502,
-          "first_date": "2024-11-11",
-          "last_date": "2026-11-11",
+          "first_date": "2024-11-13",
+          "last_date": "2026-11-13",
           "has_adj_close": true,
           "has_dividends": true,
           "has_splits": true,
           "ohlcv_complete": true,
-          "last_close": 562.08,
-          "elapsed_ms": 400
+          "last_close": 530.87,
+          "elapsed_ms": 842
         },
         {
           "symbol": "NFLX",
           "status": "ok",
           "rows": 502,
-          "first_date": "2024-11-11",
-          "last_date": "2026-11-11",
+          "first_date": "2024-11-13",
+          "last_date": "2026-11-13",
           "has_adj_close": true,
           "has_dividends": true,
           "has_splits": true,
           "ohlcv_complete": true,
-          "last_close": 63.94,
-          "elapsed_ms": 592
+          "last_close": 63.21,
+          "elapsed_ms": 588
         },
         {
           "symbol": "PLTR",
           "status": "ok",
           "rows": 502,
-          "first_date": "2024-11-11",
-          "last_date": "2026-11-11",
+          "first_date": "2024-11-13",
+          "last_date": "2026-11-13",
           "has_adj_close": true,
           "has_dividends": true,
           "has_splits": true,
           "ohlcv_complete": true,
-          "last_close": 173.15,
-          "elapsed_ms": 387
+          "last_close": 166.3087,
+          "elapsed_ms": 593
         },
         {
           "symbol": "ORCL",
           "status": "ok",
           "rows": 502,
-          "first_date": "2024-11-11",
-          "last_date": "2026-11-11",
+          "first_date": "2024-11-13",
+          "last_date": "2026-11-13",
           "has_adj_close": true,
           "has_dividends": true,
           "has_splits": true,
           "ohlcv_complete": true,
-          "last_close": 128.885,
-          "elapsed_ms": 620
+          "last_close": 122.345,
+          "elapsed_ms": 589
         },
         {
           "symbol": "COST",
           "status": "ok",
           "rows": 502,
-          "first_date": "2024-11-11",
-          "last_date": "2026-11-11",
+          "first_date": "2024-11-13",
+          "last_date": "2026-11-13",
           "has_adj_close": true,
           "has_dividends": true,
           "has_splits": true,
           "ohlcv_complete": true,
-          "last_close": 1077.8,
-          "elapsed_ms": 416
+          "last_close": 1101.26,
+          "elapsed_ms": 600
         },
         {
           "symbol": "WMT",
           "status": "ok",
           "rows": 502,
-          "first_date": "2024-11-11",
-          "last_date": "2026-11-11",
+          "first_date": "2024-11-13",
+          "last_date": "2026-11-13",
           "has_adj_close": true,
           "has_dividends": true,
           "has_splits": true,
           "ohlcv_complete": true,
-          "last_close": 124.725,
-          "elapsed_ms": 614
+          "last_close": 127.24,
+          "elapsed_ms": 602
         },
         {
           "symbol": "JPM",
           "status": "ok",
           "rows": 502,
-          "first_date": "2024-11-11",
-          "last_date": "2026-11-11",
+          "first_date": "2024-11-13",
+          "last_date": "2026-11-13",
           "has_adj_close": true,
           "has_dividends": true,
           "has_splits": true,
           "ohlcv_complete": true,
-          "last_close": 343.65,
-          "elapsed_ms": 440
+          "last_close": 343.41,
+          "elapsed_ms": 481
         },
         {
           "symbol": "XOM",
           "status": "ok",
           "rows": 502,
-          "first_date": "2024-11-11",
-          "last_date": "2026-11-11",
+          "first_date": "2024-11-13",
+          "last_date": "2026-11-13",
           "has_adj_close": true,
           "has_dividends": true,
           "has_splits": true,
           "ohlcv_complete": true,
-          "last_close": 166.43,
-          "elapsed_ms": 618
+          "last_close": 170.09,
+          "elapsed_ms": 629
         },
         {
           "symbol": "LLY",
           "status": "ok",
           "rows": 502,
-          "first_date": "2024-11-11",
-          "last_date": "2026-11-11",
+          "first_date": "2024-11-13",
+          "last_date": "2026-11-13",
           "has_adj_close": true,
           "has_dividends": true,
           "has_splits": true,
           "ohlcv_complete": true,
-          "last_close": 1429.23,
-          "elapsed_ms": 653
+          "last_close": 1426.0649,
+          "elapsed_ms": 713
         },
         {
           "symbol": "BRK-B",
           "status": "ok",
           "rows": 502,
-          "first_date": "2024-11-11",
-          "last_date": "2026-11-11",
+          "first_date": "2024-11-13",
+          "last_date": "2026-11-13",
           "has_adj_close": true,
           "has_dividends": true,
           "has_splits": true,
           "ohlcv_complete": true,
-          "last_close": 583.12,
-          "elapsed_ms": 426
+          "last_close": 590.845,
+          "elapsed_ms": 724
         },
         {
           "symbol": "SPY",
           "status": "ok",
           "rows": 502,
-          "first_date": "2024-11-11",
-          "last_date": "2026-11-11",
+          "first_date": "2024-11-13",
+          "last_date": "2026-11-13",
           "has_adj_close": true,
           "has_dividends": true,
           "has_splits": true,
           "ohlcv_complete": true,
-          "last_close": 760.31,
-          "elapsed_ms": 431
+          "last_close": 749.24,
+          "elapsed_ms": 433
         },
         {
           "symbol": "QQQ",
           "status": "ok",
           "rows": 502,
-          "first_date": "2024-11-11",
-          "last_date": "2026-11-11",
+          "first_date": "2024-11-13",
+          "last_date": "2026-11-13",
           "has_adj_close": true,
           "has_dividends": true,
           "has_splits": true,
           "ohlcv_complete": true,
-          "last_close": 692.48,
-          "elapsed_ms": 616
+          "last_close": 674.71,
+          "elapsed_ms": 433
         }
       ],
       "rate_limits": "Unofficial API. Observed HTTP 429 on the raw chart endpoint; yfinance survives by doing a cookie/crumb handshake and retrying. No published quota - must be paced client-side."
@@ -325,7 +325,7 @@
       "symbols_tested": 0,
       "symbols_ok": 0,
       "latest_data": null,
-      "median_latency_ms": 2107,
+      "median_latency_ms": 1901,
       "observed": {
         "legacy_v3_status": 401,
         "stable_status": 401,
@@ -345,7 +345,7 @@
       "symbols_ok": 0,
       "ok_symbols": [],
       "latest_data": null,
-      "median_latency_ms": 1427,
+      "median_latency_ms": 1212,
       "observed": {
         "key_used": "demo",
         "message": "The **demo** API key is for demo purposes only. Please claim your free API key at (https://www.alphavantage.co/support/#api-key) to explore our full API offerings. It takes fewer than 20 seconds."
@@ -383,7 +383,7 @@
       "symbols_tested": 0,
       "symbols_ok": 0,
       "latest_data": null,
-      "median_latency_ms": 2953,
+      "median_latency_ms": 1496,
       "observed": {
         "quote_status": 401,
         "candle_status": 401,
@@ -405,8 +405,8 @@
         "AAPL",
         "QQQ"
       ],
-      "latest_data": "2026-11-11",
-      "median_latency_ms": 1210,
+      "latest_data": "2026-11-13",
+      "median_latency_ms": 1511,
       "rate_limits": "Free tier documented at 8 requests/minute and 800 requests/day. The public 'demo' key is restricted to a handful of symbols.",
       "rows": [
         {
@@ -414,7 +414,7 @@
           "status": 200,
           "ok": true,
           "message": null,
-          "latest": "2026-11-11"
+          "latest": "2026-11-13"
         },
         {
           "symbol": "MSFT",
@@ -547,7 +547,7 @@
           "status": 200,
           "ok": true,
           "message": null,
-          "latest": "2026-11-11"
+          "latest": "2026-11-13"
         }
       ]
     },
@@ -562,10 +562,10 @@
       "symbols_tested": 0,
       "symbols_ok": 0,
       "latest_data": null,
-      "median_latency_ms": 1762,
+      "median_latency_ms": 2162,
       "observed": {
         "status": 401,
-        "body": "{\"status\":\"ERROR\",\"request_id\":\"6bf0bf526c222e4245702f1d7b5e8fb0\",\"error\":\"Unknown API Key\"}"
+        "body": "{\"status\":\"ERROR\",\"request_id\":\"f6c5391479f42db77ad5df982bba7790\",\"error\":\"Unknown API Key\"}"
       },
       "rate_limits": "Free tier documented at 5 requests/minute. Not verifiable without a key."
     },
@@ -589,7 +589,7 @@
           "csv": false,
           "blocked": false,
           "error": "ConnectionError: ('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
-          "elapsed_ms": 20117
+          "elapsed_ms": 20229
         },
         {
           "symbol": "msft.us",
@@ -597,7 +597,7 @@
           "csv": false,
           "blocked": false,
           "error": "ConnectionError: ('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
-          "elapsed_ms": 19967
+          "elapsed_ms": 19963
         },
         {
           "symbol": "nvda.us",
@@ -605,7 +605,7 @@
           "csv": false,
           "blocked": false,
           "error": "ConnectionError: ('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
-          "elapsed_ms": 20269
+          "elapsed_ms": 20236
         },
         {
           "symbol": "amzn.us",
@@ -613,7 +613,7 @@
           "csv": false,
           "blocked": false,
           "error": "ConnectionError: ('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
-          "elapsed_ms": 19923
+          "elapsed_ms": 19958
         },
         {
           "symbol": "meta.us",
@@ -621,7 +621,7 @@
           "csv": false,
           "blocked": false,
           "error": "ConnectionError: ('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
-          "elapsed_ms": 20235
+          "elapsed_ms": 20224
         }
       ]
     }

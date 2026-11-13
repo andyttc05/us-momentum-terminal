@@ -104,6 +104,23 @@
   box-shadow: var(--shadow-card);
   white-space: nowrap;
 }
+.update-bar__summary {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.update-bar__summary:focus-visible {
+  border-radius: var(--radius-pill);
+  outline: 2px solid var(--color-field-border-active);
+  outline-offset: 3px;
+  box-shadow: none;
+}
 
 .update-bar__dot {
   width: 9px;

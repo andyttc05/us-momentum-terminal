@@ -1,10 +1,11 @@
 """Model portfolio construction and constraint enforcement.
 
-Selection is the top 100 eligible names by momentum score. Raw weights are
-proportional to ``float-adjusted market cap x momentum score``. A proportional
-redistribution finds the allocation that satisfies both the individual-name and
-sector caps while remaining fully invested. If the constraints are infeasible,
-the function reports that state and does not publish an invalid book.
+Selection is the requested number of highest-ranked eligible names. Raw weights
+are proportional to ``float-adjusted market cap x momentum score``. A
+proportional redistribution finds the allocation that satisfies both the
+individual-name and sector caps while remaining fully invested. If the
+constraints are infeasible, the function reports that state and does not publish
+an invalid book.
 """
 
 from __future__ import annotations
@@ -14,6 +15,9 @@ import math
 SINGLE_NAME_CAP = 9.0
 SECTOR_CAP = 35.0
 TARGET_HOLDINGS = 100
+SUPPORTED_HOLDING_COUNTS = (20, 100)
+WEIGHT_TOTAL_TOLERANCE = 0.01
+CAP_ROUNDING_TOLERANCE = 1e-5
 
 SECTOR_GROUPS = {
     "Technology": "Technology",
@@ -52,6 +56,90 @@ SECTOR_DISPLAY_ORDER = tuple(
 
 def group_sector(sector: str) -> str:
     return SECTOR_GROUPS.get(sector, "Others")
+
+
+def constraint_definitions(target_holdings: int = TARGET_HOLDINGS) -> tuple[tuple[str, str, str], ...]:
+    return (
+        ("max-stock", "Max Stock Weight", "≤ 9%"),
+        ("max-sector", "Max Sector Weight", "≤ 35%"),
+        ("target-holdings", "Target Holdings", f"= {target_holdings}"),
+        ("target-allocation", "Target Allocation", "= 100%"),
+    )
+
+
+def evaluate_portfolio_constraints(
+    holdings: list[dict],
+    target_holdings: int = TARGET_HOLDINGS,
+) -> tuple[list[dict], dict]:
+    """Validate the four published constraints from the final holdings.
+
+    Missing or invalid weights are never treated as a pass. The returned rules
+    stay in canonical display order even when the portfolio cannot be evaluated.
+    """
+    definitions = constraint_definitions(target_holdings)
+    weights = [holding.get("finalWeight") for holding in holdings]
+    evaluable = bool(holdings) and all(
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+        and value >= 0
+        for value in weights
+    )
+
+    if not evaluable:
+        constraints = [
+            {
+                "id": constraint_id,
+                "label": label,
+                "rule": rule,
+                "passed": False,
+                "status": "unavailable",
+            }
+            for constraint_id, label, rule in definitions
+        ]
+        return constraints, {
+            "evaluated": False,
+            "holdingCount": len(holdings),
+            "totalFinalWeight": None,
+            "maximumHoldingWeight": None,
+            "maximumSectorWeight": None,
+            "sectorsAtOrBelowCap": False,
+            "topTenWeight": None,
+        }
+
+    total_weight = sum(weights)
+    maximum_holding = max(weights)
+    sector_totals: dict[str, float] = {}
+    for holding, weight in zip(holdings, weights):
+        sector = str(holding.get("sector") or "Other")
+        sector_totals[sector] = sector_totals.get(sector, 0.0) + weight
+    maximum_sector = max(sector_totals.values())
+    passed_by_id = {
+        "max-stock": maximum_holding <= SINGLE_NAME_CAP + CAP_ROUNDING_TOLERANCE,
+        "max-sector": maximum_sector <= SECTOR_CAP + CAP_ROUNDING_TOLERANCE,
+        "target-holdings": len(holdings) == target_holdings,
+        "target-allocation": abs(total_weight - 100.0) <= WEIGHT_TOTAL_TOLERANCE,
+    }
+    constraints = [
+        {
+            "id": constraint_id,
+            "label": label,
+            "rule": rule,
+            "passed": passed_by_id[constraint_id],
+            "status": "passed" if passed_by_id[constraint_id] else "failed",
+        }
+        for constraint_id, label, rule in definitions
+    ]
+    top_ten = sum(sorted(weights, reverse=True)[:10])
+    return constraints, {
+        "evaluated": True,
+        "holdingCount": len(holdings),
+        "totalFinalWeight": round(total_weight, 2),
+        "maximumHoldingWeight": maximum_holding,
+        "maximumSectorWeight": round(maximum_sector, 4),
+        "sectorsAtOrBelowCap": passed_by_id["max-sector"],
+        "topTenWeight": round(top_ten, 1),
+    }
 
 
 def _rounded_sector_values(totals: dict[str, float], target: float = 100.0) -> dict[str, float]:
@@ -147,7 +235,14 @@ def _apply_caps(
     return final, True, None
 
 
-def build_portfolio(scored: list[dict]) -> dict:
+def build_portfolio(
+    scored: list[dict],
+    *,
+    target_holdings: int = TARGET_HOLDINGS,
+) -> dict:
+    if target_holdings not in SUPPORTED_HOLDING_COUNTS:
+        raise ValueError(f"unsupported portfolio holding count: {target_holdings}")
+
     def valid_cap(row: dict) -> bool:
         value = row.get("float_market_cap")
         return isinstance(value, (int, float)) and math.isfinite(value) and value > 0
@@ -161,7 +256,7 @@ def build_portfolio(scored: list[dict]) -> dict:
     excluded_no_score = [row["symbol"] for row in with_cap if not valid_score(row)]
     with_score = [row for row in with_cap if valid_score(row)]
 
-    selected = with_score[:TARGET_HOLDINGS]
+    selected = with_score[:target_holdings]
     if not selected:
         return {
             "available": False,
@@ -174,13 +269,14 @@ def build_portfolio(scored: list[dict]) -> dict:
                 else "no verified float-adjusted market caps"
             ),
         }
-    if len(selected) < TARGET_HOLDINGS:
+    if len(selected) < target_holdings:
         return {
             "available": False,
+            "status": "infeasible",
             "holdings": [],
             "excluded_no_market_cap": excluded_no_cap,
             "excluded_no_score": excluded_no_score,
-            "reason": f"too few holdings: {len(selected)} of {TARGET_HOLDINGS} have verified fundamentals",
+            "reason": f"too few holdings: {len(selected)} of {target_holdings} have verified fundamentals",
         }
 
     weighted_cap = {
@@ -202,6 +298,7 @@ def build_portfolio(scored: list[dict]) -> dict:
     if not feasible:
         return {
             "available": False,
+            "status": "infeasible",
             "holdings": [],
             "excluded_no_market_cap": excluded_no_cap,
             "excluded_no_score": excluded_no_score,
@@ -265,20 +362,17 @@ def build_portfolio(scored: list[dict]) -> dict:
         })
 
     total_weight = sum(holding["finalWeight"] for holding in holdings)
-    maximum_holding = max(holding["finalWeight"] for holding in holdings)
-    maximum_sector = max(sector_totals.values())
     top_ten = sum(sorted((holding["finalWeight"] for holding in holdings), reverse=True)[:10])
     largest = max(holdings, key=lambda holding: holding["finalWeight"])
-
-    constraints = [
-        {"id": "max-stock", "label": "Max Stock Weight", "rule": "≤ 9%", "passed": maximum_holding <= SINGLE_NAME_CAP + 1e-6},
-        {"id": "max-sector", "label": "Max Sector Weight", "rule": "≤ 35%", "passed": maximum_sector <= 35.0 + 1e-5},
-        {"id": "target-holdings", "label": "Target Holdings", "rule": "= 100", "passed": len(holdings) == TARGET_HOLDINGS},
-        {"id": "fully-invested", "label": "Fully Invested", "rule": "= 100%", "passed": abs(total_weight - 100.0) < 0.01},
-    ]
+    constraints, validation = evaluate_portfolio_constraints(
+        holdings,
+        target_holdings=target_holdings,
+    )
 
     return {
         "available": True,
+        "status": "ready",
+        "targetHoldings": target_holdings,
         "holdings": holdings,
         "sectors": sector_rows,
         "summary": {
@@ -288,14 +382,7 @@ def build_portfolio(scored: list[dict]) -> dict:
             "investedCapital": round(total_weight, 1),
         },
         "constraints": constraints,
-        "validation": {
-            "holdingCount": len(holdings),
-            "totalFinalWeight": round(total_weight, 2),
-            "maximumHoldingWeight": maximum_holding,
-            "maximumSectorWeight": round(maximum_sector, 4),
-            "sectorsAtOrBelowCap": maximum_sector <= 35.0 + 1e-5,
-            "topTenWeight": round(top_ten, 1),
-        },
+        "validation": validation,
         "excluded_no_market_cap": excluded_no_cap,
         "excluded_no_score": excluded_no_score,
         "weighting": {

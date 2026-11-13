@@ -13,6 +13,17 @@ test("missing portfolio data during startup is loading, never zero holdings", ()
   assert.match(state.title, /Loading/);
 });
 
+test("a settled request failure is unavailable, never left loading", () => {
+  const state = getPortfolioState({
+    portfolio: null,
+    status: "error",
+    meta: {},
+    error: { message: "timeout" },
+  });
+  assert.equal(state.kind, "error");
+  assert.match(state.title, /unavailable/i);
+});
+
 test("an unavailable backend portfolio reports its construction reason", () => {
   const state = getPortfolioState({
     portfolio: {
@@ -49,5 +60,38 @@ test("fresh and cached portfolios are distinguished", () => {
   });
   assert.equal(cachedSnapshot.kind, "cached");
   assert.match(cachedSnapshot.title, /cached data/);
+});
+
+test("an infeasible portfolio is reported separately from missing data", () => {
+  const state = getPortfolioState({
+    portfolio: {
+      available: false,
+      status: "infeasible",
+      holdings: [],
+      reason: "too few holdings to reach 100% under the 9% stock cap",
+    },
+    status: "ready",
+    meta: { cache_state: "fresh" },
+    error: null,
+  });
+  assert.equal(state.kind, "infeasible");
+  assert.equal(state.title, "Portfolio infeasible");
+  assert.match(state.detail, /Fewer than 100/);
+});
+
+test("an infeasible Top 20 portfolio reports its selected target", () => {
+  const state = getPortfolioState({
+    portfolio: {
+      available: false,
+      status: "infeasible",
+      holdings: [],
+      reason: "too few holdings: 18 of 20 have verified fundamentals",
+    },
+    status: "ready",
+    meta: { cache_state: "fresh" },
+    error: null,
+    targetHoldings: 20,
+  });
+  assert.match(state.detail, /Fewer than 20/);
 });
 

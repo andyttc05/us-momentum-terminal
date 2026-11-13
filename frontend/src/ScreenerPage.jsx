@@ -9,6 +9,7 @@ import {
   X,
 } from "@phosphor-icons/react";
 import { AppButton } from "./components/AppButton.jsx";
+import { TableSkeletonRows, TableStateRow } from "./components/DataState.jsx";
 import { MascotDuo } from "./components/Mascot.jsx";
 import { PageHeader } from "./components/PageHeader.jsx";
 import { Pagination } from "./components/Pagination.jsx";
@@ -18,6 +19,7 @@ import { UpdateBar } from "./components/UpdateBar.jsx";
 import { useMediaQuery } from "./components/useMediaQuery.js";
 import { useMarket } from "./api/MarketProvider.jsx";
 import { PHONE_TABLE_MEDIA_QUERY } from "./utils/breakpoints.js";
+import { getSectionState } from "./utils/dataState.js";
 import { formatMarketCap } from "./utils/format.js";
 import { momentumSeriesDomain, momentumSeriesValues } from "./utils/momentumSeries.js";
 import { shouldOpenRow, shouldRouteTickerClick, stockLinkLabel } from "./utils/rowNavigation.js";
@@ -69,7 +71,7 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
   const [page, setPage] = useState(1);
   const [toast, setToast] = useState("");
   const filterControlRef = useRef(null);
-  const { data, refresh } = useMarket();
+  const { data, refresh, status, error, refreshing } = useMarket();
   // The rank column is dropped on phones so the ticker can stay pinned at the
   // left edge with no dead space beside it. It is not rendered there at all —
   // hiding the cells with CSS would leave the column's width behind in the
@@ -80,6 +82,13 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
   const stocks = data?.stocks ?? [];
   const sectors = useMemo(() => [...new Set(stocks.map((stock) => stock.sector))].sort(), [stocks]);
   const snapshot = data?.overview?.snapshot;
+  const tableState = getSectionState({
+    hasData: stocks.length > 0,
+    status,
+    error,
+    refreshing,
+  });
+  const columnCount = isPhone ? 8 : 9;
 
   useEffect(() => {
     if (!filtersOpen) return undefined;
@@ -106,11 +115,11 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
   const filteredStocks = useMemo(() => {
     const query = search.trim();
     // Search is a discovery tool across the full eligible universe. The Top
-    // 100 / Top 20% scopes still control the unfiltered table.
+    // 100 / Top 20 scopes still control the unfiltered table.
     const source = query
       ? stocks
       : mode === "top20"
-        ? stocks.slice(0, Math.ceil(stocks.length * 0.2))
+        ? stocks.slice(0, 20)
         : stocks.slice(0, 100);
     return source
       .map((stock) => ({ stock, searchPriority: searchMatch(stock, query) }))
@@ -190,6 +199,7 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
   }
 
   function exportCsv() {
+    if (!stocks.length) return;
     const headers = ["Rank", "Ticker", "Company", "Price", "1D Change (%)", "12-1 Momentum (%)", "Score", "Sector"];
     const rows = filteredStocks.map((stock) => [
       stock.rank,
@@ -205,7 +215,7 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
     const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" }));
     const link = document.createElement("a");
     link.href = url;
-    link.download = `us-momentum-screener-${mode === "top20" ? "top20-percent" : "top100"}.csv`;
+    link.download = `us-momentum-screener-${mode === "top20" ? "top20" : "top100"}.csv`;
     document.body.append(link);
     link.click();
     link.remove();
@@ -233,7 +243,7 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
         <section className="screener-toolbar" aria-label="Screener controls">
           <div className="screener-scope" role="group" aria-label="Stock universe">
             <button type="button" aria-pressed={mode === "top100"} className={mode === "top100" ? "is-selected" : ""} onClick={() => selectMode("top100")}>Top 100</button>
-            <button type="button" aria-pressed={mode === "top20"} className={mode === "top20" ? "is-selected" : ""} onClick={() => selectMode("top20")}>Top 20%</button>
+            <button type="button" aria-pressed={mode === "top20"} className={mode === "top20" ? "is-selected" : ""} onClick={() => selectMode("top20")}>Top 20</button>
           </div>
 
           <label className="screener-search">
@@ -293,13 +303,23 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
                 </form>
               )}
             </div>
-            <AppButton variant="secondary" icon={DownloadSimple} className="screener-toolbar__button screener-export-button" onClick={exportCsv}>Export</AppButton>
+            <AppButton
+              variant="secondary"
+              icon={DownloadSimple}
+              className="screener-toolbar__button screener-export-button"
+              onClick={exportCsv}
+              disabled={!stocks.length}
+            >Export</AppButton>
           </div>
         </section>
 
         <section className="screener-table-card dashboard-card" aria-label="Momentum stocks">
           <div className="screener-table-scroll">
-            <table className="screener-table">
+            <table
+              className="screener-table"
+              data-state={tableState}
+              aria-busy={tableState === "loading" || undefined}
+            >
               <colgroup>
                 {!isPhone && <col className="stock-col-rank" />}
                 <col className="stock-col-ticker" />
@@ -324,7 +344,9 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
                 </tr>
               </thead>
               <tbody>
-                {visibleStocks.length ? visibleStocks.map((stock) => (
+                {tableState === "loading" ? (
+                  <TableSkeletonRows columns={columnCount} rows={rowsPerPage} />
+                ) : visibleStocks.length ? visibleStocks.map((stock) => (
                   <tr
                     key={stock.ticker}
                     className="stock-row"
@@ -366,7 +388,23 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
                     <td className="stock-sector-cell" title={stock.sector}>{stock.sector}</td>
                   </tr>
                 )) : (
-                  <tr className="screener-empty-row"><td colSpan={isPhone ? 8 : 9}>{stocks.length ? <><strong>No stocks match your search or filters.</strong><span>Try adjusting your criteria.</span></> : <><strong>Waiting for verified market data.</strong><span>Nothing is shown until the provider responds.</span></>}</td></tr>
+                  stocks.length ? (
+                    <TableStateRow
+                      columns={columnCount}
+                      state="empty"
+                      title="No stocks match your search or filters."
+                      detail="Try adjusting your criteria."
+                    />
+                  ) : (
+                    <TableStateRow
+                      columns={columnCount}
+                      state={tableState}
+                      title={tableState === "error" ? "Rankings unavailable" : "No rankings available"}
+                      detail={tableState === "error"
+                        ? "The latest verified rankings could not be loaded. Use the update control to retry."
+                        : "The provider returned no eligible stocks for this universe."}
+                    />
+                  )
                 )}
               </tbody>
             </table>

@@ -1,5 +1,4 @@
-// Render's free web services can delay the first request by 50 seconds or more
-// while the instance wakes. Keep the browser's data-request budget above that
-// documented cold-start window so a sleeping backend is not reported as failed.
+// The optional live service may cold-start slowly. Static production requests
+// use their own shorter timeout in client.js.
 export const DATA_REQUEST_TIMEOUT_MS = 90_000;
 

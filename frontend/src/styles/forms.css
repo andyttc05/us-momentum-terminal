@@ -1,36 +1,30 @@
 /* Editable fields — one interaction language for the whole app -------------
    Every text input, search bar, date field, money field, select and textarea
-   keeps its neutral beige border at rest and gains the same 2px sunny-yellow
-   ring on hover and on focus.
+   rests on a 1px beige edge (#E9E2D9), does nothing at all on hover, and takes
+   a 2px warm-yellow edge (#FFC83D) only while it holds focus.
 
    Four rules keep it consistent:
+   - Hover is inert. There is no `:hover` declaration for a field anywhere in
+     the app, so moving the pointer over a control cannot change a border, a
+     shadow or a transform — the control looks identical before, during and
+     after hover.
    - The ring is an `outline`, drawn 2px inside the control's own edge. An
      outline takes no space in layout, so a 1px beige border can become a 2px
      yellow edge without the control resizing or the page reflowing — which a
      wider border would do on the controls whose height is content-driven.
    - It is a solid, unblurred edge: no box-shadow, no glow, and the control's
-     own border radius carries the shape.
+     own border radius carries the shape. The ring is reserved at rest as a
+     transparent outline of the same width, so focus only animates its colour
+     (150–200 ms) — nothing appears, moves or scales.
    - The browser's default focus ring is replaced rather than merely deleted, so
-     keyboard users get the identical yellow edge.
-   - Hover lives behind `(hover: hover) and (pointer: fine)`, so a tap on a
-     touch device cannot leave the field stuck in a yellow hover state.
+     keyboard users get the identical yellow edge, and `:focus` — not `:active` —
+     is the trigger, so the edge survives the mouse moving away while the field
+     stays focused.
 
    Fields that sit inside a bordered pill (the Screener search bar, the money
    field, the date field) carry the ring on the wrapper, because the wrapper's
    edge is the one the user sees. Their border-less inner inputs are excluded
    below, so nothing draws a second ring inside the pill. */
-
-/* Touch devices report `hover: none`, yet a tap can still leave a :hover match
-   behind. The backtest date field is the one still declaring a neutral hover
-   tint in its page stylesheet, so it is reset to the resting edge here: after a
-   tap nothing stays tinted. Focus, declared below, still wins while the field
-   is actually active. */
-@media (hover: none) {
-  .backtest-date-input:hover,
-  .backtest-date-control:hover {
-    border-color: var(--color-line);
-  }
-}
 
 /* The date wrapper owns the ring at every width; it needs the field's radius so
    that ring follows the pill on desktop, where the wrapper is border-less. */
@@ -39,16 +33,41 @@
 /* Inner inputs of a pill wrapper must never draw their own ring: the wrapper's
    edge is the field's edge. The page rules already clear the outline for the
    search bar and the money field; the date input needs it spelled out here. */
-.backtest-date-control input:focus,
-.backtest-date-control input:hover {
+.backtest-date-control input:focus {
   outline: none;
 }
 
-/* Focus: same yellow ring for mouse, keyboard and touch. The element selector
-   carries the specificity (0,1,0) and every condition sits in `:where()`, so a
-   page rule such as `.screener-search input { outline: 0 }` still wins — that is
-   how the border-less inner inputs of a pill stay ring-free. */
-input:where(:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"])):where(:focus:not(:disabled):not([aria-invalid="true"])),
+/* Resting state: 1px beige edge, no shadow, and a transparent outline of the
+   final ring width. Reserving the outline (rather than adding it on focus)
+   keeps the geometry identical in both states, so focusing a field cannot
+   shift a single pixel, and it gives the colour something to animate. */
+input:where(:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"])),
+select,
+textarea {
+  box-shadow: none;
+  outline: var(--field-ring-width) solid transparent;
+  outline-offset: calc(-1 * var(--field-ring-width));
+  transition: border-color var(--field-transition), outline-color var(--field-transition);
+}
+
+/* The visible-edge wrappers reserve the same ring, so their yellow edge fades
+   in exactly like a bare control's. */
+.screener-search,
+.currency-input,
+.backtest-date-control {
+  outline: var(--field-ring-width) solid transparent;
+  outline-offset: calc(-1 * var(--field-ring-width));
+  transition: border-color var(--field-transition), outline-color var(--field-transition);
+}
+
+/* Focus: the one and only yellow state, for mouse, touch and keyboard alike.
+   The element selector keeps the specificity low — (0,0,1), because every
+   condition sits in `:where()` — so a page rule such as
+   `.screener-search input { outline: 0 }` still wins, and that is how the
+   border-less inner inputs of a pill stay ring-free. `:focus-visible` is listed
+   beside `:focus` so a browser that only reveals its own ring on keyboard
+   navigation hands the field the same edge. */
+input:where(:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"])):where(:is(:focus, :focus-visible):not(:disabled):not([aria-invalid="true"])),
 select:where(:focus:not(:disabled)),
 textarea:where(:focus:not(:disabled)) {
   border-color: var(--color-field-border-active);
@@ -61,6 +80,7 @@ textarea:where(:focus:not(:disabled)) {
    yellow ring is the only thing that changes. (The search bar is styled apart
    below because it keeps its card shadow while focused.) */
 .backtest-amount-control:focus-within,
+.currency-input:focus-within,
 .backtest-date-control:focus-within {
   border-color: var(--color-field-border-active);
   outline: var(--field-ring-width) solid var(--color-field-border-active);
@@ -75,24 +95,20 @@ textarea:where(:focus:not(:disabled)) {
   outline-offset: calc(-1 * var(--field-ring-width));
 }
 
-/* Hover: same ring, only where a real pointer can hover. */
-@media (hover: hover) and (pointer: fine) {
-  input:where(:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"])):where(:hover:not(:disabled):not([aria-invalid="true"])),
-  select:where(:hover:not(:disabled)),
-  textarea:where(:hover:not(:disabled)) {
-    border-color: var(--color-field-border-active);
-    outline: var(--field-ring-width) solid var(--color-field-border-active);
-    outline-offset: calc(-1 * var(--field-ring-width));
-  }
-
-  .screener-search:hover,
-  .backtest-amount-control:hover,
-  .backtest-date-control:hover {
-    border-color: var(--color-field-border-active);
-    outline: var(--field-ring-width) solid var(--color-field-border-active);
-    outline-offset: calc(-1 * var(--field-ring-width));
-  }
+/* Where a component or page rule declares the resting edge at class-level
+   specificity (the filter controls, the dropdown), the border itself needs the
+   same weight to turn yellow under the ring. Without this the ring still reads
+   as a 2px yellow edge, but the beige border underneath would keep its colour. */
+.screener-filter-field select:focus,
+.screener-filter-field input:focus,
+.dropdown-control select:focus {
+  border-color: var(--color-field-border-active);
 }
+
+/* Blur is the absence of every rule above: the declared colour falls back to
+   the transparent resting ring, so the yellow edge fades out and the beige
+   border returns. Nothing has to be undone, and a pointer still resting on the
+   field cannot revive it. */
 
 /* A field that failed validation keeps its red edge. The error colour is more
    important than the interaction ring, and it also has to survive on the date

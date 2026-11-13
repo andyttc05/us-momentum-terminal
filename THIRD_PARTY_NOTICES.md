@@ -20,14 +20,18 @@ use.
   backup providers, enabled only when the corresponding API key is configured.
 
 Provider-retrieved price history is written to the local runtime cache
-(`data-service/cache/`) and is intentionally **not** committed to this
-repository. The audit evidence committed under `data-service/docs/` contains
-only aggregate summaries, coverage statistics and symbol identifiers — not raw
-price series.
+(`data-service/cache/`) and is **not** committed. GitHub Actions publishes a
+derived, validated snapshot under `frontend/public/data/` so the static site
+can display current market information without a backend. That public snapshot
+contains quotes, weekly price samples and computed analytics; it does not omit
+the provider's rights merely because it is derived.
 
 The MIT License grants no permission to redistribute restricted financial data.
-Anyone redistributing this project, or any dataset derived from it, is
-responsible for checking and complying with the applicable provider terms.
+Anyone redistributing this project, the generated publication, or another
+dataset derived from it is responsible for checking and complying with the
+applicable provider terms. For commercial or redistribution-sensitive use,
+replace the unofficial Yahoo path with a provider licence that explicitly
+permits the intended publication.
 
 ## Third-party libraries, fonts and icons
 

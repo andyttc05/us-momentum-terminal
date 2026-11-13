@@ -13,7 +13,8 @@
 .stock-analysis-right { display: grid; min-height: 0; min-width: 0; gap: var(--section-gap); }
 .stock-analysis-left { grid-template-rows: auto auto auto minmax(0, 1fr) auto; }
 .stock-analysis-right { grid-template-rows: minmax(270px, 0.95fr) minmax(250px, 1fr); gap: var(--card-gap); }
-.stock-analysis-back-row { display: flex; align-items: center; gap: 12px; }
+.stock-analysis-back-row { display: flex; min-width: 0; align-items: center; gap: 12px; }
+.stock-analysis-back-row .stock-analysis-update { margin-left: auto; }
 .stock-back-button { min-height: 44px; padding-inline: 18px; border-radius: var(--radius-pill); background: var(--color-surface); box-shadow: var(--shadow-card); font-size: 0.92rem; }
 
 /* The mascot is a flex item, not an absolute overlay: it keeps its own lane so
@@ -68,7 +69,7 @@
 .stock-market-cap__label { color: var(--color-text-secondary); font-size: var(--font-size-meta); font-weight: var(--font-weight-bold); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
 .stock-market-cap__value { font-size: 1.02rem; font-weight: var(--font-weight-black); font-variant-numeric: tabular-nums; white-space: nowrap; }
 /* Ranking tier colours: the badge reflects the stock's percentile inside the
-   eligible universe (top 20% green, middle 60% yellow, bottom 20% red). */
+   eligible universe (top quintile green, middle 60% yellow, bottom quintile red). */
 .stock-rank-pill { display: inline-flex; min-height: 42px; flex: 0 0 auto; align-items: center; gap: 9px; padding: 0 16px; border-radius: var(--radius-pill); background: #EFECE7; color: var(--color-text-secondary); font-size: 0.96rem; white-space: nowrap; }
 .stock-rank-pill--top { background: #DDF3E5; color: #16864A; }
 .stock-rank-pill--mid { background: #FFE59A; color: #735500; }

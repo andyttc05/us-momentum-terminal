@@ -159,6 +159,44 @@ export function simulateCashflows({
   };
 }
 
+/**
+ * Build the exact dated account balances shown by the cumulative-return
+ * tooltip. Every series uses the same opening capital, contribution schedule,
+ * entry timing and purchasing-power basis; only its investment path differs.
+ */
+export function calculateCumulativeSeries(window, config = {}) {
+  if (!window || !Array.isArray(window.dates)) return {};
+  return Object.fromEntries(
+    ["strategy", "spy", "spmo"].map((id) => {
+      const investmentPath = window[id];
+      if (
+        !Array.isArray(investmentPath)
+        || investmentPath.length !== window.dates.length
+        || investmentPath.length < 2
+      ) {
+        return [id, { values: [], returns: [] }];
+      }
+      const account = simulateCashflows({
+        dates: window.dates,
+        strategy: investmentPath,
+        initialCapital: config.initialCapital,
+        contributionEnabled: config.cashflowEnabled,
+        contributionAmount: config.contributionAmount,
+        contributionFrequency: config.contributionFrequency,
+        startsAtBacktestOrigin: window.startsAtBacktestOrigin,
+        purchasingPower: window.purchasingPower ?? [],
+      });
+      return [
+        id,
+        {
+          values: account.timeline.map((point) => point.value),
+          returns: investmentPath.map((value) => finite(value) ? value - 100 : null),
+        },
+      ];
+    }),
+  );
+}
+
 /** Solve XIRR from dated investor cashflows using a bounded bisection search. */
 export function calculateXirr(cashflows) {
   if (!Array.isArray(cashflows) || cashflows.length < 2) return null;

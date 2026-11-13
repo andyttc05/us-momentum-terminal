@@ -40,9 +40,9 @@ button:focus-visible, a:focus-visible { outline: none; box-shadow: var(--focus-r
   min-width: 0;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid rgb(234 228 220 / 78%);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
+  border: 1px solid var(--color-card-border);
+  border-radius: var(--radius-card);
+  background: var(--color-card);
   box-shadow: var(--shadow-card);
 }
 .dashboard-card__header {
@@ -72,9 +72,9 @@ button:focus-visible, a:focus-visible { outline: none; box-shadow: var(--focus-r
   min-height: var(--kpi-card-min-height);
   overflow: hidden;
   padding: 14px var(--card-padding-inline);
-  border: 1px solid rgb(234 228 220 / 78%);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
+  border: 1px solid var(--color-card-border);
+  border-radius: var(--radius-card);
+  background: var(--color-card);
   box-shadow: var(--shadow-card);
 }
 .kpi-card__top, .kpi-card__label { position: relative; z-index: 1; display: flex; align-items: center; }
@@ -107,6 +107,210 @@ button:focus-visible, a:focus-visible { outline: none; box-shadow: var(--focus-r
   text-overflow: ellipsis;
 }
 .kpi-card__detail { position: relative; z-index: 1; margin: var(--space-1) 0 0; color: var(--color-text-muted); font-size: var(--font-size-meta); }
+
+/* Grouped settings ------------------------------------------------------- */
+
+/* Settings cards group related controls; rows are reserved for genuinely
+   independent settings such as toggles and a schedule selector. */
+.settings-card {
+  min-width: 0;
+  border: 1px solid var(--color-card-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-soft);
+}
+.settings-card__header {
+  display: flex;
+  min-width: 0;
+  min-height: var(--setting-row-height);
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 13px 18px;
+}
+.settings-card__title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 11px;
+  color: var(--color-ink);
+}
+.settings-card__title > svg { flex: 0 0 auto; }
+.settings-card__title h3 {
+  margin: 0;
+  font-size: 1.02rem;
+  font-weight: var(--font-weight-black);
+  letter-spacing: -0.018em;
+  line-height: 1.2;
+}
+.settings-card__action {
+  display: flex;
+  min-width: 0;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+}
+.settings-card__body { padding: 0 18px 18px; }
+.settings-row .settings-card__header { width: 100%; flex: 1 1 auto; }
+.settings-row .settings-card__action { max-width: 52%; }
+
+.settings-form-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 0.92fr);
+  align-items: center;
+  gap: 12px 24px;
+}
+.settings-form-grid > label {
+  color: var(--color-ink);
+  font-size: 0.83rem;
+  font-weight: var(--font-weight-bold);
+  line-height: 1.25;
+}
+
+.currency-input {
+  display: grid;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: var(--control-height);
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  padding: 0 14px;
+  border: 1px solid var(--color-field-border);
+  border-radius: var(--radius-input);
+  background: var(--color-card);
+  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+  font-weight: var(--font-weight-bold);
+}
+.currency-input input {
+  width: 100%;
+  min-width: 0;
+  height: calc(var(--control-height) - 2px);
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--color-ink);
+  font-size: 0.94rem;
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+}
+
+.dropdown-control {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+.dropdown-control select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: var(--control-height);
+  padding: 0 calc(var(--dropdown-arrow-inset) + 28px) 0 16px;
+  overflow: hidden;
+  border: 1px solid var(--color-field-border);
+  border-radius: var(--radius-input);
+  appearance: none;
+  background: var(--color-card);
+  color: var(--color-ink);
+  cursor: pointer;
+  font-size: 0.84rem;
+  font-weight: var(--font-weight-bold);
+  line-height: 1.2;
+  text-overflow: ellipsis;
+}
+.dropdown-control__arrow {
+  position: absolute;
+  top: 50%;
+  right: var(--dropdown-arrow-inset);
+  flex: 0 0 auto;
+  color: var(--color-ink);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+.dropdown-control select:disabled { cursor: default; opacity: 1; }
+
+.toggle-control {
+  display: inline-flex;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  cursor: pointer;
+}
+.toggle-control:focus-visible {
+  outline: 2px solid var(--color-field-border-active);
+  outline-offset: 3px;
+  box-shadow: none;
+}
+.toggle-control__track {
+  position: relative;
+  display: block;
+  width: 51px;
+  height: 28px;
+  border-radius: var(--radius-pill);
+  background: #DDD9D3;
+  transition: background-color 180ms ease;
+}
+.toggle-control__track i {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--color-card);
+  box-shadow: 0 2px 5px rgb(34 27 19 / 12%);
+  transition: transform 180ms ease;
+}
+.toggle-control[aria-checked="true"] .toggle-control__track { background: #EDB900; }
+.toggle-control[aria-checked="true"] .toggle-control__track i { transform: translateX(23px); }
+
+.info-tooltip {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  color: var(--color-text-secondary);
+}
+.info-tooltip__trigger {
+  display: inline-grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: help;
+}
+.info-tooltip__trigger:hover,
+.info-tooltip__trigger:focus-visible {
+  background: var(--color-yellow-soft);
+  color: var(--color-ink);
+  outline: 1px solid var(--color-field-border-active);
+  box-shadow: none;
+}
+.info-tooltip__bubble {
+  position: fixed;
+  z-index: 120;
+  display: block;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #111;
+  box-shadow: 0 8px 24px rgb(17 17 17 / 18%);
+  color: #fff;
+  font-size: 0.73rem;
+  font-weight: 650;
+  line-height: 1.42;
+  pointer-events: none;
+}
 
 .app-button {
   display: inline-flex;

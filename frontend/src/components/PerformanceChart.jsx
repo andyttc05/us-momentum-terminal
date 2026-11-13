@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useElementSize } from "./useElementSize.js";
+import { useChartTooltipSize } from "./useChartTooltipSize.js";
 import { createDateScale, placeTicks } from "../utils/timeAxis.js";
 import {
+  fitTooltipWidth,
   formatTooltipDate,
   nearestObservationIndex,
   placePriceTooltip,
@@ -62,6 +64,7 @@ export function PerformanceChart({ period, data }) {
   const [boxRef, box] = useElementSize();
   const [selectedIndex, setSelectedIndex] = useState(null);
   const [tooltipSide, setTooltipSide] = useState(null);
+  const [tooltipRef, tooltipSize] = useChartTooltipSize();
   const movementOriginX = useRef(Number.NaN);
   const tooltipSideRef = useRef(null);
   const width = Math.round(box.width);
@@ -135,6 +138,10 @@ export function PerformanceChart({ period, data }) {
   }));
   const primaryPoints = plotted[0]?.points ?? [];
   const selectedPoint = selectedIndex == null ? null : primaryPoints[selectedIndex];
+  const tooltipWidth = fitTooltipWidth({
+    containerWidth: width,
+    preferredWidth: compact ? 196 : 222,
+  });
   const tooltipPlacement = selectedPoint
     ? placePriceTooltip({
       anchorX: selectedPoint.x,
@@ -142,8 +149,8 @@ export function PerformanceChart({ period, data }) {
       preferredSide: tooltipSide,
       containerWidth: width,
       containerHeight: height,
-      tooltipWidth: compact ? 196 : 222,
-      tooltipHeight: compact ? 118 : 128,
+      tooltipWidth: tooltipSize?.width ?? tooltipWidth,
+      tooltipHeight: tooltipSize?.height ?? (compact ? 120 : 128),
     })
     : null;
 
@@ -283,7 +290,7 @@ export function PerformanceChart({ period, data }) {
           style={{ left: tooltipPlacement.x, top: tooltipPlacement.y }}
           data-testid="performance-chart-tooltip"
         >
-          <div className="backtest-chart-tooltip" role="tooltip">
+          <div className="backtest-chart-tooltip" role="tooltip" ref={tooltipRef} style={{ width: tooltipWidth }}>
             <span className="backtest-chart-tooltip__date">{formatTooltipDate(data.dates?.[selectedIndex])}</span>
             {data.series.map((series) => {
               const value = series.values[selectedIndex];

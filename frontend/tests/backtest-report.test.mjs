@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   applyInflationAdjustment,
   calculateBacktestReport,
+  calculateCumulativeSeries,
   calculatePeriodReturns,
   calculateXirr,
   getBacktestAvailability,
@@ -53,6 +54,41 @@ test("external contributions do not inflate time-weighted return", () => {
   const withoutFlows = simulateCashflows({ dates, strategy, startsAtBacktestOrigin: false });
   assert.equal(withFlows.timeWeightedReturnPct, withoutFlows.timeWeightedReturnPct);
   assert.ok(Math.abs(withoutFlows.timeWeightedReturnPct - 36.5606) < 1e-6);
+});
+
+test("tooltip balances use the same actual account simulation for all three series", () => {
+  const series = calculateCumulativeSeries(
+    {
+      dates,
+      strategy,
+      spy: strategy.map((value) => 100 + (value - 100) / 2),
+      spmo: strategy.map((value) => 100 + (value - 100) / 3),
+      startsAtBacktestOrigin: false,
+    },
+    {
+      initialCapital: 10_000,
+      cashflowEnabled: true,
+      contributionAmount: 1_000,
+      contributionFrequency: "monthly",
+    },
+  );
+
+  const strategyAccount = simulateCashflows({
+    dates,
+    strategy,
+    initialCapital: 10_000,
+    contributionEnabled: true,
+    contributionAmount: 1_000,
+    contributionFrequency: "monthly",
+    startsAtBacktestOrigin: false,
+  });
+  assert.deepEqual(series.strategy.values, strategyAccount.timeline.map((point) => point.value));
+  assert.ok(Math.abs(series.strategy.returns.at(-1) - 36.5606) < 1e-9);
+  assert.ok(series.spy.values.at(-1) < series.strategy.values.at(-1));
+  assert.ok(series.spmo.values.at(-1) < series.spy.values.at(-1));
+  assert.equal(series.spy.values.length, dates.length);
+  assert.equal(series.spmo.returns.length, dates.length);
+  assert.ok(series.strategy.values.at(-1) > 13_000);
 });
 
 test("XIRR is solved from actual dated investor cashflows", () => {
@@ -125,6 +161,42 @@ test("the report separates final account value, contributions and investment ret
   assert.ok(Math.abs(report.relativeToSpyPct - (report.timeWeightedReturnPct - 4)) < 1e-9);
 });
 
+test("balances use the requested initial capital and the actual ending account value", () => {
+  const windows = [
+    { dates, strategy, start: 0, end: dates.length },
+    { dates: dates.slice(0, 5), strategy: strategy.slice(0, 5), start: 0, end: 5 },
+    { dates: dates.slice(2), strategy: strategy.slice(2), start: 2, end: dates.length },
+  ];
+  for (const capital of [10_000, 25_000, 1_234_567]) {
+    for (const window of windows) {
+      const result = simulateCashflows({
+        dates: window.dates,
+        strategy: window.strategy,
+        initialCapital: capital,
+        startsAtBacktestOrigin: false,
+      });
+      const expectedEnd = capital * window.strategy.at(-1) / window.strategy[0];
+      assert.equal(result.initialCapital, capital);
+      assert.ok(Math.abs(result.finalValue - expectedEnd) < 1e-9);
+    }
+  }
+});
+
+test("cashflow contributions increase the ending balance without changing start balance or return", () => {
+  const withFlows = account("monthly");
+  const withoutFlows = simulateCashflows({
+    dates,
+    strategy,
+    initialCapital: 10_000,
+    contributionEnabled: false,
+    startsAtBacktestOrigin: false,
+  });
+  assert.equal(withFlows.initialCapital, 10_000);
+  assert.equal(withoutFlows.initialCapital, 10_000);
+  assert.ok(withFlows.finalValue > withoutFlows.finalValue);
+  assert.equal(withFlows.timeWeightedReturnPct, withoutFlows.timeWeightedReturnPct);
+});
+
 test("unsupported dividend and inflation modes report a limitation", () => {
   assert.equal(getBacktestAvailability({ reinvestDividends: true, inflationAdjusted: false }).available, true);
   assert.match(getBacktestAvailability({ reinvestDividends: false, inflationAdjusted: false }).title, /unavailable/);
@@ -173,6 +245,45 @@ test("real contributions and XIRR use base-date purchasing power", () => {
   assert.ok(result.totalContributions < 3_000);
   assert.equal(result.inflationAdjusted, true);
   assert.notEqual(result.moneyWeightedReturnPct, null);
+});
+
+test("inflation-adjusted balances and return use one real-dollar basis", () => {
+  const cpi = {
+    available: true,
+    observations: [
+      { date: "2019-11-01", value: 100, available_from: "2019-12-15" },
+      { date: "2019-12-01", value: 100, available_from: "2020-01-15" },
+      { date: "2020-01-01", value: 100, available_from: "2020-02-15" },
+      { date: "2020-02-01", value: 101, available_from: "2020-03-15" },
+      { date: "2020-03-01", value: 102, available_from: "2020-04-15" },
+    ],
+  };
+  const adjusted = applyInflationAdjustment({
+    dates,
+    strategy,
+    spy: strategy,
+    spmo: strategy,
+    drawdown: strategy.map(() => 0),
+  }, cpi);
+  const nominal = simulateCashflows({
+    dates,
+    strategy,
+    initialCapital: 10_000,
+    startsAtBacktestOrigin: false,
+  });
+  const real = simulateCashflows({
+    dates: adjusted.dates,
+    strategy: adjusted.strategy,
+    initialCapital: 10_000,
+    startsAtBacktestOrigin: false,
+    purchasingPower: adjusted.purchasingPower,
+  });
+  assert.equal(real.initialCapital, 10_000);
+  assert.ok(Math.abs(real.finalValue - nominal.finalValue * adjusted.purchasingPower.at(-1)) < 1e-9);
+  assert.ok(
+    Math.abs(real.timeWeightedReturnPct - (adjusted.strategy.at(-1) / adjusted.strategy[0] - 1) * 100) < 1e-9,
+  );
+  assert.notEqual(real.finalValue, nominal.finalValue);
 });
 
 test("dividend-exclusive mode requires both price series and complete actions", () => {

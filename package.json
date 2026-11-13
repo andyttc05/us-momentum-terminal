@@ -10,6 +10,8 @@
     "data:probe": ".venv-datatest/bin/python data-service/tests/provider_probe.py",
     "data:audit": "PYTHONPATH=data-service .venv-datatest/bin/python data-service/tests/audit_data.py",
     "data:sensitivity": "PYTHONPATH=data-service .venv-datatest/bin/python data-service/tests/strategy_sensitivity.py",
+    "data:build-static": ".venv-datatest/bin/python data-service/scripts/export_static.py",
+    "data:validate-static": ".venv-datatest/bin/python data-service/scripts/export_static.py --validate-only",
     "dev": "npm --prefix frontend run dev",
     "preview": "npm --prefix frontend run preview",
     "build": "npm --prefix frontend run build",

@@ -1,62 +1,95 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Bank,
   CalendarBlank,
   CaretDown,
   ChartBar,
   Coins,
-  Info,
   Play,
   Scales,
   SlidersHorizontal,
   Stack,
   TrendUp,
+  WarningCircle,
 } from "@phosphor-icons/react";
 import { AppButton } from "./components/AppButton.jsx";
+import { ChartState, DataState, Skeleton, TableSkeletonRows, TableStateRow } from "./components/DataState.jsx";
 import { DashboardCard } from "./components/DashboardCard.jsx";
 import { KpiCard } from "./components/KpiCard.jsx";
 import { MascotDuo } from "./components/Mascot.jsx";
 import { PageHeader } from "./components/PageHeader.jsx";
+import { useChartTooltipSize } from "./components/useChartTooltipSize.js";
+import {
+  CurrencyInput,
+  Dropdown,
+  InfoTooltip,
+  SettingsCard,
+  SettingsRow,
+  Toggle,
+} from "./components/SettingsControls.jsx";
 import { Toast } from "./components/Toast.jsx";
 import { UpdateBar } from "./components/UpdateBar.jsx";
 import { useElementSize } from "./components/useElementSize.js";
 import { useMarket } from "./api/MarketProvider.jsx";
+import { useUniverse } from "./api/UniverseProvider.jsx";
 import { computeWindowMetrics } from "./utils/backtestMetrics.js";
 import {
   applyInflationAdjustment,
   calculateBacktestReport,
+  calculateCumulativeSeries,
   getBacktestAvailability,
 } from "./utils/backtestReport.js";
 import { buildDrawdownScale } from "./utils/drawdownScale.js";
+import { getSectionState } from "./utils/dataState.js";
 import {
+  fitTooltipWidth,
   nearestObservationIndex,
   placePriceTooltip,
   sideForMovement,
 } from "./utils/priceTooltip.js";
+import {
+  DEFAULT_REBALANCE_FREQUENCY,
+  REBALANCE_OPTIONS,
+  rebalanceLabel,
+  rebalanceSummaryLabel,
+} from "./utils/rebalanceFrequency.js";
+import {
+  UNIVERSE_OPTIONS,
+  universeLabel,
+} from "./utils/universeState.js";
 
 const RANGES = ["1Y", "3Y", "5Y", "All"];
 const SERIES = [
-  { id: "strategy", name: "US Momentum Strategy", shortName: "Strategy", color: "#FFC83D" },
+  { id: "strategy", name: "Strategy", color: "#FFC83D" },
   { id: "spy", name: "SPY", color: "#69A5F5" },
   { id: "spmo", name: "SPMO", color: "#AA8BF2" },
 ];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const CHART_TOOLTIP = { width: 222, height: 128 };
+const CHART_TOOLTIP = { width: 338, height: 148 };
 const PERIOD_TOOLTIP = { width: 196, height: 82 };
 
 const DEFAULT_CONFIG = {
-  portfolio: "top100",
   startDate: "",
   endDate: "",
   initialCapital: "10000",
   cashflowEnabled: true,
   contributionAmount: "1000",
   contributionFrequency: "monthly",
+  rebalanceFrequency: DEFAULT_REBALANCE_FREQUENCY,
   reinvestDividends: true,
   inflationAdjusted: false,
   includeYtd: true,
 };
+
+function backtestRunKey(config) {
+  if (!config) return "";
+  return [
+    config.portfolio,
+    config.startDate,
+    config.endDate,
+    config.rebalanceFrequency,
+  ].join("|");
+}
 
 function buildPath(points) {
   if (points.length < 2) return "";
@@ -84,6 +117,20 @@ function formatMoney(value) {
   }).format(value);
 }
 
+function formatTooltipMoney(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "—";
+  if (Math.abs(value) >= 1_000_000) {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      notation: "compact",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(value);
+  }
+  return formatMoney(value);
+}
+
 function formatDate(isoDate) {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(isoDate ?? "");
   if (!match) return "—";
@@ -93,94 +140,6 @@ function formatDate(isoDate) {
 function valueTone(value) {
   if (typeof value !== "number" || !Number.isFinite(value) || value === 0) return "neutral";
   return value > 0 ? "positive" : "negative";
-}
-
-function InfoTooltip({ label, children }) {
-  const [open, setOpen] = useState(false);
-  const [position, setPosition] = useState({ left: 12, top: 12 });
-  const triggerRef = useRef(null);
-  const tooltipRef = useRef(null);
-  const lastPointerType = useRef("mouse");
-  const tooltipId = useId();
-
-  function place() {
-    const rect = triggerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const tooltipWidth = Math.min(238, window.innerWidth - 24);
-    const estimatedHeight = 92;
-    const left = Math.min(
-      Math.max(12, rect.left + rect.width / 2 - tooltipWidth / 2),
-      window.innerWidth - tooltipWidth - 12,
-    );
-    const below = rect.bottom + 8;
-    const top = below + estimatedHeight <= window.innerHeight - 12
-      ? below
-      : Math.max(12, rect.top - estimatedHeight - 8);
-    setPosition({ left, top, width: tooltipWidth });
-  }
-
-  useEffect(() => {
-    if (!open) return undefined;
-    place();
-    const closeOutside = (event) => {
-      if (
-        !triggerRef.current?.contains(event.target)
-        && !tooltipRef.current?.contains(event.target)
-      ) {
-        setOpen(false);
-      }
-    };
-    const closeOnViewportChange = () => setOpen(false);
-    document.addEventListener("pointerdown", closeOutside);
-    window.addEventListener("resize", closeOnViewportChange);
-    window.addEventListener("scroll", closeOnViewportChange, true);
-    return () => {
-      document.removeEventListener("pointerdown", closeOutside);
-      window.removeEventListener("resize", closeOnViewportChange);
-      window.removeEventListener("scroll", closeOnViewportChange, true);
-    };
-  }, [open]);
-
-  return (
-    <span className="backtest-info">
-      <button
-        ref={triggerRef}
-        type="button"
-        className="backtest-info__trigger"
-        aria-label={`About ${label}`}
-        aria-describedby={open ? tooltipId : undefined}
-        onPointerDown={(event) => { lastPointerType.current = event.pointerType; }}
-        onPointerEnter={(event) => {
-          if (event.pointerType === "mouse") setOpen(true);
-        }}
-        onPointerLeave={(event) => {
-          if (event.pointerType === "mouse") setOpen(false);
-        }}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setOpen(false)}
-        onClick={(event) => {
-          event.stopPropagation();
-          setOpen((current) => (
-            lastPointerType.current === "mouse" ? true : !current
-          ));
-        }}
-      >
-        <Info size={14} weight="fill" aria-hidden="true" />
-      </button>
-      {open && createPortal(
-        <span
-          ref={tooltipRef}
-          id={tooltipId}
-          role="tooltip"
-          className="backtest-info-tooltip"
-          style={position}
-        >
-          {children}
-        </span>,
-        document.body,
-      )}
-    </span>
-  );
 }
 
 function shiftMonths(dateString, months) {
@@ -278,17 +237,24 @@ function wealthPosition(value, scale, top, plotHeight, logScale) {
   return top + (maximum - Math.log10(1 + value / 100)) / (maximum - minimum) * plotHeight;
 }
 
-function CumulativeTooltip({ window, index }) {
+function CumulativeTooltip({ window, index, width, seriesValues }) {
   return (
-    <div className="backtest-chart-tooltip" role="tooltip">
+    <div className="backtest-chart-tooltip" role="tooltip" style={{ width }}>
       <span className="backtest-chart-tooltip__date">{formatDate(window.dates[index])}</span>
       {SERIES.map((series) => {
-        const value = window[series.id]?.[index];
+        const values = seriesValues?.[series.id];
+        const portfolioValue = values?.values?.[index];
+        const cumulativeReturn = values?.returns?.[index];
         return (
           <span className="backtest-chart-tooltip__row" key={series.id}>
             <i style={{ "--series-color": series.color }} aria-hidden="true" />
-            <span>{series.name}</span>
-            <strong className={`is-${valueTone(value - 100)}`}>{formatPercent(value - 100)}</strong>
+            <span className="backtest-chart-tooltip__name">{series.name}</span>
+            <strong className="backtest-chart-tooltip__portfolio">
+              {formatTooltipMoney(portfolioValue)}
+            </strong>
+            <strong className={`backtest-chart-tooltip__return is-${valueTone(cumulativeReturn)}`}>
+              {formatPercent(cumulativeReturn)}
+            </strong>
           </span>
         );
       })}
@@ -310,10 +276,11 @@ function LogScaleToggle({ checked, onChange }) {
   );
 }
 
-function CumulativeChart({ window, range, logScale, onLogUnavailable }) {
+function CumulativeChart({ window, range, logScale, seriesValues, onLogUnavailable }) {
   const [boxRef, box] = useElementSize();
   const [selectedIndex, setSelectedIndex] = useState(null);
   const [tooltipSide, setTooltipSide] = useState(null);
+  const [tooltipRef, tooltipSize] = useChartTooltipSize();
   const movementOriginX = useRef(Number.NaN);
   const tooltipSideRef = useRef(null);
   const width = Math.round(box.width);
@@ -378,6 +345,11 @@ function CumulativeChart({ window, range, logScale, onLogUnavailable }) {
   }
 
   const selectedPoint = selectedIndex == null ? null : pointsFor(computedSeries[0].values)[selectedIndex];
+  const labelBoundary = left + plotWidth + (compact ? 9 : 14);
+  const tooltipWidth = fitTooltipWidth({
+    containerWidth: width,
+    preferredWidth: compact ? 260 : CHART_TOOLTIP.width,
+  });
   const placement = selectedPoint
     ? placePriceTooltip({
       anchorX: selectedPoint.x,
@@ -385,8 +357,9 @@ function CumulativeChart({ window, range, logScale, onLogUnavailable }) {
       preferredSide: tooltipSide,
       containerWidth: width,
       containerHeight: height,
-      tooltipWidth: compact ? 196 : CHART_TOOLTIP.width,
-      tooltipHeight: compact ? 120 : CHART_TOOLTIP.height,
+      rightBoundary: labelBoundary,
+      tooltipWidth: tooltipSize?.width ?? tooltipWidth,
+      tooltipHeight: tooltipSize?.height ?? CHART_TOOLTIP.height,
     })
     : null;
 
@@ -415,7 +388,6 @@ function CumulativeChart({ window, range, logScale, onLogUnavailable }) {
 
   return (
     <div className="backtest-chart-frame" ref={boxRef}>
-      <span className="backtest-axis-caption">Cumulative return (%)</span>
       {ready && (
         <svg
           className="backtest-chart-svg"
@@ -474,7 +446,7 @@ function CumulativeChart({ window, range, logScale, onLogUnavailable }) {
             </g>
           )}
           {endLabels.map(({ series, point, labelY }) => (
-            <g key={`${series.id}-end`}>
+            <g key={`${series.id}-end`} data-testid={`backtest-final-label-${series.id}`}>
               <circle cx={point.x} cy={point.y} r="4.5" className={`backtest-endpoint backtest-endpoint--${series.id}`} />
               <path d={`M ${point.x + 7} ${point.y} L ${point.x + (compact ? 9 : 14)} ${labelY}`} className={`backtest-leader backtest-leader--${series.id}`} />
               <rect
@@ -499,10 +471,16 @@ function CumulativeChart({ window, range, logScale, onLogUnavailable }) {
       {ready && selectedPoint && (
         <div
           className="backtest-floating-tooltip"
+          ref={tooltipRef}
           style={{ left: placement.x, top: placement.y }}
           data-testid="backtest-cumulative-tooltip"
         >
-          <CumulativeTooltip window={window} index={selectedIndex} />
+          <CumulativeTooltip
+            window={window}
+            index={selectedIndex}
+            width={tooltipWidth}
+            seriesValues={seriesValues}
+          />
         </div>
       )}
     </div>
@@ -511,6 +489,7 @@ function CumulativeChart({ window, range, logScale, onLogUnavailable }) {
 function DrawdownChart({ window }) {
   const [boxRef, box] = useElementSize();
   const [selectedIndex, setSelectedIndex] = useState(null);
+  const [tooltipRef, tooltipSize] = useChartTooltipSize();
   const width = Math.round(box.width);
   const height = Math.round(box.height);
   const ready = width > 0 && height > 0;
@@ -534,6 +513,10 @@ function DrawdownChart({ window }) {
   });
   const maxPoint = points[maxIndex];
   const selectedPoint = selectedIndex == null ? null : points[selectedIndex];
+  const tooltipWidth = fitTooltipWidth({
+    containerWidth: width,
+    preferredWidth: compact ? 182 : PERIOD_TOOLTIP.width,
+  });
   const placement = selectedPoint
     ? placePriceTooltip({
       anchorX: selectedPoint.x,
@@ -541,8 +524,8 @@ function DrawdownChart({ window }) {
       preferredSide: selectedPoint.x > width / 2 ? "left" : "right",
       containerWidth: width,
       containerHeight: height,
-      tooltipWidth: PERIOD_TOOLTIP.width,
-      tooltipHeight: PERIOD_TOOLTIP.height,
+      tooltipWidth: tooltipSize?.width ?? tooltipWidth,
+      tooltipHeight: tooltipSize?.height ?? PERIOD_TOOLTIP.height,
     })
     : null;
   const yearPositions = yearLabelPositions(window.dates, left, plotWidth)
@@ -618,7 +601,12 @@ function DrawdownChart({ window }) {
       )}
       {ready && selectedPoint && (
         <div className="backtest-floating-tooltip" style={{ left: placement.x, top: placement.y }} data-testid="backtest-drawdown-tooltip">
-          <div className="backtest-chart-tooltip backtest-chart-tooltip--compact" role="tooltip">
+          <div
+            className="backtest-chart-tooltip backtest-chart-tooltip--compact"
+            role="tooltip"
+            ref={tooltipRef}
+            style={{ width: tooltipWidth }}
+          >
             <span className="backtest-chart-tooltip__date">{formatDate(window.dates[selectedIndex])}</span>
             <strong className="backtest-chart-tooltip__drawdown">{formatPercent(values[selectedIndex], 2)}</strong>
           </div>
@@ -627,7 +615,7 @@ function DrawdownChart({ window }) {
     </div>
   );
 }
-function AnnualReturnTable({ rows, includeYtd }) {
+function AnnualReturnTable({ rows = [], includeYtd, state = "ready" }) {
   const visibleRows = rows.filter((row) => includeYtd || !row.ytd);
   return (
     <DashboardCard title="Annual Return" className="backtest-annual-card">
@@ -642,7 +630,18 @@ function AnnualReturnTable({ rows, includeYtd }) {
             </tr>
           </thead>
           <tbody>
-            {visibleRows.map((row) => (
+            {state === "loading" ? (
+              <TableSkeletonRows columns={4} rows={6} />
+            ) : state !== "ready" ? (
+              <TableStateRow
+                columns={4}
+                state={state}
+                title={state === "error" ? "Annual returns unavailable" : "No annual returns"}
+                detail={state === "error"
+                  ? "The latest calendar-year results could not be loaded."
+                  : "No calendar-year returns were published for this window."}
+              />
+            ) : visibleRows.map((row) => (
               <tr key={row.key}>
                 <th scope="row">
                   {row.key}
@@ -659,7 +658,7 @@ function AnnualReturnTable({ rows, includeYtd }) {
                 })}
               </tr>
             ))}
-            {!visibleRows.length && (
+            {state === "ready" && !visibleRows.length && (
               <tr><td colSpan="4" className="backtest-table-empty">No calendar-year returns in this window.</td></tr>
             )}
           </tbody>
@@ -669,12 +668,16 @@ function AnnualReturnTable({ rows, includeYtd }) {
   );
 }
 
-function PerformanceSummary({ report, config }) {
+function PerformanceSummary({ report, config, state = "ready" }) {
   const settings = [
-    { label: "Initial Capital", value: formatMoney(report.initialCapital), icon: Bank },
-    { label: "Reinvest Dividends", value: config.reinvestDividends ? "Yes" : "No", icon: TrendUp },
-    { label: "Inflation Adjusted", value: config.inflationAdjusted ? "Yes" : "No", icon: ChartBar },
-    { label: "Rebalancing", value: "Semiannual (Mar / Sep)", icon: Scales },
+    { label: "Initial Capital", value: report ? formatMoney(report.initialCapital) : "—", icon: Bank },
+    { label: "Reinvest Dividends", value: config ? (config.reinvestDividends ? "Yes" : "No") : "—", icon: TrendUp },
+    { label: "Inflation Adjusted", value: config ? (config.inflationAdjusted ? "Yes" : "No") : "—", icon: ChartBar },
+    {
+      label: "Rebalancing",
+      value: config ? rebalanceLabel(config.rebalanceFrequency) : "—",
+      icon: Scales,
+    },
   ];
   return (
     <DashboardCard title="Performance Summary" className="backtest-summary-card">
@@ -682,18 +685,26 @@ function PerformanceSummary({ report, config }) {
         <div className="backtest-summary-primary">
           <div className="backtest-summary-tile">
             <span className="backtest-summary-tile__label"><Stack size={18} aria-hidden="true" />Final Portfolio Value</span>
-            <strong>{formatMoney(report.finalValue)}</strong>
+            <strong>
+              {state === "loading"
+                ? <Skeleton width="76%" height="0.65em" />
+                : report ? formatMoney(report.finalValue) : "—"}
+            </strong>
           </div>
           <div className="backtest-summary-tile">
             <span className="backtest-summary-tile__label"><Coins size={18} aria-hidden="true" />Total Contributions</span>
-            <strong>{formatMoney(report.totalContributions)}</strong>
+            <strong>
+              {state === "loading"
+                ? <Skeleton width="64%" height="0.65em" />
+                : report ? formatMoney(report.totalContributions) : "—"}
+            </strong>
           </div>
         </div>
         <div className="backtest-summary-settings" aria-label="Investment settings">
           {settings.map(({ label, value, icon: Icon }) => (
             <div className="backtest-summary-setting" key={label}>
               <span><Icon size={16} aria-hidden="true" />{label}</span>
-              <strong>{value}</strong>
+              <strong>{state === "loading" ? <Skeleton width="58px" height="11px" /> : value}</strong>
             </div>
           ))}
         </div>
@@ -701,76 +712,39 @@ function PerformanceSummary({ report, config }) {
       <div className="backtest-return-metrics">
         <span>
           <small>Time-Weighted Return <InfoTooltip label="Time-weighted return">Daily portfolio growth linked across external contributions. Cashflow timing does not change this return.</InfoTooltip></small>
-          <strong className={`is-${valueTone(report.timeWeightedReturnPct)}`}>{formatPercent(report.timeWeightedReturnPct, 2)}</strong>
+          <strong className={`is-${valueTone(report?.timeWeightedReturnPct)}`}>
+            {state === "loading" ? <Skeleton width="72px" height="16px" /> : report ? formatPercent(report.timeWeightedReturnPct, 2) : "—"}
+          </strong>
         </span>
         <span>
           <small>Money-Weighted Return / XIRR <InfoTooltip label="money-weighted return">The annualised rate that makes the dated initial investment, contributions and ending account value net to zero.</InfoTooltip></small>
-          <strong className={`is-${valueTone(report.moneyWeightedReturnPct)}`}>{formatPercent(report.moneyWeightedReturnPct, 2)}</strong>
+          <strong className={`is-${valueTone(report?.moneyWeightedReturnPct)}`}>
+            {state === "loading" ? <Skeleton width="72px" height="16px" /> : report ? formatPercent(report.moneyWeightedReturnPct, 2) : "—"}
+          </strong>
         </span>
         <span>
-          <small>{config.inflationAdjusted ? "vs. SPY (Real Return)" : "vs. SPY (Total Return)"} <InfoTooltip label="relative performance">Strategy time-weighted return minus the matching SPY return over the submitted period, shown in percentage points.</InfoTooltip></small>
-          <strong className={`is-${valueTone(report.relativeToSpyPct)}`}>{formatPercent(report.relativeToSpyPct)} pp</strong>
+          <small>{config?.inflationAdjusted ? "vs. SPY (Real Return)" : "vs. SPY (Total Return)"} <InfoTooltip label="relative performance">Strategy time-weighted return minus the matching SPY return over the submitted period, shown in percentage points.</InfoTooltip></small>
+          <strong className={`is-${valueTone(report?.relativeToSpyPct)}`}>
+            {state === "loading"
+              ? <Skeleton width="72px" height="16px" />
+              : report ? `${formatPercent(report.relativeToSpyPct)} pp` : "—"}
+          </strong>
         </span>
       </div>
+      {state !== "ready" && state !== "loading" && (
+        <DataState
+          state={state}
+          title="Performance summary unavailable"
+          detail="The latest validated backtest results are not available."
+          className="backtest-summary-state"
+        />
+      )}
     </DashboardCard>
   );
 }
 
-function SettingToggle({ label, description, checked, onChange, icon: Icon }) {
-  return (
-    <div
-      className="backtest-setting-toggle"
-    >
-      <span className="backtest-setting-label">
-        {Icon && <Icon size={21} weight="regular" aria-hidden="true" />}
-        <span>{label}</span>
-        <InfoTooltip label={label}>{description}</InfoTooltip>
-      </span>
-      <button
-        type="button"
-        className="backtest-switch-button"
-        role="switch"
-        aria-label={label}
-        aria-checked={checked}
-        onClick={() => onChange(!checked)}
-      >
-        <span className="backtest-switch" aria-hidden="true"><i /></span>
-      </button>
-    </div>
-  );
-}
-
-function MoneyField({ id, value, onChange, ariaLabel, invalid = false }) {
-  const rawValue = String(value ?? "");
-  const displayValue = (() => {
-    if (!/^\d+(\.\d*)?$/.test(rawValue)) return rawValue;
-    const [whole, decimal] = rawValue.split(".");
-    const grouped = Number(whole).toLocaleString("en-US");
-    return decimal === undefined ? grouped : `${grouped}.${decimal}`;
-  })();
-  return (
-    <div className="backtest-amount-control">
-      <span aria-hidden="true">$</span>
-      <input
-        id={id}
-        type="text"
-        inputMode="decimal"
-        aria-label={ariaLabel}
-        aria-invalid={invalid}
-        value={displayValue}
-        onChange={(event) => {
-          const next = event.target.value.replace(/[^\d.]/g, "");
-          const parts = next.split(".");
-          onChange(parts.length > 2 ? `${parts.shift()}.${parts.join("")}` : next);
-        }}
-      />
-      <span>USD</span>
-    </div>
-  );
-}
-
 function AdvancedSettings({ open, onToggle, draft, updateDraft, amountErrors }) {
-  const summary = `${formatMoney(Number(draft.initialCapital))} initial${draft.cashflowEnabled ? ` · ${formatMoney(Number(draft.contributionAmount))} ${draft.contributionFrequency}` : " · No contributions"} · Reinvest: ${draft.reinvestDividends ? "On" : "Off"}`;
+  const summary = `${formatMoney(Number(draft.initialCapital))} initial${draft.cashflowEnabled ? ` · ${formatMoney(Number(draft.contributionAmount))} ${draft.contributionFrequency}` : " · No contributions"} · Reinvest: ${draft.reinvestDividends ? "On" : "Off"} · Rebalance: ${rebalanceSummaryLabel(draft.rebalanceFrequency)}`;
   return (
     <section className="backtest-advanced" data-open={open || undefined}>
       <button className="backtest-advanced__toggle" type="button" aria-expanded={open} onClick={onToggle}>
@@ -782,80 +756,114 @@ function AdvancedSettings({ open, onToggle, draft, updateDraft, amountErrors }) 
         <div className="backtest-advanced__inner">
           <div className="backtest-advanced__grid">
             <div className="backtest-advanced__column">
-              <div className="backtest-advanced-panel">
-                <div className="backtest-advanced-panel__title"><Coins size={21} aria-hidden="true" /><span>Initial Capital</span></div>
-                <MoneyField
-                  id="backtest-initial-capital"
-                  value={draft.initialCapital}
-                  onChange={(value) => updateDraft({ initialCapital: value })}
-                  ariaLabel="Initial capital in US dollars"
-                  invalid={Boolean(amountErrors.initialCapital)}
-                />
-              </div>
+              <SettingsCard
+                title="Initial Capital"
+                icon={Coins}
+                className="backtest-capital-card"
+                action={(
+                  <CurrencyInput
+                    className="backtest-capital-field"
+                    id="backtest-initial-capital"
+                    value={draft.initialCapital}
+                    onChange={(value) => updateDraft({ initialCapital: value })}
+                    ariaLabel="Initial capital in US dollars"
+                    invalid={Boolean(amountErrors.initialCapital)}
+                  />
+                )}
+              />
 
-              <div className="backtest-advanced-panel backtest-cashflow-panel">
-                <SettingToggle
-                  label="Cashflows"
-                  description="Add external contributions at the close of the first trading day in each period."
-                  checked={draft.cashflowEnabled}
-                  onChange={(checked) => updateDraft({ cashflowEnabled: checked })}
-                />
+              <SettingsCard
+                title="Cashflows"
+                icon={Coins}
+                description="Add external contributions at the close of the first trading day in each period."
+                className="backtest-cashflow-card"
+                action={(
+                  <Toggle
+                    label="Cashflows"
+                    checked={draft.cashflowEnabled}
+                    onChange={(checked) => updateDraft({ cashflowEnabled: checked })}
+                  />
+                )}
+              >
                 <div
-                  className="backtest-cashflow-fields"
+                  className="backtest-cashflow-fields settings-form-grid"
                   data-open={draft.cashflowEnabled || undefined}
                   aria-hidden={!draft.cashflowEnabled}
                   inert={!draft.cashflowEnabled}
                 >
-                  <div>
-                    <label htmlFor="backtest-contribution-amount">Contribution Amount</label>
-                    <MoneyField
-                      id="backtest-contribution-amount"
-                      value={draft.contributionAmount}
-                      onChange={(value) => updateDraft({ contributionAmount: value })}
-                      ariaLabel="Contribution amount in US dollars"
-                      invalid={Boolean(amountErrors.contributionAmount)}
-                    />
-                    <label htmlFor="backtest-contribution-frequency">Frequency</label>
-                    <select
-                      id="backtest-contribution-frequency"
-                      value={draft.contributionFrequency}
-                      onChange={(event) => updateDraft({ contributionFrequency: event.target.value })}
-                    >
-                      <option value="monthly">Monthly</option>
-                      <option value="quarterly">Quarterly</option>
-                      <option value="annually">Annually</option>
-                    </select>
-                  </div>
+                  <label htmlFor="backtest-contribution-amount">Contribution Amount</label>
+                  <CurrencyInput
+                    id="backtest-contribution-amount"
+                    value={draft.contributionAmount}
+                    onChange={(value) => updateDraft({ contributionAmount: value })}
+                    ariaLabel="Contribution amount in US dollars"
+                    invalid={Boolean(amountErrors.contributionAmount)}
+                  />
+                  <label htmlFor="backtest-contribution-frequency">Frequency</label>
+                  <Dropdown
+                    id="backtest-contribution-frequency"
+                    value={draft.contributionFrequency}
+                    onChange={(event) => updateDraft({ contributionFrequency: event.target.value })}
+                    options={[
+                      { value: "monthly", label: "Monthly" },
+                      { value: "quarterly", label: "Quarterly" },
+                      { value: "annually", label: "Annually" },
+                    ]}
+                    ariaLabel="Contribution frequency"
+                  />
                 </div>
-              </div>
+              </SettingsCard>
             </div>
 
             <div className="backtest-advanced__column backtest-advanced__settings">
-              <SettingToggle
-                label="Reinvest Dividends"
+              <SettingsRow
+                title="Reinvest Dividends"
                 description="Adjusted closes already include dividend reinvestment, so no dividend cash amount is added again."
                 icon={TrendUp}
-                checked={draft.reinvestDividends}
-                onChange={(checked) => updateDraft({ reinvestDividends: checked })}
-              />
-              <SettingToggle
-                label="Inflation Adjusted"
+              >
+                <Toggle
+                  label="Reinvest Dividends"
+                  checked={draft.reinvestDividends}
+                  onChange={(checked) => updateDraft({ reinvestDividends: checked })}
+                />
+              </SettingsRow>
+              <SettingsRow
+                title="Inflation Adjusted"
                 description="Convert nominal values and returns into real terms using dated US CPI-U observations."
                 icon={ChartBar}
-                checked={draft.inflationAdjusted}
-                onChange={(checked) => updateDraft({ inflationAdjusted: checked })}
-              />
-              <div className="backtest-fixed-setting">
-                <span className="backtest-setting-label"><Scales size={21} aria-hidden="true" /><span>Rebalancing</span><InfoTooltip label="rebalancing">Signals use the last March and September session; trades execute at the next available close.</InfoTooltip></span>
-                <select aria-label="Rebalancing schedule" value="semiannual" disabled><option value="semiannual">Semiannual (Mar / Sep)</option></select>
-              </div>
-              <SettingToggle
-                label="Include YTD"
+              >
+                <Toggle
+                  label="Inflation Adjusted"
+                  checked={draft.inflationAdjusted}
+                  onChange={(checked) => updateDraft({ inflationAdjusted: checked })}
+                />
+              </SettingsRow>
+              <SettingsRow
+                title="Rebalancing"
+                description="Signals use the final scheduled trading session in each selected month; trades execute at the next available close."
+                icon={Scales}
+                className="backtest-rebalance-row"
+              >
+                <Dropdown
+                  id="backtest-rebalance-frequency"
+                  className="backtest-rebalance-control"
+                  value={draft.rebalanceFrequency}
+                  options={REBALANCE_OPTIONS}
+                  onChange={(event) => updateDraft({ rebalanceFrequency: event.target.value })}
+                  ariaLabel="Rebalancing schedule"
+                />
+              </SettingsRow>
+              <SettingsRow
+                title="Include YTD"
                 description="Include the current partial calendar year as a clearly labelled YTD row."
                 icon={CalendarBlank}
-                checked={draft.includeYtd}
-                onChange={(checked) => updateDraft({ includeYtd: checked })}
-              />
+              >
+                <Toggle
+                  label="Include YTD"
+                  checked={draft.includeYtd}
+                  onChange={(checked) => updateDraft({ includeYtd: checked })}
+                />
+              </SettingsRow>
             </div>
           </div>
         </div>
@@ -865,21 +873,38 @@ function AdvancedSettings({ open, onToggle, draft, updateDraft, amountErrors }) 
 }
 
 export function BacktestingPage({ hidden = false }) {
-  const { data, refresh } = useMarket();
+  const { data, refresh, status, error, refreshing, runBacktest: executeBacktest } = useMarket();
+  const { universe, selectUniverse } = useUniverse();
   const [draft, setDraft] = useState(DEFAULT_CONFIG);
   const [submittedConfig, setSubmittedConfig] = useState(null);
+  const [customRun, setCustomRun] = useState(null);
   const [range, setRange] = useState("All");
   const [logScale, setLogScale] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [notification, setNotification] = useState(null);
+  const [dismissedOutdatedKey, setDismissedOutdatedKey] = useState("");
   const [validationTouched, setValidationTouched] = useState(false);
   const notificationTimer = useRef(null);
-  const runTimer = useRef(null);
+  const runSequence = useRef(0);
 
-  const draftBlock = data?.backtest?.[draft.portfolio] ?? null;
-  const resultBlock = submittedConfig ? data?.backtest?.[submittedConfig.portfolio] ?? null : null;
+  const draftBlock = data?.backtest?.[universe] ?? null;
+  const submittedRunKey = backtestRunKey(submittedConfig);
+  const customResultBlock = customRun?.key === submittedRunKey ? customRun.block : null;
+  const snapshotResultBlock = submittedConfig
+    ? data?.backtest?.[submittedConfig.portfolio] ?? null
+    : null;
+  const resultBlock = customResultBlock
+    ?? (submittedConfig?.rebalanceFrequency === DEFAULT_REBALANCE_FREQUENCY
+      ? snapshotResultBlock
+      : null);
   const cpi = data?.macro?.cpi ?? null;
+  const sourceState = getSectionState({
+    hasData: Boolean(draftBlock?.available),
+    status,
+    error,
+    refreshing,
+  });
 
   useEffect(() => {
     if (!draftBlock?.available) return;
@@ -890,22 +915,37 @@ export function BacktestingPage({ hidden = false }) {
     }));
     setSubmittedConfig((current) => current ?? {
       ...DEFAULT_CONFIG,
+      portfolio: universe,
       startDate: draftBlock.start,
       endDate: draftBlock.end,
       initialCapital: Number(DEFAULT_CONFIG.initialCapital),
       contributionAmount: Number(DEFAULT_CONFIG.contributionAmount),
     });
-  }, [draftBlock?.available, draftBlock?.start, draftBlock?.end]);
+  }, [draftBlock?.available, draftBlock?.start, draftBlock?.end, universe]);
 
   useEffect(() => () => {
     window.clearTimeout(notificationTimer.current);
-    window.clearTimeout(runTimer.current);
+    runSequence.current += 1;
   }, []);
 
   function updateDraft(patch) {
     setDraft((current) => ({ ...current, ...patch }));
+    if ("rebalanceFrequency" in patch) {
+      setNotification((current) => (
+        current?.id === "backtest-complete" ? null : current
+      ));
+    }
     if ("startDate" in patch || "endDate" in patch) setValidationTouched(true);
     if ("initialCapital" in patch || "contributionAmount" in patch) setValidationTouched(true);
+  }
+
+  function selectBacktestUniverse(value) {
+    if (value === universe) return;
+    selectUniverse(value);
+    setDismissedOutdatedKey("");
+    setNotification((current) => (
+      current?.id === "backtest-complete" ? null : current
+    ));
   }
 
   function showNotification(message, kind = "updated", durationMs = 3200, id = message, retry = false) {
@@ -953,11 +993,16 @@ export function BacktestingPage({ hidden = false }) {
   const canRun = Boolean(draftBlock?.available) && !dateError && !Object.keys(amountErrors).length && availability.available;
   const normalizedDraft = {
     ...draft,
+    portfolio: universe,
     initialCapital: Number(draft.initialCapital),
     contributionAmount: Number(draft.contributionAmount),
   };
 
   useEffect(() => {
+    if (!draftBlock || sourceState === "loading" || sourceState === "error") {
+      setNotification((current) => (current?.id === "unavailable-mode" ? null : current));
+      return;
+    }
     if (availability.available) {
       setNotification((current) => (current?.id === "unavailable-mode" ? null : current));
       return;
@@ -971,7 +1016,7 @@ export function BacktestingPage({ hidden = false }) {
       durationMs: undefined,
       onDismiss: () => setNotification((current) => (current?.id === "unavailable-mode" ? null : current)),
     });
-  }, [availability.available, availability.detail, availability.title]);
+  }, [availability.available, availability.detail, availability.title, draftBlock, sourceState]);
 
   useEffect(() => {
     if (!validationTouched) return;
@@ -1038,6 +1083,10 @@ export function BacktestingPage({ hidden = false }) {
     },
     [cpi, nominalChartWindow, submittedConfig?.inflationAdjusted],
   );
+  const cumulativeSeries = useMemo(
+    () => calculateCumulativeSeries(chartWindow, submittedConfig),
+    [chartWindow, submittedConfig],
+  );
   const metrics = useMemo(
     () => computeWindowMetrics(
       reportWindow,
@@ -1053,34 +1102,95 @@ export function BacktestingPage({ hidden = false }) {
       : null,
     [reportWindow, submittedConfig],
   );
+  const resultsReady = Boolean(report && reportWindow && chartWindow);
+  const resultsState = isRunning
+    ? "loading"
+    : resultsReady
+      ? "ready"
+      : sourceState === "ready" && draftBlock?.available && !submittedConfig
+        ? "loading"
+        : sourceState;
+  const resultsLoading = !resultsReady && resultsState === "loading";
+  const resultsOutdated = Boolean(
+    submittedConfig
+    && resultBlock?.available
+    && (
+      universe !== submittedConfig.portfolio
+      || draft.rebalanceFrequency !== submittedConfig.rebalanceFrequency
+    ),
+  );
+  const outdatedKey = resultsOutdated
+    ? `${submittedConfig.portfolio}:${universe}:${submittedConfig.rebalanceFrequency}:${draft.rebalanceFrequency}`
+    : "";
+  const outdatedMessage = resultsOutdated
+    ? universe !== submittedConfig.portfolio
+      ? `Displayed results use ${universeLabel(submittedConfig.portfolio)}. Rerun Backtesting for ${universeLabel(universe)}.`
+      : `Displayed results use ${rebalanceLabel(submittedConfig.rebalanceFrequency)}. Rerun Backtesting for ${rebalanceLabel(draft.rebalanceFrequency)}.`
+    : "";
+  const displayNotification = notification ?? (
+    resultsOutdated && dismissedOutdatedKey !== outdatedKey
+      ? {
+        id: "backtest-outdated",
+        message: outdatedMessage,
+        kind: "partial",
+        durationMs: undefined,
+        onDismiss: () => setDismissedOutdatedKey(outdatedKey),
+      }
+      : null
+  );
 
   useEffect(() => {
-    if (!data || !submittedConfig || resultBlock?.available) {
+    if (!data || !submittedConfig || resultBlock?.available || sourceState !== "ready") {
       setNotification((current) => (current?.id === "missing-data" ? null : current));
       return;
     }
     showNotification("Missing price history", "error", undefined, "missing-data", true);
-  }, [data, resultBlock?.available, submittedConfig]);
+  }, [data, resultBlock?.available, sourceState, submittedConfig]);
 
-  function runBacktest() {
+  async function runBacktest() {
     if (!canRun || isRunning) return;
+    const sequence = runSequence.current + 1;
+    runSequence.current = sequence;
     setIsRunning(true);
-    showNotification("Backtest started", "loading", 550, "backtest-running");
-    window.clearTimeout(runTimer.current);
-    runTimer.current = window.setTimeout(() => {
+    showNotification("Running selected rebalance schedule…", "loading", undefined, "backtest-running");
+    try {
+      const block = await executeBacktest({
+        portfolio: normalizedDraft.portfolio,
+        start: normalizedDraft.startDate,
+        end: normalizedDraft.endDate,
+        rebalance_frequency: normalizedDraft.rebalanceFrequency,
+      });
+      if (runSequence.current !== sequence) return;
+      if (!block?.available) {
+        showNotification(
+          block?.reason || "The backtest could not construct a valid portfolio.",
+          "error",
+          undefined,
+          "backtest-unavailable",
+          "backtest",
+        );
+        return;
+      }
+      const key = backtestRunKey(normalizedDraft);
+      setCustomRun({ key, block });
       setSubmittedConfig(normalizedDraft);
-      setIsRunning(false);
       showNotification("Backtest completed", "updated", 3200, "backtest-complete");
-    }, 550);
+    } catch (requestError) {
+      if (runSequence.current !== sequence) return;
+      showNotification(
+        requestError?.message || "The backtest service could not complete the run.",
+        "error",
+        undefined,
+        "backtest-request-error",
+        "backtest",
+      );
+    } finally {
+      if (runSequence.current === sequence) setIsRunning(false);
+    }
   }
 
   async function refreshPreview() {
-    const updated = await refresh();
-    if (!updated) {
-      showNotification("Data update failed", "error", undefined, "refresh-error", true);
-    } else {
-      setNotification((current) => (current?.id === "refresh-error" ? null : current));
-    }
+    await refresh();
   }
 
   return (
@@ -1152,12 +1262,12 @@ export function BacktestingPage({ hidden = false }) {
                 <h2>Universe</h2>
               </div>
               <div className="backtest-segmented" role="group" aria-label="Portfolio selection">
-                {[["top100", "Top 100"], ["top20", "Top 20%"]].map(([value, label]) => (
+                {UNIVERSE_OPTIONS.map(({ value, label }) => (
                   <button
                     key={value}
                     type="button"
-                    aria-pressed={draft.portfolio === value}
-                    onClick={() => updateDraft({ portfolio: value })}
+                    aria-pressed={universe === value}
+                    onClick={() => selectBacktestUniverse(value)}
                   >{label}</button>
                 ))}
               </div>
@@ -1183,103 +1293,150 @@ export function BacktestingPage({ hidden = false }) {
           />
         </div>
 
-        {report && reportWindow && chartWindow ? (
-          <div className="backtest-results" data-loading={isRunning || undefined} aria-busy={isRunning}>
-            <section className="backtest-kpis" aria-label="Backtest summary">
-              <KpiCard
-                label="CAGR"
-                value={formatPercent(metrics.cagr)}
-                valueTone={valueTone(metrics.cagr)}
-                icon={ChartBar}
-                tint="cream"
-                mascotVariant="cream"
-                mascotColor="var(--color-cream)"
-              />
-              <KpiCard
-                label="Total Return"
-                value={formatPercent(metrics.totalReturn)}
-                valueTone={valueTone(metrics.totalReturn)}
-                icon={Stack}
-                tint="mint"
-                mascotVariant="mint"
-                mascotColor="var(--color-mint)"
-              />
-              <KpiCard
-                label="Profit / Loss"
-                value={formatMoney(report.netProfitLoss)}
-                valueTone={valueTone(report.netProfitLoss)}
-                icon={Coins}
-                tint="pink"
-                mascotVariant="pink"
-                mascotColor="var(--color-pink)"
-              />
-              <KpiCard
-                label="Sharpe Ratio"
-                shortLabel="Sharpe"
-                value={metrics.sharpe == null ? "—" : metrics.sharpe.toFixed(2)}
-                icon={Scales}
-                tint="blue"
-                mascotVariant="blue"
-                mascotColor="var(--color-blue)"
-              />
-            </section>
+        <div
+          className="backtest-results"
+          data-loading={isRunning || undefined}
+          data-state={resultsState}
+          data-outdated={resultsOutdated || undefined}
+          aria-busy={isRunning || resultsLoading || undefined}
+        >
+          {resultsOutdated && (
+            <div className="backtest-results-outdated" role="status">
+              <WarningCircle size={18} weight="fill" aria-hidden="true" />
+              <span>{outdatedMessage}</span>
+            </div>
+          )}
+          <section className="backtest-kpis" aria-label="Backtest summary">
+            <KpiCard
+              loading={resultsLoading}
+              label="Start Balance"
+              value={report ? formatMoney(report.initialCapital) : "—"}
+              icon={Bank}
+              tint="blue"
+              mascotVariant="blue"
+              mascotColor="var(--color-blue)"
+            />
+            <KpiCard
+              loading={resultsLoading}
+              label="End Balance"
+              value={report ? formatMoney(report.finalValue) : "—"}
+              icon={Coins}
+              tint="pink"
+              mascotVariant="pink"
+              mascotColor="var(--color-pink)"
+            />
+            <KpiCard
+              loading={resultsLoading}
+              label="CAGR"
+              value={formatPercent(metrics.cagr)}
+              valueTone={valueTone(metrics.cagr)}
+              icon={ChartBar}
+              tint="cream"
+              mascotVariant="cream"
+              mascotColor="var(--color-cream)"
+            />
+            <KpiCard
+              loading={resultsLoading}
+              label="Total Return"
+              value={formatPercent(metrics.totalReturn)}
+              valueTone={valueTone(metrics.totalReturn)}
+              icon={Stack}
+              tint="mint"
+              mascotVariant="mint"
+              mascotColor="var(--color-mint)"
+            />
+          </section>
 
-            <DashboardCard
-              title="Cumulative Return"
-              className="backtest-cumulative-card"
-              action={(
-                <div className="backtest-chart-controls">
-                  <LogScaleToggle checked={logScale} onChange={setLogScale} />
-                  <div className="period-control backtest-range-control" role="group" aria-label="Chart time range">
-                    {RANGES.map((item) => (
-                      <button key={item} type="button" aria-pressed={range === item} onClick={() => setRange(item)}>{item}</button>
-                    ))}
-                  </div>
+          <DashboardCard
+            title="Cumulative Return"
+            className="backtest-cumulative-card"
+            action={(
+              <div className="backtest-chart-controls">
+                <LogScaleToggle checked={logScale} onChange={setLogScale} />
+                <div className="period-control backtest-range-control" role="group" aria-label="Chart time range">
+                  {RANGES.map((item) => (
+                    <button key={item} type="button" aria-pressed={range === item} onClick={() => setRange(item)}>{item}</button>
+                  ))}
                 </div>
-              )}
-            >
-              <div className="performance-legend backtest-cumulative-legend" aria-label="Return series">
-                {SERIES.map((series) => (
-                  <span className={`performance-legend__item performance-legend__item--${series.id}`} key={series.id}>
-                    <i aria-hidden="true" />{series.name}
-                  </span>
-                ))}
               </div>
+            )}
+          >
+            <div className="performance-legend backtest-cumulative-legend" aria-label="Return series">
+              {SERIES.map((series) => (
+                <span className={`performance-legend__item performance-legend__item--${series.id}`} key={series.id}>
+                  <i aria-hidden="true" />{series.name}
+                </span>
+              ))}
+            </div>
+            {chartWindow ? (
               <CumulativeChart
                 window={chartWindow}
                 range={range}
                 logScale={logScale}
+                seriesValues={cumulativeSeries}
                 onLogUnavailable={() => {
                   setLogScale(false);
                   showNotification("Log scale unavailable for this return window", "error", 4200, "log-scale");
                 }}
               />
+            ) : (
+              <ChartState
+                state={resultsState}
+                title={resultsState === "error" ? "Cumulative return unavailable" : "No cumulative return data"}
+                detail={resultsState === "error"
+                  ? "The latest validated backtest series could not be loaded."
+                  : "Run a backtest after the first verified data update to populate this chart."}
+                className="backtest-chart-pending"
+              />
+            )}
+          </DashboardCard>
+
+          <section className="backtest-analytics-grid" aria-label="Drawdown and annual returns">
+            <DashboardCard
+              title="Drawdown"
+              className="backtest-drawdown-card"
+              action={<span className="backtest-max-drawdown">Max {formatPercent(metrics.maxDrawdown)}</span>}
+            >
+              {reportWindow ? (
+                <DrawdownChart window={reportWindow} />
+              ) : (
+                <ChartState
+                  state={resultsState}
+                  title={resultsState === "error" ? "Drawdown unavailable" : "No drawdown data"}
+                  detail={resultsState === "error"
+                    ? "The latest validated drawdown series could not be loaded."
+                    : "Drawdown appears after a validated backtest is available."}
+                  className="backtest-drawdown-pending"
+                />
+              )}
             </DashboardCard>
 
-            <section className="backtest-analytics-grid" aria-label="Drawdown and annual returns">
-              <DashboardCard
-                title="Drawdown"
-                className="backtest-drawdown-card"
-                action={<span className="backtest-max-drawdown">Max {formatPercent(metrics.maxDrawdown)}</span>}
-              >
-                <DrawdownChart window={reportWindow} />
-              </DashboardCard>
-
-              <AnnualReturnTable rows={report.annualRows} includeYtd={submittedConfig.includeYtd} />
-            </section>
-            <PerformanceSummary report={report} config={submittedConfig} />
+            <AnnualReturnTable
+              rows={report?.annualRows ?? []}
+              includeYtd={submittedConfig?.includeYtd ?? draft.includeYtd}
+              state={resultsReady ? "ready" : resultsState}
+            />
+          </section>
+          <PerformanceSummary
+            report={report}
+            config={submittedConfig}
+            state={resultsReady ? "ready" : resultsState}
+          />
           </div>
-        ) : null}
       </div>
-      {notification && (
+      {displayNotification && (
         <Toast
-          kind={notification.kind}
-          message={notification.message}
+          kind={displayNotification.kind}
+          message={displayNotification.message}
           className="page-toast"
-          durationMs={notification.durationMs}
-          onDismiss={notification.onDismiss}
-          action={notification.retry ? (
-            <button type="button" className="notification-toast__action" onClick={refreshPreview}>Retry</button>
+          durationMs={displayNotification.durationMs}
+          onDismiss={displayNotification.onDismiss}
+          action={displayNotification.retry ? (
+            <button
+              type="button"
+              className="notification-toast__action"
+              onClick={displayNotification.retry === "backtest" ? runBacktest : refreshPreview}
+            >Retry</button>
           ) : null}
         />
       )}

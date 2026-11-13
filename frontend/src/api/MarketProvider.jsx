@@ -1,22 +1,45 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { api } from "./client.js";
+import { api, DATA_MODE } from "./client.js";
+import { hasMarketData } from "../utils/dataStatus.js";
+import {
+  readCachedPublication,
+  readCachedStock,
+  writeCachedPublication,
+  writeCachedStock,
+} from "./dataCache.js";
 
 const MarketContext = createContext(null);
+const LIVE_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+const STATIC_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
+const STATIC_MODE = DATA_MODE === "static";
 
-const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-
-// An optional static-only deployment can set VITE_STATIC_SHOWCASE=true. The
-// normal GitHub Pages build connects to the hosted FastAPI service through
-// VITE_API_BASE_URL; local builds use the Vite proxy.
-const STATIC_SHOWCASE = import.meta.env.VITE_STATIC_SHOWCASE === "true";
+function cachedPublicationState() {
+  const cached = readCachedPublication();
+  if (!cached) return null;
+  return {
+    ...cached,
+    data: {
+      ...cached.data,
+      meta: {
+        ...cached.data.meta,
+        client_cache: true,
+        cache_state: "cached",
+      },
+    },
+  };
+}
 
 export function MarketProvider({ children }) {
-  const [data, setData] = useState(null);
-  const [status, setStatus] = useState(STATIC_SHOWCASE ? "static" : "loading"); // loading | ready | error | static
+  const initialCache = useRef(cachedPublicationState());
+  const [data, setData] = useState(initialCache.current?.data ?? null);
+  const dataRef = useRef(initialCache.current?.data ?? null);
+  const [status, setStatus] = useState(initialCache.current ? "ready" : "loading");
   const [error, setError] = useState(null);
-  const [refreshing, setRefreshing] = useState(false);
+  const [refreshing, setRefreshing] = useState(Boolean(initialCache.current));
   const [lastLoadedAt, setLastLoadedAt] = useState(null);
   const [dataNotice, setDataNotice] = useState(null);
+  const [dataOrigin, setDataOrigin] = useState(initialCache.current ? "browser-cache" : "network");
+  const [browserCachedAt, setBrowserCachedAt] = useState(initialCache.current?.savedAt ?? null);
   const mounted = useRef(true);
   const noticePending = useRef(true);
   const lastNoticeSignature = useRef("");
@@ -37,7 +60,11 @@ export function MarketProvider({ children }) {
     }
     if (!noticePending.current) return;
     const cacheState = meta?.cache_state;
-    const id = cacheState === "partial" ? "partial" : cacheState === "cached" ? "cached" : "updated";
+    const id = cacheState === "partial"
+      ? "partial"
+      : cacheState === "cached" || meta?.client_cache
+        ? "cached"
+        : "updated";
     const signature = `${id}:${meta?.generated_at ?? ""}:${meta?.as_of ?? ""}`;
     if (lastNoticeSignature.current === signature) return;
     lastNoticeSignature.current = signature;
@@ -45,8 +72,7 @@ export function MarketProvider({ children }) {
     setDataNotice({ id, key: `${signature}:${Date.now()}` });
   }, []);
 
-  const load = useCallback(async ({ isRefresh = false, trackCompletion = false } = {}) => {
-    if (STATIC_SHOWCASE) return false;
+  const load = useCallback(async ({ isRefresh = false, trackCompletion = false, force = false } = {}) => {
     if (isRefresh) setRefreshing(true);
     if (trackCompletion) {
       noticePending.current = true;
@@ -54,7 +80,7 @@ export function MarketProvider({ children }) {
     }
     let backgroundRefresh = false;
     try {
-      const payload = await api.snapshot();
+      const payload = await api.snapshot({ force });
       if (!mounted.current) return false;
       const meta = payload?.meta ?? {};
       backgroundRefresh = Boolean(meta.refresh_in_progress || meta.cache_state === "warming");
@@ -62,24 +88,54 @@ export function MarketProvider({ children }) {
         if (!noticePending.current) lastNoticeSignature.current = "";
         noticePending.current = true;
       }
+      dataRef.current = payload;
       setData(payload);
-      setStatus(backgroundRefresh && !(payload?.stocks?.length) ? "loading" : "ready");
-      if (meta.connection_status === "error") {
+      setDataOrigin(STATIC_MODE ? "published" : "live");
+      const hasStocks = Boolean(payload?.stocks?.length);
+      const usable = hasMarketData(payload);
+      setStatus(backgroundRefresh && !hasStocks ? "loading" : "ready");
+      if (meta.connection_status === "error" && !usable) {
         setError({ message: "Service unavailable", code: "service_unavailable" });
         setStatus("error");
       } else {
         setError(null);
+        if (hasStocks) {
+          const savedAt = new Date().toISOString();
+          writeCachedPublication(payload);
+          setBrowserCachedAt(savedAt);
+        }
       }
       setLastLoadedAt(new Date());
-      if (!backgroundRefresh) publishFinalNotice(meta);
+      if (!backgroundRefresh) {
+        if (usable) {
+          publishFinalNotice(meta);
+        } else {
+          noticePending.current = false;
+          lastNoticeSignature.current = "empty";
+          setDataNotice(null);
+        }
+      }
       setRefreshing(backgroundRefresh);
       return true;
     } catch (requestError) {
       if (!mounted.current) return false;
       setError({ message: requestError.message, code: requestError.code ?? "request_failed" });
-      publishFinalNotice(null, requestError);
-      // Keep the last good payload and "ready" status when we already have data.
-      setStatus((current) => (current === "ready" ? "ready" : "error"));
+      if (hasMarketData(dataRef.current)) {
+        setStatus("ready");
+        setDataOrigin("browser-cache");
+        setData((current) => current ? {
+          ...current,
+          meta: { ...current.meta, client_cache: true, cache_state: "cached" },
+        } : current);
+        dataRef.current = dataRef.current ? {
+          ...dataRef.current,
+          meta: { ...dataRef.current.meta, client_cache: true, cache_state: "cached" },
+        } : null;
+        setDataNotice({ id: "cached", key: `cached:${Date.now()}` });
+      } else {
+        publishFinalNotice(null, requestError);
+        setStatus("error");
+      }
       return false;
     } finally {
       if (mounted.current && !backgroundRefresh) setRefreshing(false);
@@ -87,24 +143,26 @@ export function MarketProvider({ children }) {
   }, [publishFinalNotice]);
 
   useEffect(() => {
-    if (STATIC_SHOWCASE) return undefined;
-    load();
-    const timer = window.setInterval(() => load({ isRefresh: true }), REFRESH_INTERVAL_MS);
+    load({ isRefresh: Boolean(initialCache.current) });
+    const interval = STATIC_MODE ? STATIC_REFRESH_INTERVAL_MS : LIVE_REFRESH_INTERVAL_MS;
+    const timer = window.setInterval(() => load({ isRefresh: true }), interval);
     return () => window.clearInterval(timer);
   }, [load]);
 
   useEffect(() => {
-    if (STATIC_SHOWCASE || (!refreshing && status !== "loading")) return undefined;
+    if ((!refreshing && status !== "loading") || STATIC_MODE) return undefined;
     const timer = window.setInterval(() => load(), 4000);
     return () => window.clearInterval(timer);
   }, [load, refreshing, status]);
 
-  // Ask the service to re-pull from the provider, then reload the payload.
   const refresh = useCallback(async () => {
-    if (STATIC_SHOWCASE) return false;
     setRefreshing(true);
     noticePending.current = true;
     lastNoticeSignature.current = "";
+    if (STATIC_MODE) {
+      setRefreshing(false);
+      return load({ isRefresh: true, trackCompletion: true, force: true });
+    }
     try {
       await api.refresh();
     } catch (requestError) {
@@ -113,12 +171,11 @@ export function MarketProvider({ children }) {
       setRefreshing(false);
       return false;
     }
-    return load();
+    return load({ trackCompletion: true });
   }, [load, publishFinalNotice]);
 
-  // Switch the primary source; the service rebuilds and we reload the payload.
   const selectProvider = useCallback(async (providerId) => {
-    if (STATIC_SHOWCASE) return { ok: false };
+    if (STATIC_MODE) return { ok: false, message: "Provider selection is available in the local service." };
     setRefreshing(true);
     noticePending.current = true;
     lastNoticeSignature.current = "";
@@ -135,6 +192,30 @@ export function MarketProvider({ children }) {
     }
   }, [load, publishFinalNotice]);
 
+  const runBacktest = useCallback(async (config) => {
+    const frequency = config.rebalance_frequency || "semiannual";
+    const publication = dataRef.current;
+    const snapshotBlock = publication?.backtest?.[config.portfolio];
+    if (STATIC_MODE) {
+      const usesPublishedRange = Boolean(
+        snapshotBlock?.available
+        && config.start === snapshotBlock.start
+        && config.end === snapshotBlock.end,
+      );
+      if (usesPublishedRange && frequency === "semiannual") {
+        return snapshotBlock;
+      }
+      if (usesPublishedRange) {
+        const block = await api.backtestSchedule(config.portfolio, frequency);
+        if (!block?.available) {
+          throw new Error(`The published ${frequency} ${config.portfolio} backtest is unavailable.`);
+        }
+        return block;
+      }
+    }
+    return api.backtest(config);
+  }, []);
+
   const value = useMemo(
     () => ({
       data,
@@ -144,12 +225,29 @@ export function MarketProvider({ children }) {
       refreshing,
       lastLoadedAt,
       dataNotice,
-      staticMode: STATIC_SHOWCASE,
+      dataMode: DATA_MODE,
+      dataOrigin,
+      browserCachedAt,
+      staticMode: STATIC_MODE,
       refresh,
+      runBacktest,
       selectProvider,
       reload: load,
     }),
-    [data, dataNotice, error, lastLoadedAt, load, refresh, refreshing, selectProvider, status],
+    [
+      browserCachedAt,
+      data,
+      dataNotice,
+      dataOrigin,
+      error,
+      lastLoadedAt,
+      load,
+      refresh,
+      refreshing,
+      runBacktest,
+      selectProvider,
+      status,
+    ],
   );
 
   return <MarketContext.Provider value={value}>{children}</MarketContext.Provider>;
@@ -162,22 +260,52 @@ export function useMarket() {
 }
 
 export function useStockDetail(ticker) {
-  const [state, setState] = useState({ data: null, status: STATIC_SHOWCASE ? "error" : "idle", error: null });
+  const normalizedTicker = String(ticker ?? "").trim().toUpperCase();
+  const initialCache = useRef(readCachedStock(normalizedTicker));
+  const [requestKey, setRequestKey] = useState(0);
+  const [state, setState] = useState({
+    data: initialCache.current?.data ?? null,
+    status: initialCache.current ? "cached" : normalizedTicker ? "loading" : "idle",
+    error: null,
+    refreshing: Boolean(initialCache.current),
+  });
+  const reload = useCallback(() => setRequestKey((current) => current + 1), []);
 
   useEffect(() => {
-    if (STATIC_SHOWCASE) return undefined;
-    if (!ticker) return undefined;
+    if (!normalizedTicker) {
+      setState({ data: null, status: "idle", error: null, refreshing: false });
+      return undefined;
+    }
+    const cached = readCachedStock(normalizedTicker);
     let cancelled = false;
-    setState({ data: null, status: "loading", error: null });
-    api.stock(ticker)
+    setState({
+      data: cached?.data ?? null,
+      status: cached ? "cached" : "loading",
+      error: null,
+      refreshing: Boolean(cached),
+    });
+    api.stock(normalizedTicker)
       .then((payload) => {
-        if (!cancelled) setState({ data: payload, status: "ready", error: null });
+        if (cancelled) return;
+        writeCachedStock(normalizedTicker, payload);
+        setState({ data: payload, status: "ready", error: null, refreshing: false });
       })
       .catch((requestError) => {
-        if (!cancelled) setState({ data: null, status: "error", error: requestError.message });
+        if (cancelled) return;
+        setState((current) => current.data ? {
+          ...current,
+          status: "cached",
+          error: requestError.message,
+          refreshing: false,
+        } : {
+          data: null,
+          status: "error",
+          error: requestError.message,
+          refreshing: false,
+        });
       });
     return () => { cancelled = true; };
-  }, [ticker]);
+  }, [normalizedTicker, requestKey]);
 
-  return state;
+  return { ...state, reload };
 }

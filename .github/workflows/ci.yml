@@ -29,6 +29,9 @@ jobs:
       - name: Run Python tests
         run: PYTHONPATH=data-service python -m unittest discover -s data-service/tests -p 'test_*.py'
 
+      - name: Validate committed static snapshot
+        run: python data-service/scripts/export_static.py --validate-only
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:

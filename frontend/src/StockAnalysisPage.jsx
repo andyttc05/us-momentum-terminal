@@ -1,15 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ChartBar, CrownSimple, Scales, Sigma, Stack } from "@phosphor-icons/react";
 import { AppButton } from "./components/AppButton.jsx";
+import { ChartState, Skeleton } from "./components/DataState.jsx";
 import { DashboardCard } from "./components/DashboardCard.jsx";
 import { Mascot, MascotDuo } from "./components/Mascot.jsx";
+import { useChartTooltipSize } from "./components/useChartTooltipSize.js";
 import { useElementSize } from "./components/useElementSize.js";
 import { useMediaQuery } from "./components/useMediaQuery.js";
+import { Toast } from "./components/Toast.jsx";
+import { UpdateBar } from "./components/UpdateBar.jsx";
 import { useMarket, useStockDetail } from "./api/MarketProvider.jsx";
+import { getSectionState } from "./utils/dataState.js";
 import { formatMarketCap } from "./utils/format.js";
 import {
   PRICE_TOOLTIP_HEIGHT,
   PRICE_TOOLTIP_WIDTH,
+  fitTooltipWidth,
   formatTooltipDate,
   nearestObservationIndex,
   placePriceTooltip,
@@ -42,14 +48,18 @@ function signedPercent(value, digits = 1) {
   return `${sign}${Math.abs(value).toFixed(digits)}%`;
 }
 
-function PriceTooltipContent({ date, price, change, compact = false }) {
+function PriceTooltipContent({ date, price, change, compact = false, width }) {
   const tone = typeof change === "number" && change > 0
     ? "positive"
     : typeof change === "number" && change < 0
       ? "negative"
       : "neutral";
   return (
-    <div className={`stock-price-tooltip${compact ? " stock-price-tooltip--mobile" : ""}`} role="tooltip">
+    <div
+      className={`stock-price-tooltip${compact ? " stock-price-tooltip--mobile" : ""}`}
+      role="tooltip"
+      style={width ? { width } : undefined}
+    >
       <span className="stock-price-tooltip__date">{formatTooltipDate(date)}</span>
       <strong className="stock-price-tooltip__price">{formatMoney(price)}</strong>
       <span className={`stock-price-tooltip__change is-${tone}`}>{signedPercent(change, 2)}</span>
@@ -92,6 +102,7 @@ function PriceChart({ stock, range }) {
   const [boxRef, box] = useElementSize();
   const [selectedIndex, setSelectedIndex] = useState(null);
   const [tooltipSide, setTooltipSide] = useState("left");
+  const [tooltipRef, tooltipSize] = useChartTooltipSize();
   const movementOriginX = useRef(Number.NaN);
   const touchStart = useRef(null);
   const stableTouchDetail = useMediaQuery("(max-width: 680px), (hover: none), (pointer: coarse)");
@@ -150,6 +161,10 @@ function PriceChart({ stock, range }) {
 
   const activeIndex = selectedIndex != null && selectedIndex < points.length ? selectedIndex : null;
   const selectedPoint = activeIndex == null ? null : points[activeIndex];
+  const tooltipWidth = fitTooltipWidth({
+    containerWidth: width,
+    preferredWidth: PRICE_TOOLTIP_WIDTH,
+  });
   const tooltipPlacement = selectedPoint
     ? placePriceTooltip({
       anchorX: selectedPoint.x,
@@ -157,8 +172,8 @@ function PriceChart({ stock, range }) {
       preferredSide: tooltipSide,
       containerWidth: width,
       containerHeight: height,
-      tooltipWidth: PRICE_TOOLTIP_WIDTH,
-      tooltipHeight: PRICE_TOOLTIP_HEIGHT,
+      tooltipWidth: tooltipSize?.width ?? tooltipWidth,
+      tooltipHeight: tooltipSize?.height ?? PRICE_TOOLTIP_HEIGHT,
     })
     : null;
 
@@ -296,6 +311,7 @@ function PriceChart({ stock, range }) {
         ) : (
           <div
             className="stock-price-tooltip-layer"
+            ref={tooltipRef}
             style={{ left: tooltipPlacement.x, top: tooltipPlacement.y }}
             data-side={tooltipPlacement.side}
             data-testid="stock-price-tooltip"
@@ -304,6 +320,7 @@ function PriceChart({ stock, range }) {
               date={observationDates[activeIndex] ?? visibleDates[activeIndex]}
               price={visible[activeIndex]}
               change={dailyChanges[activeIndex]}
+              width={tooltipWidth}
             />
           </div>
         )
@@ -316,6 +333,7 @@ function RankingHistoryChart({ stock }) {
   const [boxRef, box] = useElementSize();
   const [selectedIndex, setSelectedIndex] = useState(null);
   const [tooltipSide, setTooltipSide] = useState(null);
+  const [tooltipRef, tooltipSize] = useChartTooltipSize();
   const movementOriginX = useRef(Number.NaN);
   const tooltipSideRef = useRef(null);
   const width = Math.round(box.width);
@@ -359,6 +377,10 @@ function RankingHistoryChart({ stock }) {
     x: left + index / Math.max(1, history.length - 1) * plotWidth,
   }));
   const selectedPoint = selectedIndex == null ? null : xPoints[selectedIndex];
+  const tooltipWidth = fitTooltipWidth({
+    containerWidth: width,
+    preferredWidth: width > 0 && width < 560 ? 182 : 196,
+  });
   const tooltipPlacement = selectedPoint
     ? placePriceTooltip({
       anchorX: selectedPoint.x,
@@ -366,8 +388,8 @@ function RankingHistoryChart({ stock }) {
       preferredSide: tooltipSide,
       containerWidth: width,
       containerHeight: height,
-      tooltipWidth: 210,
-      tooltipHeight: 102,
+      tooltipWidth: tooltipSize?.width ?? tooltipWidth,
+      tooltipHeight: tooltipSize?.height ?? 102,
     })
     : null;
 
@@ -458,7 +480,12 @@ function RankingHistoryChart({ stock }) {
           style={{ left: tooltipPlacement.x, top: tooltipPlacement.y }}
           data-testid="ranking-history-tooltip"
         >
-          <div className="backtest-chart-tooltip backtest-chart-tooltip--compact" role="tooltip">
+          <div
+            className="backtest-chart-tooltip backtest-chart-tooltip--compact"
+            role="tooltip"
+            ref={tooltipRef}
+            style={{ width: tooltipWidth }}
+          >
             <span className="backtest-chart-tooltip__date">{formatTooltipDate(history[selectedIndex]?.date)}</span>
             <span className="stock-ranking-tooltip__row"><i className="stock-ranking-legend__rank" aria-hidden="true" /><span>Rank</span><strong>{history[selectedIndex]?.rank ?? "—"}</strong></span>
             <span className="stock-ranking-tooltip__row"><i className="stock-ranking-legend__score" aria-hidden="true" /><span>Momentum Score</span><strong>{history[selectedIndex]?.score == null ? "—" : history[selectedIndex].score.toFixed(2)}</strong></span>
@@ -470,9 +497,23 @@ function RankingHistoryChart({ stock }) {
 }
 
 export function StockAnalysisPage({ ticker = "NVDA", onBack, backLabel = "Screener" }) {
-  const { data: stock, status, error } = useStockDetail(ticker);
-  const { data: market, staticMode } = useMarket();
+  const {
+    data: stockPayload,
+    status: stockStatus,
+    error: stockError,
+    reload: reloadStock,
+    refreshing: stockRefreshing,
+  } = useStockDetail(ticker);
+  const stock = stockPayload?.priceHistory ? stockPayload : null;
+  const {
+    data: market,
+    staticMode,
+    status: marketStatus,
+    error: marketError,
+    refresh,
+  } = useMarket();
   const [range, setRange] = useState("12M");
+  const [stockErrorDismissed, setStockErrorDismissed] = useState(false);
 
   // The badge colour follows the stock's percentile inside the eligible
   // universe — the same universe and ranks the Screener lists.
@@ -485,6 +526,40 @@ export function StockAnalysisPage({ ticker = "NVDA", onBack, backLabel = "Screen
     ["6M Return", stock.priceHistory.returns.sixMonth],
     ["12M Price Return", stock.priceHistory.returns.twelveMonth],
   ] : []), [stock]);
+  const summaryState = getSectionState({
+    hasData: Boolean(stock),
+    status: stockStatus,
+    error: stockError,
+  });
+  const priceState = getSectionState({
+    hasData: Boolean(stock?.priceHistory?.values?.length),
+    status: stockStatus,
+    error: stockError,
+  });
+  const returnsState = getSectionState({
+    hasData: returnRows.length > 0,
+    status: stockStatus,
+    error: stockError,
+  });
+  const rankingState = getSectionState({
+    hasData: Boolean(stock?.history?.length),
+    status: stockStatus,
+    error: stockError,
+  });
+
+  useEffect(() => {
+    setStockErrorDismissed(false);
+  }, [stockError, ticker]);
+
+  const showStockError = Boolean(stockError)
+    && !staticMode
+    && !marketError
+    && marketStatus !== "error"
+    && !stockErrorDismissed;
+
+  async function refreshStockAnalysis() {
+    await Promise.all([reloadStock(), refresh()]);
+  }
 
   return (
     <main className="app-main">
@@ -492,6 +567,13 @@ export function StockAnalysisPage({ ticker = "NVDA", onBack, backLabel = "Screen
         <div className="stock-analysis-left">
           <div className="stock-analysis-back-row">
             <AppButton variant="secondary" icon={ArrowLeft} className="stock-back-button" onClick={onBack}>{backLabel}</AppButton>
+            <UpdateBar
+              dateTime={market?.overview?.snapshot?.asOf}
+              ariaLabel="Refresh stock analysis"
+              onRefresh={refreshStockAnalysis}
+              busy={stockRefreshing}
+              className="stock-analysis-update"
+            />
           </div>
           <header className="stock-profile">
             <Mascot variant="mint" color="var(--color-mint)" size={78} rotation={-3} eyes={{ x1: 44, y1: 48, x2: 58, y2: 48 }} />
@@ -501,27 +583,42 @@ export function StockAnalysisPage({ ticker = "NVDA", onBack, backLabel = "Screen
               <p>
                 {stock
                   ? <>{stock.exchange}<span aria-hidden="true"> · </span>{stock.sector}</>
-                  : staticMode ? "Static preview — no live data" : status === "error" ? "Symbol not available" : "Loading verified data…"}
+                  : staticMode && stockStatus === "error" ? "No published data for this symbol" : stockStatus === "error" ? "Symbol not available" : summaryState === "loading" ? "Loading verified data…" : "No verified data"}
               </p>
             </div>
             <div className="stock-profile__art" aria-hidden="true"><MascotDuo creamColor="var(--color-surface)" /></div>
           </header>
 
           <section className="stock-price-summary" aria-label={`${ticker} price summary`}>
-            <strong className="stock-price-summary__price">{stock ? formatMoney(stock.price) : "—"}</strong>
-            <span className={`stock-price-change ${(stock?.change ?? 0) >= 0 ? "is-positive" : "is-negative"}`}>
-              {stock ? <>{stock.changeAbsolute > 0 ? "+" : stock.changeAbsolute < 0 ? "−" : ""}{formatMoney(Math.abs(stock.changeAbsolute))} ({signedPercent(stock.change, 2)})</> : "—"}
+            <strong className="stock-price-summary__price">
+              {summaryState === "loading"
+                ? <Skeleton width="170px" height="0.72em" />
+                : stock ? formatMoney(stock.price) : "—"}
+            </strong>
+            <span className={`stock-price-change ${stock ? ((stock.change ?? 0) >= 0 ? "is-positive" : "is-negative") : "is-unavailable"}`}>
+              {summaryState === "loading"
+                ? <Skeleton width="118px" height="14px" />
+                : stock ? <>{stock.changeAbsolute > 0 ? "+" : stock.changeAbsolute < 0 ? "−" : ""}{formatMoney(Math.abs(stock.changeAbsolute))} ({signedPercent(stock.change, 2)})</> : "—"}
             </span>
             <span className="stock-price-summary__divider" aria-hidden="true" />
             <span className="stock-market-cap">
               <Stack size={24} weight="regular" aria-hidden="true" />
               <span className="stock-market-cap__copy">
                 <span className="stock-market-cap__label">Market Cap</span>
-                <strong className="stock-market-cap__value">{formatMarketCap(stock?.marketCap)}</strong>
+                <strong className="stock-market-cap__value">
+                  {summaryState === "loading"
+                    ? <Skeleton width="82px" height="13px" />
+                    : formatMarketCap(stock?.marketCap)}
+                </strong>
               </span>
             </span>
             <span className="stock-price-summary__divider stock-price-summary__divider--last" aria-hidden="true" />
-            <span className={`stock-rank-pill stock-rank-pill--${rankTier}`}>{stock?.rank === 1 && <CrownSimple size={24} weight="fill" aria-hidden="true" />}<strong>Rank #{stock?.rank ?? "—"}</strong></span>
+            <span className={`stock-rank-pill stock-rank-pill--${rankTier}`}>
+              {stock?.rank === 1 && <CrownSimple size={24} weight="fill" aria-hidden="true" />}
+              {summaryState === "loading"
+                ? <Skeleton width="82px" height="14px" />
+                : <strong>Rank #{stock?.rank ?? "—"}</strong>}
+            </span>
           </section>
 
           <section className="dashboard-card stock-price-card" aria-label={`${ticker} historical price chart`}>
@@ -529,23 +626,36 @@ export function StockAnalysisPage({ ticker = "NVDA", onBack, backLabel = "Screen
               {priceRanges.map((item) => <button key={item} type="button" aria-pressed={range === item} onClick={() => setRange(item)}>{item}</button>)}
             </div>
             <div className="stock-price-chart-wrap">
-              {stock?.priceHistory?.values?.length
+              {priceState === "ready"
                 ? <PriceChart stock={stock} range={range} />
                 : (
-                  <div className="stock-chart-pending" role="status">
-                    {status === "error"
-                      ? <>No verified market data for <strong>{ticker}</strong>.<span>Pick another symbol from the Screener.</span></>
-                      : "Loading verified price history…"}
-                  </div>
+                  <ChartState
+                    state={priceState}
+                    title={priceState === "error" ? "Price history unavailable" : "No price history"}
+                    detail={priceState === "error"
+                      ? `No verified market data could be loaded for ${ticker}. Pick another symbol or retry the update.`
+                      : `No verified price observations are available for ${ticker}.`}
+                    className="stock-price-chart-pending"
+                  />
                 )}
             </div>
           </section>
 
-          <section className="stock-returns-card" aria-label="Historical price returns" hidden={!returnRows.length}>
-            {returnRows.map(([label, value], index) => <div className="stock-return" key={label}>
-              <span>{label}</span><strong className={value >= 0 ? "is-positive" : "is-negative"}>{signedPercent(value)}</strong>
-              {index < returnRows.length - 1 && <i aria-hidden="true" />}
-            </div>)}
+          <section className="stock-returns-card" aria-label="Historical price returns" data-state={returnsState} aria-busy={returnsState === "loading" || undefined}>
+            {["1M Return", "3M Return", "6M Return", "12M Price Return"].map((label, index) => {
+              const value = returnRows[index]?.[1];
+              return (
+                <div className="stock-return" key={label}>
+                  <span>{label}</span>
+                  {returnsState === "loading" ? (
+                    <Skeleton width="82%" height="24px" />
+                  ) : (
+                    <strong className={typeof value === "number" ? (value >= 0 ? "is-positive" : "is-negative") : "is-unavailable"}>{signedPercent(value)}</strong>
+                  )}
+                  {index < 3 && <i aria-hidden="true" />}
+                </div>
+              );
+            })}
           </section>
         </div>
 
@@ -553,14 +663,17 @@ export function StockAnalysisPage({ ticker = "NVDA", onBack, backLabel = "Screen
           <DashboardCard title="Momentum Analysis" className="stock-momentum-card">
             <div className="stock-momentum-score">
               <Stack size={29} weight="regular" aria-hidden="true" />
-              <div className="stock-momentum-score__copy"><span>Momentum Score</span><strong>{stock ? stock.score.toFixed(2) : "—"}</strong></div>
+              <div className="stock-momentum-score__copy">
+                <span>Momentum Score</span>
+                <strong>{summaryState === "loading" ? <Skeleton width="105px" height="0.62em" /> : stock ? stock.score.toFixed(2) : "—"}</strong>
+              </div>
               <Mascot className="stock-momentum-score__cream" variant="cream" color="var(--color-surface)" size={148} rotation={2} eyes={{ x1: 45, y1: 46, x2: 58, y2: 46 }} />
               <Mascot className="stock-momentum-score__pink" variant="pink" color="var(--color-pink)" size={115} rotation={-6} />
             </div>
             <div className="stock-momentum-metrics">
-              <div className="stock-metric-row"><ChartBar size={25} weight="regular" aria-hidden="true" /><span>12–1 Momentum</span><strong>{stock ? signedPercent(stock.momentum) : "—"}</strong></div>
-              <div className="stock-metric-row"><Scales size={25} weight="regular" aria-hidden="true" /><span>Risk-Adjusted Momentum</span><strong>{stock ? stock.riskAdjusted.toFixed(2) : "—"}</strong></div>
-              <div className="stock-metric-row"><Sigma size={25} weight="regular" aria-hidden="true" /><span>Z-Score</span><strong>{stock ? stock.zScore.toFixed(2) : "—"}</strong></div>
+              <div className="stock-metric-row"><ChartBar size={25} weight="regular" aria-hidden="true" /><span>12–1 Momentum</span><strong>{summaryState === "loading" ? <Skeleton width="68px" height="13px" /> : stock ? signedPercent(stock.momentum) : "—"}</strong></div>
+              <div className="stock-metric-row"><Scales size={25} weight="regular" aria-hidden="true" /><span>Risk-Adjusted Momentum</span><strong>{summaryState === "loading" ? <Skeleton width="58px" height="13px" /> : stock ? stock.riskAdjusted.toFixed(2) : "—"}</strong></div>
+              <div className="stock-metric-row"><Sigma size={25} weight="regular" aria-hidden="true" /><span>Z-Score</span><strong>{summaryState === "loading" ? <Skeleton width="58px" height="13px" /> : stock ? stock.zScore.toFixed(2) : "—"}</strong></div>
             </div>
           </DashboardCard>
 
@@ -571,10 +684,28 @@ export function StockAnalysisPage({ ticker = "NVDA", onBack, backLabel = "Screen
             </div>
             {stock?.history?.length
               ? <RankingHistoryChart stock={stock} />
-              : <div className="stock-chart-pending" role="status">Monthly rank history builds from provider data…</div>}
+              : (
+                <ChartState
+                  state={rankingState}
+                  title={rankingState === "error" ? "Ranking history unavailable" : "No ranking history"}
+                  detail={rankingState === "error"
+                    ? "The latest verified rank history could not be loaded."
+                    : "Monthly rank history appears after verified snapshots are available."}
+                  className="stock-ranking-chart-pending"
+                />
+              )}
           </DashboardCard>
         </div>
       </div>
+      {showStockError && (
+        <Toast
+          kind="error"
+          message="Stock data update failed"
+          className="page-toast"
+          onDismiss={() => setStockErrorDismissed(true)}
+          action={<button type="button" className="notification-toast__action" onClick={reloadStock}>Retry</button>}
+        />
+      )}
     </main>
   );
 }

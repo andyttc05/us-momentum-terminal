@@ -1,29 +1,10 @@
 # Data Service
 
-The `data-service` package is the Python FastAPI backend for US Momentum Terminal. It retrieves and
-normalizes market data, calculates momentum metrics, builds the constrained model portfolio, runs
-the historical backtest, and serves the React application.
+The Python pipeline retrieves and validates US market data, calculates momentum and portfolio
+weights, runs historical backtests, serves the optional FastAPI endpoints, and exports the static
+publication used by GitHub Pages.
 
-## Architecture
-
-```mermaid
-flowchart LR
-    Providers[Market-data providers] --> Registry[Registry and failover]
-    Registry --> Validation[Normalization and validation]
-    Validation --> Cache[(JSON cache)]
-    Cache --> Universe[Universe eligibility]
-    Universe --> Momentum[Momentum and Z-score]
-    Momentum --> Portfolio[Portfolio construction]
-    Momentum --> Backtest[Backtest]
-    Portfolio --> Publication[Publication payload]
-    Backtest --> Publication
-    Publication --> API[FastAPI]
-    API --> Frontend[React frontend]
-```
-
-The browser never receives provider credentials and never contacts a provider directly.
-
-## Run
+## Run locally
 
 From the repository root:
 
@@ -32,134 +13,79 @@ npm run data:install
 npm run data:serve
 ```
 
-The service listens on `http://127.0.0.1:8787/`. Vite proxies `/api` to this address during local
-development and preview.
+The service listens on `http://127.0.0.1:8787`. Vite proxies `/api` to this address in live mode.
+
+## Static publication
+
+```bash
+npm run data:build-static
+npm run data:validate-static
+```
+
+The exporter writes compact JSON to `frontend/public/data/`:
+
+```text
+publication.json
+manifest.json
+stocks/{TICKER}.json
+```
+
+It validates the provider connection, at least 95% universe coverage, both 100- and 20-holding model
+portfolios, both backtests and on-demand stock details. Files are staged and only replace the live
+directory after
+validation passes. A failed update preserves the previous valid snapshot.
 
 ## Endpoints
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| GET | `/api/health` | Service state, market clock, cache age and provider health |
-| GET | `/api/providers` | Provider roles and availability |
-| GET | `/api/snapshot` | Complete dashboard publication |
-| GET | `/api/stock/{ticker}` | Stock detail, price history and rank history |
+| GET | `/api/health` | Service, cache and provider state |
+| GET | `/api/snapshot` | Complete current publication |
+| GET | `/api/stock/{ticker}` | Stock detail and price/rank history |
 | GET | `/api/bars/{ticker}?days=N` | Normalized daily bars |
+| POST | `/api/backtest` | Date-bounded backtest with selected rebalance frequency |
+| GET | `/api/providers` | Provider roles and availability |
 | GET | `/api/probe` | Last recorded provider probe |
 | GET | `/api/config` | Non-secret runtime configuration |
 | POST | `/api/provider` | Select a provider and rebuild the publication |
-| POST | `/api/refresh` | Start a forced background refresh |
+| POST | `/api/refresh` | Run a forced background refresh |
 
-## Universe
+## Providers
 
-The current live list contains 200 unique common stocks:
+Yahoo Finance through `yfinance` is the default source. It supplies adjusted daily bars, dividends,
+splits and current quote/fundamental metadata. The optional Twelve Data and FMP adapters require
+server-side keys; keys are never returned to the browser.
 
-- 108 audited core symbols.
-- 92 sector-balanced additions from a 200-symbol S&P MidCap 400 candidate pool.
+The provider probe in `tests/provider_probe.py` performs real network requests and writes
+`docs/provider_probe.json`. On 13 November 2026, Yahoo returned complete data for all 20 sampled
+symbols. Twelve Data's public demo key returned 2 of 20 symbols. FMP, Alpha Vantage, Finnhub and
+Polygon were reachable but require keys. Stooq was unavailable.
 
-The historical backtest intentionally remains on the 108-symbol audited core. This is a curated
-research universe, not a complete exchange master.
+Yahoo is unofficial and must be paced. No CAPTCHA or access-control bypass is implemented.
 
-## Eligibility
+## Cache behaviour
 
-A stock enters momentum scoring only after passing:
+Atomic JSON files are stored in ignored `data-service/cache/`:
 
-- Provider-verified common-stock security type.
-- NYSE, NASDAQ, or NYSE American listing.
-- USD currency and a common latest observation date.
-- At least 210 daily observations.
-- Latest raw close of at least $5.
-- At least $2 million average daily dollar volume over 63 sessions.
-- At least 253 valid adjusted-close observations for the full 12–1 window.
+- provider bars and quote metadata;
+- derived rank history;
+- publication and stock-detail projections;
+- CPI-U observations.
 
-Missing adjusted closes are not replaced with raw closes.
+The live API returns the last valid cached/seed payload while a refresh runs. Snapshot TTL is 15
+minutes, intraday bars 15 minutes, closed-market bars 6 hours and quote metadata 24 hours.
 
-## Momentum
+## Analytics
 
-```text
-momentum_12_1 = P(t-21) / P(t-252) - 1
-daily_volatility = sample standard deviation of 252 daily returns
-risk_adjusted = momentum_12_1 / daily_volatility
+- 12–1 momentum, 252-session daily volatility, risk-adjusted momentum and clipped Z-scores.
+- Top 100 or exactly Top 20 ranked eligible stocks.
+- Float-adjusted model portfolio with a 9% single-stock cap and a 35% sector-group cap.
+- Rebalancing choices: monthly, quarterly, semiannual and annual.
+- Historical strategies start from equal weights and apply the same stock/sector caps.
+- Signals use the final trading session of the selected months; execution uses the next close.
+- Transaction costs are 0.10%; slippage and risk-free rate are 0%.
+- Adjusted-close and cash-dividend conventions remain separate.
+- CPI-U inflation adjustment uses published observations only.
 
-Z = (risk_adjusted - population mean) / population standard deviation
-Z = clip(Z, -3, 3)
-
-Score = 1 + Z          when Z > 0
-Score = 1 / (1 - Z)    when Z < 0
-Score = 1              when Z = 0
-```
-
-## Portfolio
-
-The model keeps the top 100 momentum-eligible stocks with current verified float shares. Raw weights
-are:
-
-```text
-float-adjusted market cap × Momentum Score
-```
-
-Normalized raw weights are redistributed under a 9% stock cap and a 35% constraint-sector-group cap.
-The solver returns an unavailable state with a reason when a valid fully invested portfolio cannot
-be constructed.
-
-## Backtest
-
-Signals form at the final March and September sessions. Trades execute at the next available
-adjusted close, holdings are marked daily, and the historical book is equal-weighted.
-
-- Transaction cost: 0.10% of traded notional.
-- Slippage: 0.00%.
-- Benchmarks: SPY and SPMO.
-- Sharpe risk-free rate: 0%.
-- Total return: provider adjusted closes, including dividend reinvestment.
-- Cash-dividend return: split-normalized provider closes with dividends retained as cash on the
-  ex-date. Split actions are audited for completeness but are not applied a second time because the
-  provider closes already use the current split basis.
-
-The first dividend convention is used for the adjusted-close path. The second drives the
-dividend-exclusive selector and its matching SPY/SPMO series. The publication includes a
-corporate-action coverage report so the UI can disable an unsupported mode instead of silently
-substituting total return.
-
-The historical core has no point-in-time constituents, delisting-return model, or historical float
-capitalization. The result is an exploratory research proxy.
-
-## CPI
-
-Inflation adjustment uses the official monthly CPI-U All Items series (`CPIAUCNS`) distributed by
-FRED. Observations are validated as dates and positive numbers, cached atomically for seven days,
-and retained as a stale fallback if FRED is unavailable. A conservative publication timestamp of the
-15th day in the following month prevents daily portfolio values from using a CPI print before it was
-available. Missing months remain visible in the coverage metadata and use the latest previously
-available observation rather than interpolation.
-
-## Providers and Cache
-
-The default provider order is `yahoo,twelvedata,fmp`. Missing-key adapters are skipped. Stooq is
-implemented but excluded from the default chain because it is unadjusted and commonly blocked.
-
-Yahoo history is loaded in bounded 40-symbol batches. A provider registry records health,
-provenance, backup use, retries and circuit-breaker state.
-
-Caches are atomic JSON files under `data-service/cache/`. Default TTLs:
-
-| Data | TTL |
-| --- | --- |
-| Bars while market open | 15 minutes |
-| Bars while market closed | 6 hours |
-| Quote metadata | 24 hours |
-| Publication and stock detail | 15 minutes |
-| CPI-U (`CPIAUCNS`) | 7 days, with stale fallback |
-
-The service returns a verified seed or cached publication while a background refresh runs, or a
-warming/error payload when no verified snapshot exists.
-
-## Tests
-
-```bash
-npm run data:test
-npm run data:verify
-npm run data:audit
-npm run data:sensitivity
-```
-
-`data:verify`, `data:audit`, and `data:sensitivity` require a working data service or cached evidence.
+The historical universe, current constituents, current fundamentals and missing delisting returns
+remain research limitations. See `../docs/TECHNICAL_DOCUMENTATION.md`.

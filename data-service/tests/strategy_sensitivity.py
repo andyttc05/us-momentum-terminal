@@ -107,7 +107,7 @@ def main() -> int:
     definitions = {
         "base_top100_semiannual": {},
         "top50": {"top_n": 50},
-        "top20_percent": {"top_n": None, "top_fraction": 0.2},
+        "top20": {"top_n": 20},
         "cost_0_bps": {"transaction_cost_rate": 0.0},
         "cost_25_bps": {"transaction_cost_rate": 0.0025},
         "cost_50_bps": {"transaction_cost_rate": 0.0050},

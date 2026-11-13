@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { ArrowClockwise } from "@phosphor-icons/react";
 import { AppButton } from "./AppButton.jsx";
+import { DataStatusDialog } from "./DataStatusDialog.jsx";
 import { useMarket } from "../api/MarketProvider.jsx";
-import { isDataUpdating } from "../utils/dataStatus.js";
+import { getFetchDisplayState, hasMarketData } from "../utils/dataStatus.js";
 
 const FETCH_LABEL = {
   loading: "Updating…",
@@ -9,7 +11,7 @@ const FETCH_LABEL = {
   updated: "Updated",
   failed: "Update failed",
   empty: "No data",
-  static: "Static preview",
+  published: "Published",
   partial: "Partial data",
   cached: "Cached data",
 };
@@ -43,46 +45,65 @@ function formatDateLabel(iso) {
  * backtest window end). Formatting happens here so every page shows the same
  * date style in the same place.
  */
-export function UpdateBar({ dateTime, ariaLabel = "Refresh data", onRefresh, busy = false }) {
-  const { data, meta, status, error, refreshing, refresh, staticMode } = useMarket();
+export function UpdateBar({ dateTime, ariaLabel = "Refresh data", onRefresh, busy = false, className = "" }) {
+  const [statusOpen, setStatusOpen] = useState(false);
+  const { data, meta, status, error, refreshing, refresh, staticMode, dataOrigin } = useMarket();
 
-  const hasData = Boolean(data);
+  const hasData = hasMarketData(data);
   const fetching = refreshing || busy;
   const cacheState = meta?.cache_state;
-  const updating = isDataUpdating({ status, meta, refreshing: fetching });
-  const fetchState = staticMode
-    ? "static"
-    : updating ? (hasData ? "updating" : "loading")
-    : error || status === "error" || cacheState === "error" ? "failed"
-    : cacheState === "cached" ? "cached"
-    : cacheState === "partial" ? "partial"
-    : !hasData ? "empty" : "updated";
+  const fetchState = getFetchDisplayState({
+    staticMode,
+    data,
+    status,
+    meta,
+    error,
+    refreshing: fetching,
+  });
 
   const timeliness = meta ? TIMELINESS_LABEL[meta.timeliness] ?? meta.timeliness : null;
-  const tooltip = staticMode
-    ? "Static preview: live market data needs the local Python backend"
-    : meta ? [
-      meta.data_provider,
-      timeliness,
-      cacheState === "cached" ? (updating ? "Showing cached data while refreshing" : "Showing cached data") : null,
-    ].filter(Boolean).join(" · ") : "Market data source";
+  const origin = dataOrigin === "browser-cache"
+    ? "Browser cache"
+    : staticMode
+      ? "Published GitHub Pages snapshot"
+      : "Live data service";
+  const tooltip = meta ? [
+    origin,
+    meta.data_provider,
+    timeliness,
+    hasData && (error || status === "error") ? "Showing latest valid data; update failed" : null,
+    cacheState === "cached" ? (fetchState === "updating" ? "Showing cached data while refreshing" : "Showing cached data") : null,
+    meta.generated_at ? `Collected ${formatDateLabel(meta.generated_at)}` : null,
+  ].filter(Boolean).join(" · ") : "Market data source";
   const shownDate = hasData ? dateTime ?? "" : "";
 
   return (
-    <div className={`update-bar update-bar--${fetchState}`} title={tooltip}>
-      <span className="update-bar__dot" aria-hidden="true" />
-      <span className="update-bar__label">{FETCH_LABEL[fetchState]}</span>
-      <time className="update-bar__date" dateTime={shownDate}>{formatDateLabel(shownDate)}</time>
-      <span className="update-bar__divider" aria-hidden="true" />
-      <AppButton
-        variant="quiet"
-        icon={ArrowClockwise}
-        iconOnly
-        ariaLabel={ariaLabel}
-        className="refresh-button"
-        onClick={onRefresh ?? (() => refresh())}
-        disabled={fetching || staticMode}
-      />
-    </div>
+    <>
+      <div className={`update-bar update-bar--${fetchState} ${className}`.trim()} title={tooltip}>
+        <button
+          type="button"
+          className="update-bar__summary"
+          aria-haspopup="dialog"
+          aria-expanded={statusOpen}
+          aria-label="Open data and cache status"
+          onClick={() => setStatusOpen(true)}
+        >
+          <span className="update-bar__dot" aria-hidden="true" />
+          <span className="update-bar__label">{FETCH_LABEL[fetchState]}</span>
+          <time className="update-bar__date" dateTime={shownDate}>{formatDateLabel(shownDate)}</time>
+        </button>
+        <span className="update-bar__divider" aria-hidden="true" />
+        <AppButton
+          variant="quiet"
+          icon={ArrowClockwise}
+          iconOnly
+          ariaLabel={ariaLabel}
+          className="refresh-button"
+          onClick={onRefresh ?? (() => refresh())}
+          disabled={fetching}
+        />
+      </div>
+      <DataStatusDialog open={statusOpen} onClose={() => setStatusOpen(false)} />
+    </>
   );
 }

@@ -9,26 +9,82 @@ const formsCss = source("../src/styles/forms.css");
 const stylesIndex = source("../src/styles.css");
 const tokensCss = source("../src/styles/tokens.css");
 const screenerCss = source("../src/styles/screener.css");
+const componentsCss = source("../src/styles/components.css");
 const backtestingCss = source("../src/styles/backtesting.css");
 
-/** Slice a `@media (...) { ... }` block out of a stylesheet. */
-function mediaBlock(css, query) {
-  const start = css.indexOf(query);
-  assert.ok(start >= 0, `missing ${query}`);
-  return css.slice(start);
-}
+/** Comments describe the contract; only declarations are under test. */
+const strip = (css) => css.replace(/\/\*[\s\S]*?\*\//g, "");
+
+const formsRules = strip(formsCss);
+const screenerRules = strip(screenerCss);
+const componentsRules = strip(componentsCss);
+const backtestingRules = strip(backtestingCss);
 
 /** The bare-control focus rule, sliced out of the shared layer. */
-const focusBlock = formsCss.slice(formsCss.indexOf("/* Focus:"), formsCss.indexOf("/* Pill fields"));
+const focusBlock = strip(formsCss.slice(formsCss.indexOf("/* Focus:"), formsCss.indexOf("/* Pill fields")));
 
-test("hover and focus resolve to the same shared sunny-yellow ring", () => {
-  assert.match(tokensCss, /--color-field-border-active:\s*#F5C542/);
+/** Every stylesheet that could plausibly restyle a field. */
+const allCss = [screenerRules, componentsRules, backtestingRules, formsRules].join("\n");
+
+test("fields rest on a 1px beige edge", () => {
+  assert.match(tokensCss, /--color-field-border:\s*#E9E2D9/);
+  // The four visible edges of the app: search pill, filter controls, money
+  // field, dropdown, date field.
+  assert.match(screenerCss, /\.screener-search \{[^}]*border: 1px solid var\(--color-field-border\);/s);
+  assert.match(screenerCss, /\.screener-filter-field select, \.screener-filter-field input \{[^}]*border: 1px solid var\(--color-field-border\);/s);
+  assert.match(componentsCss, /\.currency-input \{[^}]*border: 1px solid var\(--color-field-border\);/s);
+  assert.match(componentsCss, /\.dropdown-control select \{[^}]*border: 1px solid var\(--color-field-border\);/s);
+  assert.match(backtestingCss, /\.backtest-date-input \{[^}]*border: 1px solid var\(--color-field-border\);/s);
+});
+
+test("focus paints the warm-yellow edge", () => {
+  assert.match(tokensCss, /--color-field-border-active:\s*#FFC83D/);
   assert.match(tokensCss, /--field-ring-width:\s*2px/);
   assert.match(focusBlock, /border-color: var\(--color-field-border-active\)/);
   assert.match(focusBlock, /outline: var\(--field-ring-width\) solid var\(--color-field-border-active\)/);
-  const hoverBlock = mediaBlock(formsCss, "@media (hover: hover) and (pointer: fine)");
-  assert.match(hoverBlock, /border-color: var\(--color-field-border-active\)/);
-  assert.match(hoverBlock, /outline: var\(--field-ring-width\) solid var\(--color-field-border-active\)/);
+  assert.match(focusBlock, /outline-offset: calc\(-1 \* var\(--field-ring-width\)\)/);
+});
+
+test("hover is inert — no rule may restyle a field on hover", () => {
+  assert.doesNotMatch(formsRules, /:hover/);
+
+  for (const selector of [
+    ".screener-search:hover",
+    ".screener-search input:hover",
+    ".screener-filter-field select:hover",
+    ".screener-filter-field input:hover",
+    ".currency-input:hover",
+    ".currency-input input:hover",
+    ".backtest-amount-control:hover",
+    ".backtest-date-control:hover",
+    ".backtest-date-input:hover",
+    ".dropdown-control select:hover",
+    ".dropdown-control:hover",
+  ]) {
+    assert.ok(!allCss.includes(selector), `${selector} must not exist`);
+  }
+  // No bare element may be tinted on hover either.
+  assert.doesNotMatch(allCss, /[,\s](input|select|textarea)[^{}]*:hover/);
+});
+
+test("focus, not :active, is the trigger", () => {
+  assert.match(focusBlock, /:focus:not\(:disabled\)/);
+  assert.match(focusBlock, /input:where\([^\n]*:is\(:focus, :focus-visible\):not\(:disabled\):not\(\[aria-invalid="true"\]\)/);
+  assert.doesNotMatch(formsRules, /:active/);
+  // The pill wrappers ring while anything inside them holds focus.
+  assert.match(formsRules, /\.screener-search:focus-within \{/);
+  assert.match(formsRules, /\.currency-input:focus-within,/);
+  assert.match(formsRules, /\.backtest-date-control:focus-within \{/);
+});
+
+test("the yellow edge fades in over 150–200ms", () => {
+  assert.match(tokensCss, /--field-transition:\s*(\d+)ms ease/);
+  const duration = Number(tokensCss.match(/--field-transition:\s*(\d+)ms/)[1]);
+  assert.ok(duration >= 150 && duration <= 200, `transition is ${duration}ms`);
+  assert.match(formsCss, /transition: border-color var\(--field-transition\), outline-color var\(--field-transition\)/);
+  // The ring exists at rest as a transparent outline, so focus only animates
+  // its colour — nothing appears, moves or scales.
+  assert.match(formsCss, /outline: var\(--field-ring-width\) solid transparent;/);
 });
 
 test("the ring adds no width to the box", () => {
@@ -40,11 +96,13 @@ test("the ring adds no width to the box", () => {
   for (const offset of offsets) {
     assert.equal(offset, "calc(-1 * var(--field-ring-width))");
   }
+  // No transform or scale anywhere near a field.
+  assert.doesNotMatch(formsCss, /(transform|scale):/);
 });
 
 test("a pill's inner input never draws a second ring", () => {
   // The wrapper owns the edge; the inputs inside it are border-less.
-  assert.match(formsCss, /\.backtest-date-control input:focus,\s*\.backtest-date-control input:hover \{\s*outline: none;/);
+  assert.match(formsCss, /\.backtest-date-control input:focus \{\s*outline: none;/);
   // ...and the page rules that clear the outline for the other two pills must
   // survive, otherwise those inputs draw a rectangle inside the pill.
   assert.match(screenerCss, /\.screener-search input \{[^}]*outline: 0;/s);
@@ -62,37 +120,18 @@ test("field states never paint a glow", () => {
   assert.doesNotMatch(formsCss, /box-shadow:\s*0 0 0/);
 });
 
-test("the browser focus ring is replaced, not merely deleted", () => {
-  assert.match(focusBlock, /outline: var\(--field-ring-width\) solid var\(--color-field-border-active\)/);
-  assert.match(focusBlock, /outline-offset: calc\(-1 \* var\(--field-ring-width\)\)/);
-  assert.match(focusBlock, /border-color: var\(--color-field-border-active\)/);
-});
-
-test("hover is limited to devices that can actually hover", () => {
-  const hoverBlock = mediaBlock(formsCss, "@media (hover: hover) and (pointer: fine)");
-  assert.match(hoverBlock, /input[^{]*:hover/);
-  assert.match(hoverBlock, /select:where\(:hover:not\(:disabled\)\)/);
-  // Nothing outside that media query may tint a field on hover.
-  const beforeMedia = formsCss.slice(0, formsCss.indexOf("@media (hover: hover)"));
-  assert.doesNotMatch(beforeMedia, /:hover[^,{]*\{[^}]*--color-field-border-active/);
-});
-
-test("a tap cannot leave the date field tinted", () => {
-  // Touch devices match :hover after a tap; the resting edge is restored, and
-  // the focus rule has to stay after this reset so an active field still tints.
-  const touchBlock = mediaBlock(formsCss, "@media (hover: none)");
-  assert.match(touchBlock, /\.backtest-date-control:hover \{[^}]*border-color: var\(--color-line\)/s);
-  assert.ok(
-    formsCss.indexOf("@media (hover: none)") < formsCss.indexOf("/* Focus: same yellow ring"),
-    "the touch reset must precede the focus rules",
-  );
+test("blur leaves no residue", () => {
+  // Nothing in the shared layer is scoped to a hover or active state, and the
+  // resting outline colour is transparent, so losing focus restores the beige
+  // edge without a cleanup rule.
+  const stateful = [...formsRules.matchAll(/^[^@{}\n]*:(hover|active)[^{}]*\{/gm)];
+  assert.equal(stateful.length, 0);
+  assert.match(formsCss, /solid transparent;/);
 });
 
 test("disabled and invalid fields keep their own appearance", () => {
   assert.match(formsCss, /:focus:not\(:disabled\)/);
-  assert.match(formsCss, /:hover:not\(:disabled\)/);
-  assert.match(formsCss, /input:where\([^\n]*focus:not\(:disabled\):not\(\[aria-invalid="true"\]\)/);
-  assert.match(formsCss, /input:where\([^\n]*hover:not\(:disabled\):not\(\[aria-invalid="true"\]\)/);
+  assert.match(formsCss, /input:where\([^\n]*:is\(:focus, :focus-visible\):not\(:disabled\):not\(\[aria-invalid="true"\]\)/);
   assert.match(formsCss, /\.backtest-date-group\.is-invalid \.backtest-date-control \{\s*border-color: #D8848B;\s*outline: none;/);
 });
 

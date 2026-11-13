@@ -44,15 +44,21 @@
   --color-badge-border: #E7DED1;
   --color-accent-text: #80652D;
   --color-accent-copy: #665B45;
+  --color-background: var(--color-cream);
+  --color-card: var(--color-surface);
+  --color-card-border: #EAE4DC;
 
   /* Editable fields. One interaction language for every input, select and
-     textarea: the neutral resting border gains a sunny-yellow ring on hover and
-     keeps it while the field holds focus. The ring is an unblurred outline, so
+     textarea: the beige resting border stays exactly as it is while the pointer
+     moves over the control — hovering is inert — and only focus (click, tap or
+     keyboard) paints the warm-yellow edge. The ring is an unblurred outline, so
      it takes no space in layout — the control keeps its footprint and the page
      never reflows — and no shadow is used, so there is no glow. Set in
      forms.css, never re-declared per page. */
-  --color-field-border-active: #F5C542;
+  --color-field-border: #E9E2D9;
+  --color-field-border-active: #FFC83D;
   --field-ring-width: 2px;
+  --field-transition: 160ms ease;
 
   /* Typography — family and weights */
   --font-family: "Nunito Sans", "Avenir Next", Avenir, "Segoe UI", sans-serif;
@@ -100,6 +106,8 @@
   --radius-md: 1.2rem;
   --radius-lg: 1.65rem;
   --radius-pill: 999px;
+  --radius-card: var(--radius-lg);
+  --radius-input: var(--radius-pill);
   --shadow-card: 0 12px 32px rgb(56 40 22 / 5%), 0 2px 8px rgb(56 40 22 / 3%);
   --shadow-float: 0 18px 44px rgb(56 40 22 / 9%), 0 3px 12px rgb(56 40 22 / 4%);
   --shadow-nav: 0 3px 12px rgb(56 40 22 / 5%);
@@ -115,6 +123,11 @@
   --space-10: 2.5rem;
   --space-12: 3rem;
   --space-16: 4rem;
+  --spacing-card: var(--space-5);
+  --spacing-section: var(--section-gap);
+  --control-height: 36px;
+  --setting-row-height: 66px;
+  --dropdown-arrow-inset: 18px;
 
   /* Layout system — the vertical and horizontal rhythm every page shares.
      Overridden once per breakpoint in layout.css; pages never restate them. */

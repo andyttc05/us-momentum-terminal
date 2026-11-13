@@ -1,290 +1,234 @@
 # US Momentum Terminal
 
-[Live website](https://andyttc05.github.io/us-momentum-terminal/) ·
-[GitHub repository](https://github.com/andyttc05/us-momentum-terminal)
+[Live site](https://andyttc05.github.io/us-momentum-terminal/) ·
+[Repository](https://github.com/andyttc05/us-momentum-terminal)
 
-An academic research application for studying a US equity momentum strategy. A React dashboard sits
-on top of a Python market-data service that retrieves prices, calculates risk-adjusted momentum,
-ranks stocks, constructs a constrained model portfolio, and runs a historical simulation against
-SPY and SPMO.
+US Momentum Terminal is an academic research dashboard for a US equity momentum strategy. It ranks a
+curated universe by risk-adjusted 12–1 momentum, builds a constrained model portfolio and compares a
+historical implementation with SPY and SPMO.
 
-The project is coursework and technical reference material. It is not a trading system, it does not
-execute orders, and nothing in it is investment advice.
+The application does not execute orders and is not investment advice.
 
 ![Overview dashboard](docs/screenshots/overview-desktop.png)
 
-## 1. Project Overview
+## Features
 
-The terminal answers one question end to end: given adjusted US equity prices, which stocks carry
-the strongest risk-adjusted 12–1 momentum right now, and what would a disciplined portfolio built
-from that ranking have returned historically?
+- Overview of market breadth, strategy performance, leading stocks and sector allocation.
+- Searchable Screener with Top 100 and Top 20 views, filters, sorting, pagination and CSV export.
+- Stock Analysis with price history, momentum metrics and month-end rank history.
+- Model portfolios with 100 or exactly 20 holdings, float-adjusted weights, stock and sector
+  constraints, and CSV export.
+- Backtesting with configurable dates, capital, cashflows, dividends, inflation, rebalancing,
+  chart window and log scale.
+- Freshness, browser-cache and fallback states, including a Data & Cache status panel.
+- Responsive desktop, tablet and mobile layouts.
 
-| Screen | Question it answers |
-| --- | --- |
-| Overview | How has the strategy performed, and what is leading today? |
-| Screener | Which stocks rank highest, and how did each one get there? |
-| Stock Analysis | What is this symbol's price history, momentum and rank history? |
-| Portfolio | How is the model book allocated, by stock and by sector? |
-| Backtesting | How did the ranking behave across a chosen window, against SPY and SPMO? |
+## Loading and failure behaviour
 
-The Python service builds the historical return paths, rankings and publication data. The frontend
-formats, sorts and plots those paths, and derives the user-configured account report (cashflows,
-XIRR, CPI deflation and chart-window metrics) from the published daily series without inventing
-prices or returns.
+The page shell is rendered before market data arrives. Page headers, filters, KPI cards, chart cards,
+table headers and pagination remain mounted while their data-dependent contents use shared loading
+placeholders. The Screener therefore keeps its scope selector, search, filters, export control,
+column headings and pagination throughout the initial request.
 
-## 2. Live Demo
+Section state is resolved independently:
 
-| Component | URL |
-| --- | --- |
-| Frontend (GitHub Pages) | <https://andyttc05.github.io/us-momentum-terminal/> |
-| Data service (Render) | <https://us-momentum-data.onrender.com/api/health> |
+- loading starts inside the existing component;
+- valid cached data remains visible during background refreshes and after a failed update;
+- settled failures become explicit error states instead of indefinite loading;
+- empty responses show empty states rather than zero values or mock data.
 
-The free Render instance sleeps when idle and can take up to a minute to wake. While it warms, the
-interface shows its own state rather than substitute prices: fresh, cached, partial, warming, or
-unavailable.
+Transient updates use the shared black notification card. A failed refresh never replaces valid
+displayed data, and a retry cannot create a second completion notice.
 
-## 3. Key Features
-
-- Screens a curated universe of 200 US common stocks and scores the eligible ones.
-- Calculates 12–1 momentum, daily volatility, risk-adjusted momentum, cross-sectional Z-scores and
-  the Momentum Score.
-- Ranks the universe and supports Top 100 and Top 20% views.
-- Builds a 100-stock model portfolio under a 9% single-stock cap and a 35% sector-group cap.
-- Exports the Screener and the full portfolio to CSV.
-- Reports the data source, market date, cache state, timeliness and provider health on every page.
-- Ships an automated audit that reconciles every chart against the raw price bars it was drawn from.
-
-## 4. Technical Architecture
+## Architecture
 
 ```mermaid
 flowchart LR
-    Yahoo[Yahoo Finance via yfinance] --> Providers[Provider registry]
-    Backups[Optional provider adapters] --> Providers
-    Providers --> Service[FastAPI data service]
-    Service --> Cache[(JSON disk cache)]
-    Service --> Ranking[Momentum ranking]
-    Ranking --> Portfolio[Constrained model portfolio]
-    Ranking --> Backtest[Historical backtest]
-    Service --> API[/api publication endpoints/]
-    API --> Frontend[React and Vite dashboard]
+    Provider[Yahoo Finance] --> Python[Python data pipeline]
+    Python --> Validate[Validate + calculate]
+    Validate --> Static[Static publication JSON]
+    Static --> Pages[GitHub Pages]
+    Pages --> Browser[React browser app]
+    Browser --> Cache[Browser cache]
+    Python -. optional local/live mode .-> FastAPI[FastAPI]
+    FastAPI -. /api/snapshot .-> Browser
 ```
 
-The browser fetches one publication payload. Provider calls, API keys and every financial calculation
-stay on the Python backend.
+GitHub Pages is static hosting. The production site therefore reads a validated publication from
+`frontend/public/data/`; it does not depend on a sleeping Python instance.
+
+A scheduled GitHub Actions workflow runs after the US market close on weekdays. It reuses the Python
+provider, validation, momentum, portfolio and backtest code, writes a new static snapshot, and deploys
+the resulting Pages artifact. A failed refresh preserves the previous valid snapshot.
+
+The FastAPI service remains available for local development, provider diagnostics and an optional
+live-data deployment.
+
+## Technology
 
 | Layer | Technology |
 | --- | --- |
 | Frontend | React 19, Vite 6, plain CSS, Phosphor Icons |
-| Backend | Python 3.11+, FastAPI, Uvicorn |
-| Quant processing | pandas, NumPy, `exchange-calendars` |
-| Market data | `yfinance` primary; optional Twelve Data and FMP adapters |
-| Persistence | Atomic JSON disk cache and a verified publication seed |
-| Testing | Python `unittest`, Node test runner, live API verification |
-| Deployment | GitHub Pages frontend, Render FastAPI backend |
+| Local/live API | Python 3.11+, FastAPI, Uvicorn |
+| Data processing | pandas, NumPy, exchange-calendars, yfinance |
+| Data publication | Compact JSON, atomic staging, GitHub Actions |
+| Hosting | GitHub Pages |
+| Tests | Python `unittest`, Node test runner, browser checks |
 
-## 5. Data Sources
+## Data Pipeline
 
-The default chain is Yahoo Finance through the unofficial `yfinance` client, then Twelve Data and
-Financial Modeling Prep when their optional keys are present. Stooq exists as an adapter but is
-excluded from scoring because it supplies no adjusted closes and is usually blocked by an anti-bot
-challenge.
+The static exporter:
 
-The universe is a curated list of 200 unique symbols — a 108-stock audited core plus 92
-sector-balanced selections from an S&P MidCap 400 candidate pool. It is not a scan of every US-listed
-stock. On 12 November 2026, 198 of the 200 passed every eligibility rule.
+1. Reuses the current publication cache or fetches a new validated snapshot.
+2. Verifies provider connection, universe coverage, portfolio availability and both backtests.
+3. Builds the on-demand Stock Analysis detail payloads from the same bars.
+4. Writes compact `publication.json`, `manifest.json` and `stocks/*.json` files.
+5. Replaces the existing publication only after all files pass validation.
 
-For each symbol the service retrieves daily OHLCV history, adjusted closes and, where available,
-dividends and splits, plus current quote metadata: company name, sector, exchange, currency, security
-type, market capitalisation, shares outstanding, float shares and three-month average volume. Records
-are normalised, duplicate dates removed, invalid prices rejected, and provenance retained.
+If a provider or validation step fails, the previous static publication is retained. The UI shows its
+actual market date, collection timestamp, provider and cache origin. A browser copy is also kept for
+an immediate next visit and for offline-style fallback after a failed request.
 
-All market data is **live or cached current market data**. The backtest is a **historical
-reconstruction** over archived bars and must not be read as live portfolio performance.
+### Sources and freshness
 
-## 6. Momentum Methodology
+The default source is Yahoo Finance through the unofficial `yfinance` client. It supplies daily
+OHLCV, adjusted closes, dividends, splits and current quote/fundamental metadata. Optional Twelve
+Data and FMP adapters require private server-side keys. Stooq is retained as an adapter but is not used
+because its anonymous download is blocked and it does not provide adjusted closes.
 
-All windows are trading sessions, and only adjusted closes are used.
+The browser never calls a market-data provider and never receives API keys. GitHub Actions publishes
+only the validated application payload. Provider-derived data remains subject to the provider's
+terms; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-```text
-12–1 momentum          = P(t − 21) / P(t − 252) − 1
-daily volatility       = sample standard deviation of 252 trailing daily returns
-risk-adjusted momentum = decimal 12–1 momentum / daily volatility
-Z                      = (risk-adjusted momentum − cross-sectional mean) / population standard deviation
-Z                      = clip(Z, −3, +3)
+The latest successful collection and market date are recorded in:
 
-Momentum Score = 1 + Z          when Z > 0
-Momentum Score = 1 / (1 − Z)    when Z < 0
-Momentum Score = 1              when Z = 0
-```
+- `frontend/public/data/manifest.json`
+- `frontend/public/data/publication.json` → `meta.generated_at`, `meta.as_of`
+- the in-app **Data & Cache** panel opened from the update pill
 
-The most recent month is deliberately excluded: the window ends 21 sessions before the latest close
-so the signal is not dominated by a single month of noise. Because both legs are positional offsets
-into the same series, the window always spans 232 plotted observations.
-
-Eligibility requires a provider-verified common stock, USD, a listing on NYSE, NASDAQ or NYSE
-American, a latest close of at least $5, at least 210 daily observations, one common observation date
-across the universe, and at least $2 million average daily dollar volume over 63 sessions. Scoring
-needs the full 253 observations the 12–1 window requires.
-
-The asymmetric score transform is intentional. A high Z-score maps to `1 + Z`, so strong momentum is
-rewarded linearly, while weak momentum approaches zero but never turns negative through
-`1 / (1 − Z)`.
-
-## 7. Portfolio Construction
-
-The model selects the top 100 momentum-eligible stocks that have a verified current float. Each
-preliminary weight is proportional to:
-
-```text
-float-adjusted market capitalisation × Momentum Score
-```
-
-A capped proportional solver redistributes those weights by bisection until they total 100% while
-respecting a 9% single-stock cap and a 35% sector-group cap. For the cap test, Consumer Discretionary
-and Consumer Staples merge into "Consumer", and Financials, Energy, Materials, Utilities and Real
-Estate fold into a single "Others" bucket. If the constraints are infeasible the service reports that
-state instead of publishing an invalid book.
-
-The published portfolio rebalances semiannually in March and September. The daily ranking refreshed
-on the Screener does not create trades.
-
-## 8. Backtesting Methodology
-
-The historical test is a research proxy for the ranking method, not a tradable track record:
-
-- Signals form at the last trading session of March or September.
-- Execution happens at the next available adjusted close.
-- Holdings are marked to market every session between rebalances.
-- Historical books are equal-weighted.
-- Transaction costs are 0.10% of traded notional; assumed slippage is 0.00%.
-- SPY and SPMO are rebased to 100 on the strategy's first date and measured over the same window.
-- The Sharpe Ratio uses an explicitly documented 0% risk-free rate.
-- Maximum drawdown is measured from the running peak of the NAV series.
-- Annual returns use calendar years; the current partial year is labelled YTD.
-- Dividend-reinvested mode uses provider adjusted closes. The provider's `Close` is already normalized
-  to the current split basis; split actions are audited but never applied a second time.
-- Dividend-exclusive mode uses those split-normalized closes, records cash distributions on the
-  ex-date and does not purchase additional shares.
-- CPI adjustment uses official U.S. CPI-U All Items (`CPIAUCNS`, Bureau of Labor Statistics via FRED).
-  Monthly observations become available to reporting on the 15th of the following month, with a
-  persistent cache and stale-cache fallback. Missing CPI months are retained in the coverage metadata.
-
-External contributions are added at the first trading observation of a new period and excluded from
-time-weighted return. XIRR uses dated investor cashflows and the ending account value. Under CPI
-adjustment, historical contributions and the terminal value are deflated to the backtest start's
-purchasing power before XIRR is solved.
-
-The backtest runs on the audited 108-symbol historical core and does not apply today's 92 additions
-retrospectively. It is not a point-in-time reconstruction: current constituents and current
-fundamentals introduce survivorship, selection and look-ahead limitations. Historical float-adjusted
-market capitalisation is unavailable, which is why the historical book is equal-weighted.
-
-## 9. Installation and Local Setup
+## Local Development
 
 Requirements: Python 3.11+, Node.js 20+, npm and internet access.
 
 ```bash
-npm run data:install          # create .venv-datatest and install backend deps
-npm --prefix frontend ci      # install frontend deps
+npm run data:install
+npm --prefix frontend ci
 ```
 
-Optional backup provider keys go in `.env`; copy `.env.example` and edit. Never commit `.env`.
-
-Run the two processes in separate terminals:
+Run the local live-data stack:
 
 ```bash
-npm run data:serve            # FastAPI on http://127.0.0.1:8787
-npm run dev                   # Vite on http://127.0.0.1:5173
+npm run data:serve
+npm run dev
 ```
 
-Checks:
+Open `http://127.0.0.1:5173`. Vite proxies `/api` to the FastAPI service on port `8787`.
+
+To run the frontend against the committed static publication instead:
 
 ```bash
-npm run data:test                        # Python unit tests
-npm run test:frontend                    # frontend unit tests
-npm run test:sites                       # deployment worker test
-npm run build                            # production build
-npm run data:verify                      # live API audit, needs the service running
+VITE_DATA_MODE=static npm --prefix frontend run dev
 ```
 
-`data:verify` writes `data-service/docs/verification.json`, the evidence file behind
-[the chart and data audit](docs/reports/CHART_AND_DATA_ACCURACY_AUDIT.md).
+To refresh and validate the committed static publication manually:
 
-## 10. Project Structure
+```bash
+npm run data:build-static
+npm run data:validate-static
+```
+
+Optional provider keys belong only in a local, git-ignored `.env`. Copy `.env.example` when needed.
+
+## Tests
+
+```bash
+npm run data:test
+npm run test:frontend
+npm run test:sites
+npm run build
+```
+
+Provider availability is tested with real network requests:
+
+```bash
+npm run data:probe
+```
+
+The probe writes `data-service/docs/provider_probe.json`. It does not synthesize successful results.
+
+## Deployment
+
+`.github/workflows/deploy-pages.yml` deploys on:
+
+- every push to `main`;
+- a weekday schedule at `22:23 UTC`, after the regular US close;
+- manual `workflow_dispatch`.
+
+Pushes validate and deploy the committed static snapshot. Scheduled/manual runs refresh the snapshot
+before building. The workflow requires no provider secrets for the default Yahoo path.
+
+The Pages build uses:
+
+```text
+VITE_BASE_PATH=/us-momentum-terminal/
+VITE_DATA_MODE=static
+VITE_BACKTEST_API_BASE_URL=https://us-momentum-data.onrender.com/api
+```
+
+The initial snapshot includes the default semiannual backtest. Other rebalancing schedules are
+served as separate same-origin JSON files for the published date range. A user-selected date range
+outside that publication uses the configured quantitative backtest endpoint, while all dashboard
+data remains static.
+
+## Project Structure
 
 ```text
 .
-├── .github/workflows/          # CI and GitHub Pages deployment
+├── .github/workflows/       CI and scheduled Pages deployment
 ├── data-service/
-│   ├── app/                    # FastAPI, providers and quantitative engines
-│   ├── docs/                   # Provider report and generated audit evidence
-│   ├── seed/                   # Verified publication seed
-│   └── tests/                  # Unit tests and live verification scripts
+│   ├── app/                 Providers, validation, analytics and FastAPI
+│   ├── docs/                Provider evidence and generated reports
+│   ├── scripts/             Static publication exporter
+│   ├── seed/                Last repository seed used by the service
+│   └── tests/               Unit and live verification tools
 ├── docs/
-│   ├── reports/                # Chart and data accuracy audit
-│   ├── screenshots/            # Curated application screenshots
-│   ├── PROJECT_OVERVIEW.md
+│   ├── DATA_PIPELINE.md     Publication, cache and deployment details
 │   ├── TECHNICAL_DOCUMENTATION.md
-│   ├── DATA_AUDIT_REPORT.md
-│   ├── STRATEGY_VALIDATION_REPORT.md
-│   └── FINAL_VALIDATION_REPORT.md
+│   └── screenshots/         Curated application screenshots
 ├── frontend/
-│   ├── src/                    # Pages, components, styles, API client
-│   ├── tests/                  # Frontend and deployment tests
-│   ├── scripts/                # Sites build preparation
-│   └── worker/                 # Sites fallback worker
-├── .env.example
-├── LICENSE
-├── THIRD_PARTY_NOTICES.md
-├── package.json
-└── package-lock.json
+│   ├── public/data/         Published JSON snapshot used by GitHub Pages
+│   ├── src/                 Pages, components, API cache and styles
+│   ├── tests/               Frontend and deployment tests
+│   └── worker/              Optional Sites SPA fallback worker
+└── package.json
 ```
 
-## Screenshots
+## Methodology and Limitations
 
-| Screen | Desktop | Mobile |
-| --- | --- | --- |
-| Overview | [overview](docs/screenshots/overview-desktop.png) | [overview](docs/screenshots/overview-mobile.png) |
-| Screener | [screener](docs/screenshots/screener-desktop.png) | [screener](docs/screenshots/screener-mobile.png) |
-| Stock Analysis | [stock analysis](docs/screenshots/stock-analysis-desktop.png) | [stock analysis](docs/screenshots/stock-analysis-mobile.png) |
-| Portfolio | [portfolio](docs/screenshots/portfolio-desktop.png) | [portfolio](docs/screenshots/portfolio-mobile.png) |
-| Backtesting | [backtesting](docs/screenshots/backtesting-desktop.png) | [backtesting](docs/screenshots/backtesting-mobile.png) |
+Momentum uses adjusted closes and a 12–1 window. Scoring combines risk-adjusted momentum with a
+cross-sectional Z-score. The model portfolio uses float-adjusted market capitalization multiplied by
+Momentum Score, then applies a 9% stock cap and a 35% sector-group cap.
 
-## 11. Limitations
+Backtesting's Universe control is the single selection used by Portfolio. Top 100 and Top 20 mean
+exactly 100 and exactly 20 ranked eligible stocks. The selection persists in browser storage and both
+pages read it from one shared app-level state. Portfolio holdings, KPIs, sector allocation, weight
+distribution, constraint labels and CSV export all resolve from the selected published book.
 
-- The universe is curated, not a complete US exchange master, and selection itself is a judgement.
-- Yahoo Finance is an unofficial provider with no service-level agreement.
-- Market capitalisation and float shares are current values, not point-in-time observations.
-- The historical universe omits delisted securities and reused ticker identities, so survivorship
-  bias remains despite excluding today's additions.
-- 27 scored names have no verified float cap; they are excluded from the portfolio rather than
-  weighted on an unverified figure.
-- The backtest is equal-weighted rather than float-cap weighted, and assumes a 0% risk-free rate.
-- No taxes, market impact, capacity constraints, order execution or paper-trading record are modelled.
-- Adjusted closes are taken as the provider supplies them; no second provider with adjusted history
-  is available on the free tier to cross-check the adjustment.
+The backtest is a research proxy:
 
-## 12. Disclaimer
+- Top 100 and Top 20 use exact-ranked counts on every signal date;
+- changing Universe marks existing results as outdated until Backtesting is rerun;
+- current constituents introduce survivorship and selection bias;
+- historical point-in-time float capitalisation is unavailable;
+- current fundamentals are applied to historical portfolio construction;
+- no delisting-return model, taxes, market impact or capacity limit is included;
+- Yahoo Finance is unofficial and has no service-level guarantee or published quota;
+- the free site publishes end-of-day snapshots, not a tick-by-tick trading feed.
 
-This project was built for academic study. It is not investment advice, not a recommendation to buy
-or sell any security, and not a live trading system. Historical results are the output of a research
-proxy with documented survivorship and look-ahead limitations; past performance does not establish
-future returns. Do not deploy capital on the basis of this software.
-
-## Documentation
-
-| Document | Contents |
-| --- | --- |
-| [Academic Project Overview](docs/PROJECT_OVERVIEW.md) | The research question, method and boundaries in plain language |
-| [Technical Documentation](docs/TECHNICAL_DOCUMENTATION.md) | Architecture, modules, API and configuration |
-| [Chart and Data Accuracy Audit](docs/reports/CHART_AND_DATA_ACCURACY_AUDIT.md) | Every chart reconciled against the bars behind it |
-| [Data Audit Report](docs/DATA_AUDIT_REPORT.md) | Provider coverage, symbol hygiene and data quality |
-| [Strategy Validation Report](docs/STRATEGY_VALIDATION_REPORT.md) | Formula verification, bias review and sensitivity tests |
-| [Final Validation Report](docs/FINAL_VALIDATION_REPORT.md) | Release checks and current snapshot figures |
-| [Data Provider Report](data-service/docs/DATA_PROVIDERS.md) | Provider-by-provider capability and limits |
+See [TECHNICAL_DOCUMENTATION.md](docs/TECHNICAL_DOCUMENTATION.md) and
+[DATA_PIPELINE.md](docs/DATA_PIPELINE.md) for implementation details.
 
 ## License
 
-Original project code and documentation are distributed under the [MIT License](LICENSE). Third-party
-libraries, fonts, icons, market data and other third-party material remain subject to their own terms.
-See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Project code and original documentation are MIT licensed. Third-party libraries and market data
+retain their own terms.

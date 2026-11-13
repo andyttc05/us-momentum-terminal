@@ -50,7 +50,7 @@
   align-items: center;
   gap: 13px;
   padding: 0 18px 0 22px;
-  border: 1px solid var(--color-line);
+  border: 1px solid var(--color-field-border);
   border-radius: var(--radius-pill);
   background: var(--color-surface);
   box-shadow: var(--shadow-card);
@@ -97,7 +97,7 @@
   min-width: 0;
   min-height: 40px;
   padding: 0 11px;
-  border: 1px solid var(--color-line);
+  border: 1px solid var(--color-field-border);
   border-radius: var(--radius-xs);
   background: var(--color-surface);
   color: var(--color-ink);

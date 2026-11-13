@@ -98,26 +98,32 @@
   background: var(--color-yellow);
   box-shadow: var(--shadow-card);
 }
+.portfolio-constraints__title { display: flex; align-items: center; gap: 8px; }
+.portfolio-constraints__title > svg { flex: 0 0 auto; }
 .portfolio-constraints .dashboard-card__body { --card-body-padding-start: 8px; padding-inline: var(--card-padding-inline); }
 .portfolio-constraint-list { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
 .portfolio-constraint {
   display: grid;
-  min-height: 37px;
-  grid-template-columns: minmax(0, 1fr) auto 25px;
+  height: 37px;
+  grid-template-columns: 25px minmax(0, 1fr) auto 25px;
   align-items: center;
-  gap: 9px;
+  column-gap: 9px;
   padding: 0 10px 0 14px;
   border-radius: var(--radius-pill);
   background: var(--color-surface);
   color: var(--color-ink);
   font-size: 0.82rem;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   line-height: 1.2;
   white-space: nowrap;
 }
-.portfolio-constraint strong { font-size: 0.91rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.portfolio-constraint__icon { color: var(--color-ink); }
+.portfolio-constraint > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.portfolio-constraint strong { justify-self: end; font-size: 0.91rem; font-weight: var(--font-weight-bold); font-variant-numeric: tabular-nums; text-align: right; }
+.portfolio-constraint > svg { justify-self: end; }
 .portfolio-constraint.is-passed > svg { color: #26C78A; }
 .portfolio-constraint.is-failed > svg { color: var(--color-negative); }
+.portfolio-constraint.is-unavailable > svg { color: var(--color-warning); }
 
 .portfolio-holdings-card { --card-body-padding-start: 7px; }
 .portfolio-holdings-card .table-pagination { min-height: 68px; padding: 0 10px; }
@@ -278,9 +284,10 @@
   .portfolio-weight-row__value { font-size: 0.82rem; }
   .portfolio-weight-row__track { height: 22px; }
   .portfolio-constraint-list { gap: 4px; }
-  .portfolio-constraint { min-height: 32px; padding-inline: 11px 8px; font-size: 0.73rem; }
+  .portfolio-constraint { height: 32px; padding-inline: 11px 8px; font-size: 0.73rem; }
   .portfolio-constraint strong { font-size: 0.81rem; }
-  .portfolio-constraint svg { width: 21px; height: 21px; }
+  .portfolio-constraint > svg { width: 21px; height: 21px; }
+  .portfolio-constraint { grid-template-columns: 21px minmax(0, 1fr) auto 21px; column-gap: 7px; }
   .portfolio-table tbody tr { height: 44px; }
   .portfolio-table td { padding-block: 3px; font-size: 0.95rem; }
   .portfolio-rank-cell span { width: 30px; height: 30px; }

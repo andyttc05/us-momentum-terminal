@@ -7,13 +7,20 @@ import unittest
 from collections import Counter
 from datetime import date, datetime, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
+from fastapi import HTTPException
 
-from app.backtest import _price_cash_frames, run_backtest
+from app.backtest import (
+    REBALANCE_FREQUENCIES,
+    _price_cash_frames,
+    rebalance_schedule,
+    run_backtest,
+)
 from app.clock import NY, market_state
-from app.main import _loading_payload, _seed_payload
+from app.main import _loading_payload, _seed_payload, backtest as run_backtest_endpoint
 from app.macro import parse_cpi_csv
 from app.models import NormalizedBar
 from app.momentum import (
@@ -24,7 +31,12 @@ from app.momentum import (
     momentum_sparkline,
     momentum_score,
 )
-from app.portfolio import _rounded_sector_values, build_portfolio
+from app.portfolio import (
+    _rounded_sector_values,
+    build_portfolio,
+    evaluate_portfolio_constraints,
+    group_sector,
+)
 from app.snapshot import (
     PUBLICATION_VERSION,
     UNIVERSE_VERSION,
@@ -333,7 +345,21 @@ class PortfolioTests(unittest.TestCase):
         rows = [self._row(i, sectors[i % 3]) for i in range(10)]
         portfolio = build_portfolio(rows)
         self.assertFalse(portfolio["available"])
+        self.assertEqual(portfolio["status"], "infeasible")
         self.assertIn("too few holdings", portfolio["reason"])
+
+    def test_top_twenty_is_an_exact_holding_count(self):
+        sectors = ["Technology", "Communication", "Healthcare", "Consumer Staples", "Industrials", "Energy"]
+        rows = [self._row(i, sectors[i % len(sectors)]) for i in range(100)]
+        portfolio = build_portfolio(rows, target_holdings=20)
+        self.assertTrue(portfolio["available"])
+        self.assertEqual(portfolio["summary"]["totalHoldings"], 20)
+        self.assertEqual(len(portfolio["holdings"]), 20)
+        self.assertAlmostEqual(sum(item["finalWeight"] for item in portfolio["holdings"]), 100.0, places=5)
+        self.assertIn(
+            {"id": "target-holdings", "label": "Target Holdings", "rule": "= 20", "passed": True, "status": "passed"},
+            portfolio["constraints"],
+        )
 
 
 class CalendarTests(unittest.TestCase):
@@ -347,7 +373,9 @@ class CalendarTests(unittest.TestCase):
 
 
 def synthetic_series(symbol: str, days: int = 900) -> SymbolSeries:
-    rng = np.random.default_rng(abs(hash(symbol)) % (2**32))
+    # Python's hash is process-randomized; a stable symbol seed keeps repeated
+    # backtests reproducible across separate test and deployment processes.
+    rng = np.random.default_rng(sum(map(ord, symbol)) % (2**32))
     trend = 0.00015 + (sum(map(ord, symbol)) % 7) * 0.00004
     returns = trend + rng.normal(0.0, 0.006, days)
     adjusted = 100.0 * np.cumprod(1.0 + returns)
@@ -392,6 +420,290 @@ class BacktestTests(unittest.TestCase):
             self.assertGreater(event["execution_date"], event["signal_date"])
             self.assertTrue(set(event["leaders"]).issubset({"AAA", "BBB", "CCC", "DDD", "EEE", "FFF"}))
         self.assertGreater(result["metrics"]["transaction_cost_pct"], 0.0)
+
+    def test_rebalance_schedule_uses_exact_calendar_months(self):
+        sessions = pd.bdate_range("2023-01-02", "2025-12-31")
+        expected = {
+            "monthly": set(range(1, 13)),
+            "quarterly": {3, 6, 9, 12},
+            "semiannual": {3, 9},
+            "annual": {9},
+        }
+        for frequency, months in expected.items():
+            events = rebalance_schedule(sessions, frequency=frequency)
+            self.assertTrue(events)
+            self.assertEqual(
+                {sessions[event["signal_position"]].month for event in events},
+                months,
+                frequency,
+            )
+            execution_positions = [event["execution_position"] for event in events]
+            self.assertEqual(len(execution_positions), len(set(execution_positions)))
+            for event in events:
+                self.assertLess(event["signal_position"], event["execution_position"])
+            ranged = rebalance_schedule(
+                sessions,
+                frequency=frequency,
+                start="2023-04-17",
+                end="2025-11-28",
+            )
+            scheduled_months = {
+                sessions[event["signal_position"]].month
+                for event in ranged
+                if event["kind"] == "scheduled"
+            }
+            self.assertEqual(scheduled_months, months, f"{frequency} scheduled months")
+
+    def test_schedule_respects_partial_range_and_initial_formation(self):
+        sessions = pd.bdate_range("2023-01-02", "2025-12-31")
+        events = rebalance_schedule(
+            sessions,
+            frequency="monthly",
+            start="2024-04-17",
+            end="2024-11-20",
+        )
+        self.assertEqual(events[0]["kind"], "initial_formation")
+        self.assertEqual(sessions[events[0]["execution_position"]], pd.Timestamp("2024-04-17"))
+        self.assertEqual(sum(sessions[event["execution_position"]].month == 4 for event in events), 1)
+        self.assertTrue(all(pd.Timestamp("2024-04-17") <= sessions[event["execution_position"]] <= pd.Timestamp("2024-11-20") for event in events))
+        self.assertFalse(any(event["scheduled_month"] == 11 for event in events))
+
+    def test_monthly_schedule_keeps_the_same_month_in_later_years(self):
+        sessions = pd.bdate_range("2023-01-02", "2026-12-31")
+        events = rebalance_schedule(
+            sessions,
+            frequency="monthly",
+            start="2024-04-17",
+            end="2025-11-20",
+        )
+        execution_months = [
+            sessions[event["execution_position"]].strftime("%Y-%m")
+            for event in events
+        ]
+        expected = [
+            f"{year}-{month:02d}"
+            for year in (2024, 2025)
+            for month in range(1, 13)
+            if "2024-04" <= f"{year}-{month:02d}" <= "2025-11"
+        ]
+        self.assertEqual(execution_months, expected)
+        self.assertEqual(len(execution_months), len(set(execution_months)))
+
+    def test_month_end_holiday_uses_last_session_and_next_execution(self):
+        sessions = pd.bdate_range("2024-01-02", "2024-06-28")
+        sessions = sessions[sessions != pd.Timestamp("2024-03-29")]
+        events = rebalance_schedule(sessions, frequency="semiannual")
+        first = events[0]
+        self.assertEqual(sessions[first["signal_position"]], pd.Timestamp("2024-03-28"))
+        self.assertEqual(sessions[first["execution_position"]], pd.Timestamp("2024-04-01"))
+
+    def test_every_frequency_changes_holdings_only_on_its_schedule(self):
+        symbols = ["AAA", "BBB", "CCC", "DDD", "EEE", "FFF"]
+        series = {symbol: synthetic_series(symbol) for symbol in symbols}
+        series["SPY"] = synthetic_series("SPY")
+        results = {
+            frequency: run_backtest(
+                series,
+                top_n=3,
+                universe_symbols=set(symbols),
+                rebalance_frequency=frequency,
+            )
+            for frequency in REBALANCE_FREQUENCIES
+        }
+        for frequency, result in results.items():
+            self.assertTrue(result["available"], result.get("reason"))
+            self.assertEqual(result["event_counts"]["initial_formation"], 1)
+            self.assertEqual(
+                result["event_counts"]["total"],
+                result["event_counts"]["initial_formation"] + result["event_counts"]["scheduled"],
+            )
+            expected_months = set(REBALANCE_FREQUENCIES[frequency])
+            for event in result["holdings_log"]:
+                self.assertIn(int(event["signal_date"][5:7]), expected_months)
+                self.assertGreaterEqual(event["execution_date"], event["signal_date"])
+                self.assertAlmostEqual(sum(event["holdings"].values()), 100.0, places=3)
+        counts = [len(results[name]["holdings_log"]) for name in ("monthly", "quarterly", "semiannual", "annual")]
+        self.assertGreater(counts[0], counts[1])
+        self.assertGreater(counts[1], counts[2])
+        self.assertGreaterEqual(counts[2], counts[3])
+        self.assertGreater(
+            results["monthly"]["metrics"]["transaction_cost_pct"],
+            results["annual"]["metrics"]["transaction_cost_pct"],
+        )
+        self.assertNotEqual(
+            results["monthly"]["holdings_log"],
+            results["annual"]["holdings_log"],
+        )
+        repeated = run_backtest(
+            series,
+            top_n=3,
+            universe_symbols=set(symbols),
+            rebalance_frequency="quarterly",
+        )
+        self.assertEqual(results["quarterly"]["holdings_log"], repeated["holdings_log"])
+        self.assertEqual(results["quarterly"]["metrics"], repeated["metrics"])
+
+    def test_backtest_weights_obey_stock_and_sector_caps(self):
+        symbols = [f"S{index:02d}" for index in range(20)]
+        sectors = ["Technology", "Healthcare", "Financials", "Energy"]
+        sector_by_symbol = {
+            symbol: sectors[index % len(sectors)]
+            for index, symbol in enumerate(symbols)
+        }
+        series = {symbol: synthetic_series(symbol) for symbol in symbols}
+        series["SPY"] = synthetic_series("SPY")
+        result = run_backtest(
+            series,
+            top_n=20,
+            universe_symbols=set(symbols),
+            rebalance_frequency="quarterly",
+            sector_by_symbol=sector_by_symbol,
+        )
+        self.assertTrue(result["available"], result.get("reason"))
+        for event in result["holdings_log"]:
+            self.assertLessEqual(max(event["holdings"].values()), 9.0 + 1e-6)
+            grouped = {}
+            for symbol, weight in event["holdings"].items():
+                group = group_sector(sector_by_symbol[symbol])
+                grouped[group] = grouped.get(group, 0.0) + weight
+            self.assertLessEqual(max(grouped.values()), 35.0 + 1e-3)
+
+    def test_top_twenty_backtest_selects_exactly_twenty_names(self):
+        symbols = [f"S{index:02d}" for index in range(30)]
+        sectors = ["Technology", "Healthcare", "Financials", "Energy", "Consumer Staples"]
+        sector_by_symbol = {
+            symbol: sectors[index % len(sectors)]
+            for index, symbol in enumerate(symbols)
+        }
+        series = {symbol: synthetic_series(symbol) for symbol in symbols}
+        result = run_backtest(
+            series,
+            top_n=20,
+            universe_symbols=set(symbols),
+            sector_by_symbol=sector_by_symbol,
+        )
+        self.assertTrue(result["available"], result.get("reason"))
+        for event in result["holdings_log"]:
+            self.assertEqual(len(event["holdings"]), 20)
+        self.assertEqual(result["methodology"]["selection"], "top 20")
+
+    def test_requested_period_is_enforced(self):
+        symbols = ["AAA", "BBB", "CCC", "DDD", "EEE", "FFF"]
+        series = {symbol: synthetic_series(symbol) for symbol in symbols}
+        result = run_backtest(
+            series,
+            top_n=3,
+            universe_symbols=set(symbols),
+            rebalance_frequency="monthly",
+            start="2024-04-15",
+            end="2024-10-31",
+        )
+        self.assertTrue(result["available"], result.get("reason"))
+        self.assertGreaterEqual(result["start"], "2024-04-15")
+        self.assertLessEqual(result["end"], "2024-10-31")
+        for event in result["holdings_log"]:
+            self.assertGreaterEqual(event["execution_date"], "2024-04-15")
+            self.assertLessEqual(event["execution_date"], "2024-10-31")
+
+    def test_rebalance_signals_use_only_prices_available_before_execution(self):
+        symbols = ["AAA", "BBB", "CCC", "DDD", "EEE", "FFF"]
+        base_series = {symbol: synthetic_series(symbol) for symbol in symbols}
+        baseline = run_backtest(
+            base_series,
+            top_n=3,
+            universe_symbols=set(symbols),
+            rebalance_frequency="semiannual",
+        )
+        self.assertTrue(baseline["available"], baseline.get("reason"))
+        first = baseline["holdings_log"][0]
+        self.assertLess(first["signal_date"], first["execution_date"])
+
+        altered = {}
+        cut = pd.Timestamp(first["execution_date"])
+        for symbol, original in base_series.items():
+            frame = original.frame.copy()
+            future = frame.index > cut
+            frame.loc[future, ["adj", "close"]] *= 3.0
+            altered[symbol] = SymbolSeries(
+                symbol=symbol,
+                frame=frame,
+                source=original.source,
+                source_label=original.source_label,
+                fetched_at=original.fetched_at,
+                adjusted=original.adjusted,
+                is_backup=original.is_backup,
+            )
+        changed = run_backtest(
+            altered,
+            top_n=3,
+            universe_symbols=set(symbols),
+            rebalance_frequency="semiannual",
+        )
+        self.assertEqual(changed["holdings_log"][0]["holdings"], first["holdings"])
+
+    def test_missing_price_history_is_excluded_without_inventing_returns(self):
+        symbols = ["AAA", "BBB", "CCC", "DDD", "EEE", "FFF"]
+        series = {symbol: synthetic_series(symbol) for symbol in symbols}
+        series["BAD"] = synthetic_series("BAD")
+        series["BAD"].frame.loc[:, ["adj", "close"]] = np.nan
+        result = run_backtest(
+            series,
+            top_n=3,
+            universe_symbols=set(symbols) | {"BAD"},
+            rebalance_frequency="quarterly",
+        )
+        self.assertTrue(result["available"], result.get("reason"))
+        self.assertTrue(all("BAD" not in event["leaders"] for event in result["holdings_log"]))
+        self.assertTrue(np.isfinite(result["strategy"]).all())
+
+    def test_backtest_api_validates_and_forwards_the_selected_frequency(self):
+        with patch(
+            "app.main.run_historical_backtest",
+            return_value={
+                "available": True,
+                "request": {
+                    "portfolio": "top100",
+                    "rebalanceFrequency": "quarterly",
+                    "start": "2024-01-02",
+                    "end": "2025-12-31",
+                },
+            },
+        ) as runner:
+            response = run_backtest_endpoint(
+                {
+                    "portfolio": "top100",
+                    "start": "2024-01-02",
+                    "end": "2025-12-31",
+                    "rebalance_frequency": "quarterly",
+                }
+            )
+        runner.assert_called_once_with(
+            portfolio="top100",
+            rebalance_frequency="quarterly",
+            start="2024-01-02",
+            end="2025-12-31",
+        )
+        self.assertEqual(json.loads(response.body)["rebalanceLabel"], "Quarterly (Mar / Jun / Sep / Dec)")
+
+    def test_backtest_api_rejects_unsupported_or_reversed_windows(self):
+        with self.assertRaises(HTTPException):
+            run_backtest_endpoint(
+                {
+                    "portfolio": "top100",
+                    "start": "2024-01-02",
+                    "end": "2025-12-31",
+                    "rebalance_frequency": "weekly",
+                }
+            )
+        with self.assertRaises(HTTPException):
+            run_backtest_endpoint(
+                {
+                    "portfolio": "top100",
+                    "start": "2025-12-31",
+                    "end": "2024-01-02",
+                    "rebalance_frequency": "quarterly",
+                }
+            )
 
     def test_price_only_path_keeps_dividends_as_cash_without_reinvestment(self):
         symbols = ["AAA", "BBB", "CCC", "DDD", "EEE", "FFF"]
@@ -564,6 +876,56 @@ class PortfolioWeightTests(unittest.TestCase):
         for row in book["holdings"]:
             sector_totals[row["sector"]] = sector_totals.get(row["sector"], 0.0) + row["finalWeight"]
         self.assertLessEqual(max(sector_totals.values()), 35.0 + 1e-6)
+
+    def test_constraints_publish_exactly_four_canonical_items(self):
+        book = build_portfolio(self._scored())
+        self.assertEqual(
+            [(row["id"], row["label"], row["rule"]) for row in book["constraints"]],
+            [
+                ("max-stock", "Max Stock Weight", "≤ 9%"),
+                ("max-sector", "Max Sector Weight", "≤ 35%"),
+                ("target-holdings", "Target Holdings", "= 100"),
+                ("target-allocation", "Target Allocation", "= 100%"),
+            ],
+        )
+        self.assertNotIn("fully-invested", {row["id"] for row in book["constraints"]})
+        self.assertNotIn("Fully Invested", {row["label"] for row in book["constraints"]})
+
+    def test_top_twenty_constraints_publish_the_selected_target(self):
+        book = build_portfolio(self._scored(count=120), target_holdings=20)
+        self.assertEqual(len(book["holdings"]), 20)
+        self.assertEqual(
+            [(row["id"], row["rule"]) for row in book["constraints"]],
+            [
+                ("max-stock", "≤ 9%"),
+                ("max-sector", "≤ 35%"),
+                ("target-holdings", "= 20"),
+                ("target-allocation", "= 100%"),
+            ],
+        )
+
+    def test_constraint_statuses_come_from_the_actual_book(self):
+        rows = [
+            {"ticker": "OVER", "sector": "Technology", "finalWeight": 9.1},
+            {"ticker": "TECH", "sector": "Technology", "finalWeight": 26.0},
+            {"ticker": "ENERGY", "sector": "Energy", "finalWeight": 64.9},
+        ]
+        constraints, validation = evaluate_portfolio_constraints(rows)
+        self.assertTrue(validation["evaluated"])
+        by_id = {row["id"]: row for row in constraints}
+        self.assertEqual(by_id["max-stock"]["status"], "failed")
+        self.assertEqual(by_id["max-sector"]["status"], "failed")
+        self.assertEqual(by_id["target-holdings"]["status"], "failed")
+        self.assertEqual(by_id["target-allocation"]["status"], "passed")
+
+    def test_missing_weights_are_unevaluated_and_never_pass(self):
+        constraints, validation = evaluate_portfolio_constraints([
+            {"ticker": "GOOD", "sector": "Technology", "finalWeight": 5.0},
+            {"ticker": "MISSING", "sector": "Energy"},
+        ])
+        self.assertFalse(validation["evaluated"])
+        self.assertTrue(all(row["status"] == "unavailable" for row in constraints))
+        self.assertTrue(all(not row["passed"] for row in constraints))
 
     def test_sector_rows_reproduce_the_holdings_totals(self):
         book = build_portfolio(self._scored())
@@ -745,6 +1107,9 @@ class ApiPayloadStateTests(unittest.TestCase):
         payload = _seed_payload()
         self.assertIsNotNone(payload)
         self.assertGreater(len(payload["stocks"]), 0)
+        backtest = payload["backtest"]["top100"]
+        self.assertEqual(len(backtest["priceStrategy"]), len(backtest["strategy"]))
+        self.assertTrue(payload["macro"]["cpi"]["available"])
 
 
 class PerformancePayloadTests(unittest.TestCase):
@@ -858,7 +1223,7 @@ class UniverseTests(unittest.TestCase):
         seed_path = Path(__file__).resolve().parents[1] / "seed" / "publication.json"
         payload = json.loads(seed_path.read_text())["value"]
         self.assertEqual(payload["meta"]["universe_version"], UNIVERSE_VERSION)
-        self.assertNotEqual(payload["meta"].get("publication_version"), PUBLICATION_VERSION)
+        self.assertEqual(payload["meta"].get("publication_version"), PUBLICATION_VERSION)
         self.assertEqual(len(payload["stocks"]), 198)
         self.assertEqual(len({row["ticker"] for row in payload["stocks"]}), 198)
 

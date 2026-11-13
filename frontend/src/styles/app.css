@@ -309,28 +309,6 @@
 }
 @keyframes notification-spin { to { transform: rotate(360deg); } }
 
-/* Static preview notice (GitHub Pages only): a slim, in-flow strip at the top
-   of the content column. In-flow (not fixed) so it can never cover a card or
-   chart; it simply pushes the page down a few pixels. */
-.static-notice {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-left: var(--sidebar-width);
-  padding: 8px clamp(22px, 1.8vw, 30px);
-  border-bottom: 1px solid var(--color-badge-border);
-  background: var(--color-badge-surface);
-  color: var(--color-badge-text);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-bold);
-  line-height: 1.4;
-}
-.static-notice svg { flex: 0 0 auto; }
-
-@media (max-width: 520px) {
-  .static-notice { margin-left: 0; padding: 8px 16px; }
-}
-
 @media (max-width: 520px) {
   .notification-toast {
     min-height: 64px;

@@ -1,93 +1,68 @@
 # Market Data Provider Report
 
-Implementation reviewed: 12 November 2026
-Raw probe evidence: `data-service/docs/provider_probe.json`
+Measured with `data-service/tests/provider_probe.py` on **13 November 2026**. The probe made real
+requests for 20 sample symbols and wrote the complete evidence to `provider_probe.json`.
 
-## Current Runtime Configuration
+## Summary
 
-| Provider | Role | Credential | Current use |
-| --- | --- | --- | --- |
-| Yahoo Finance via `yfinance` | Primary | None | Adjusted and raw daily bars, actions, and current quote metadata |
-| Twelve Data | Optional backup | `TWELVEDATA_API_KEY` | Enabled only when configured |
-| Financial Modeling Prep | Optional backup | `FMP_API_KEY` | Enabled only when configured |
-| Stooq | Optional unadjusted adapter | None | Not in the default chain |
-| Alpha Vantage, Finnhub, Polygon | Research only | Respective key | Probed but not registered as production adapters |
-
-The configured default is:
-
-```text
-DATA_PROVIDER_CHAIN=yahoo,twelvedata,fmp
-```
-
-Unavailable adapters are removed from the active chain at runtime. The publication records the
-provider that supplied each stock, whether a backup was used, fetch time, and provider health.
+| Provider | Observed status | Historical data | Key requirement | Role |
+| --- | --- | --- | --- | --- |
+| Yahoo Finance via `yfinance` | Connected | Available with adjusted close | None | Default |
+| Twelve Data | Connected | Demo symbols only | Key for full universe | Optional |
+| Financial Modeling Prep | HTTP reachable | Not tested | Required | Optional |
+| Alpha Vantage | HTTP reachable | Not tested | Required; adjusted series premium | Optional |
+| Finnhub | HTTP reachable | Free history unavailable | Required | Optional |
+| Polygon.io | HTTP reachable | Not tested | Required | Optional |
+| Stooq | Failed | Unavailable | None | Disabled |
 
 ## Yahoo Finance
 
-Yahoo is the current production source for the full 200-symbol live universe. The adapter uses the
-unofficial `yfinance` client, which performs the cookie/crumb handshake required by Yahoo.
-
-It supplies:
-
-- Daily open, high, low, close, adjusted close and volume.
-- Dividend and split fields when available.
-- Current company name, sector, exchange, currency, security type, market capitalization, shares
-  outstanding, float shares and three-month average volume.
-
-The service pages requests with a client-side rate limiter, loads history in bounded batches,
-recovers unresolved symbols in a smaller worker pool, and preserves longer valid series when a
-provider returns a truncated response.
-
-Known limitations are the lack of a contractual SLA, occasional rate limiting, current rather than
-point-in-time fundamentals, and no permission to redistribute provider market data.
+- 20 of 20 sampled symbols returned usable daily history.
+- Adjusted close, OHLCV, dividends and splits were present.
+- Latest observed sample date: 13 November 2026.
+- Median sampled history latency: 596 ms.
+- The raw chart endpoint returned HTTP 429 in prior probes; `yfinance` handles Yahoo's cookie/crumb
+  handshake and paced retries without bypassing authentication or access controls.
+- No published quota or SLA. The production workflow runs after the close and the Python service
+  caches bars to avoid repeated downloads.
 
 ## Twelve Data
 
-Twelve Data requires an API key and is available as the first optional fallback. The adapter is rate
-limited to the documented free-plan quota. The free plan does not reliably provide adjusted closes
-for all securities, so an unadjusted series is rejected by the momentum engine.
+- The public demo key returned 2 of 20 sampled symbols.
+- Full-universe collection requires a private server-side key.
+- Free plan is documented at 8 requests/minute and 800/day.
+- Adjusted close availability for the free plan was not verified.
 
-The historical probe verified AAPL and QQQ through the public demo key; it could not verify the
-full universe.
+## Key-based providers
 
-## Financial Modeling Prep
+- **Financial Modeling Prep:** free plan documented at 250 requests/day. Not tested without a key.
+- **Alpha Vantage:** free tier documented at 25 requests/day. `TIME_SERIES_DAILY_ADJUSTED` is a
+  premium function; the public demo key did not provide the full history.
+- **Finnhub:** free tier documented at 60 calls/minute. Free historical candles were unavailable.
+- **Polygon.io:** free tier documented at 5 requests/minute. Not tested without a key.
 
-Financial Modeling Prep requires an API key. Its adapter requests adjusted end-of-day history and
-quote metadata and is rate limited for a conservative free-plan workload.
-
-The historical probe reached the API but received HTTP 401 without a real key. It has therefore not
-been independently verified across the live universe.
+No private key is committed or returned by the API. Optional keys are supplied through environment
+variables in `.env` locally or GitHub Actions secrets in a configured private deployment.
 
 ## Stooq
 
-The Stooq adapter can parse daily CSV export data, but Stooq does not provide adjusted close in that
-format. The historical probe received an anti-bot challenge instead of CSV. The adapter therefore
-raises a blocked/no-data condition and is not part of the default scoring chain.
+Anonymous requests were refused. The adapter does not provide adjusted closes, so it is not used for
+scoring or portfolio construction. No attempt is made to bypass its bot protection.
 
-## Failure and Caching Behaviour
+## Browser and CORS
 
-The registry walks the configured provider chain per request. A failure is recorded and the next
-available adapter is attempted. After three consecutive hard failures, a provider is temporarily
-benched by a circuit breaker.
+The browser never calls a provider directly. GitHub Pages fetches same-origin JSON generated by
+GitHub Actions. Local live mode calls FastAPI, whose CORS allowance is limited to localhost and the
+GitHub Pages origin.
 
-Expired bar caches are retained as an explicit fallback and marked cached with their age. A symbol
-that cannot be served is excluded and listed in `universe.unavailable`; no placeholder price is
-inserted.
+## Licensing
 
-The publication payload distinguishes:
+Market data remains subject to each provider's terms. Yahoo access through `yfinance` is unofficial
+and intended here for research/education. The project does not claim redistribution rights for a
+provider's data. A commercial or redistribution-sensitive deployment should use a licensed provider.
 
-- `fresh`: current provider-backed data.
-- `cached`: previously verified data served while refreshing or after a live failure.
-- `partial`: some symbols or providers failed.
-- `warming`: no completed publication is available yet.
-- `error` or `empty`: no usable market data is available.
-
-## Reproducing the Probe
+## Reproduce
 
 ```bash
 .venv-datatest/bin/python data-service/tests/provider_probe.py
 ```
-
-The script writes structured evidence to `data-service/docs/provider_probe.json`. Provider
-credentials are read from the git-ignored root `.env` or process environment and are never written
-to the report.

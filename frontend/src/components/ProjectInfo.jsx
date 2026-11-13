@@ -71,7 +71,7 @@ export function ProjectInfo() {
           <dl className="project-info__sections">
             <div>
               <dt>Data</dt>
-              <dd>Yahoo Finance through the Python service.</dd>
+              <dd>Validated GitHub Pages snapshots generated from Yahoo Finance by the Python pipeline.</dd>
             </div>
             <div>
               <dt>Method</dt>
@@ -79,11 +79,11 @@ export function ProjectInfo() {
             </div>
             <div>
               <dt>Backtesting</dt>
-              <dd>March/September rebalancing signals, next-session execution and transaction costs.</dd>
+              <dd>Monthly, quarterly, semiannual or annual signals, next-session execution and transaction costs.</dd>
             </div>
             <div>
               <dt>Limitations</dt>
-              <dd>Curated stock universe, current fundamental data and historical survivorship limitations.</dd>
+              <dd>Curated stock universe, current fundamentals, historical survivorship limitations and end-of-day snapshots.</dd>
             </div>
           </dl>
 

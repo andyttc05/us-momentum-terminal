@@ -8,11 +8,13 @@ const portfolioPage = source("../src/PortfolioPage.jsx");
 const portfolioCss = source("../src/styles/portfolio.css");
 const screenerCss = source("../src/styles/screener.css");
 
-test("the Portfolio page has no duplicate page-level loading banner", () => {
+test("the Portfolio page preserves its table shell with component-level loading", () => {
   assert.doesNotMatch(portfolioPage, /portfolio-data-notice/);
   assert.doesNotMatch(portfolioCss, /portfolio-data-notice/);
   assert.match(portfolioPage, /<UpdateBar[\s\S]*ariaLabel="Refresh portfolio"/);
-  assert.match(portfolioPage, /portfolio-empty-state/);
+  assert.match(portfolioPage, /<TableSkeletonRows/);
+  assert.match(portfolioPage, /<TableStateRow/);
+  assert.match(portfolioPage, /<Pagination/);
 });
 
 test("Portfolio holding rows use the Screener row rhythm and hover treatment", () => {

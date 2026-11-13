@@ -1,6 +1,8 @@
 export const TOOLTIP_MOVEMENT_THRESHOLD = 4;
 export const PRICE_TOOLTIP_WIDTH = 176;
 export const PRICE_TOOLTIP_HEIGHT = 112;
+export const CHART_TOOLTIP_GAP = 24;
+export const CHART_TOOLTIP_MARGIN = 12;
 
 const MONTHS = [
   "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
@@ -50,25 +52,47 @@ export function sideForMovement({
   };
 }
 
-/** Space-aware placement. Boundary containment wins over side preference. */
+/**
+ * Keep one width for the whole chart while ensuring either side can hold the
+ * card. Wide charts keep their designed size; only physically constrained
+ * charts use the narrower version.
+ */
+export function fitTooltipWidth({
+  containerWidth,
+  preferredWidth,
+  gap = CHART_TOOLTIP_GAP,
+  margin = CHART_TOOLTIP_MARGIN,
+}) {
+  const widthAtCentre = (containerWidth - margin * 2) / 2 - gap;
+  return Math.max(1, Math.min(preferredWidth, Math.floor(widthAtCentre)));
+}
+
+/**
+ * Shared chart-tooltip placement. The pointer movement preference is honoured
+ * while it fits; otherwise the card moves to the roomier side. Vertical
+ * centring is clamped so top and bottom observations cannot clip the card.
+ */
 export function placePriceTooltip({
   anchorX,
   anchorY,
   preferredSide,
   containerWidth,
   containerHeight,
+  rightBoundary = containerWidth,
   tooltipWidth = PRICE_TOOLTIP_WIDTH,
   tooltipHeight = PRICE_TOOLTIP_HEIGHT,
-  gap = 14,
-  margin = 8,
+  gap = CHART_TOOLTIP_GAP,
+  margin = CHART_TOOLTIP_MARGIN,
 }) {
-  const maxX = Math.max(margin, containerWidth - tooltipWidth - margin);
+  const boundedRight = Math.min(containerWidth - margin, rightBoundary - margin);
+  const maxX = Math.max(margin, boundedRight - tooltipWidth);
   const maxY = Math.max(margin, containerHeight - tooltipHeight - margin);
   const canFitLeft = anchorX - gap - tooltipWidth >= margin;
-  const canFitRight = anchorX + gap + tooltipWidth <= containerWidth - margin;
+  const canFitRight = anchorX + gap + tooltipWidth <= boundedRight;
 
-  let side = preferredSide;
-  if (!side) side = canFitLeft || !canFitRight ? "left" : "right";
+  // On first hover, point towards the side with more available room. Once the
+  // pointer starts moving, its direction-aware preference takes over.
+  let side = preferredSide ?? (anchorX <= containerWidth / 2 ? "right" : "left");
   if (side === "left" && !canFitLeft) side = "right";
   else if (side === "right" && !canFitRight) side = "left";
 
