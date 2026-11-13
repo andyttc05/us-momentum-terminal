@@ -135,6 +135,17 @@ export function MarketProvider({ children }) {
     }
   }, [load, publishFinalNotice]);
 
+  const runBacktest = useCallback(async (config) => {
+    try {
+      return await api.backtest(config);
+    } catch (requestError) {
+      const frequency = config.rebalance_frequency || "semiannual";
+      const fallback = data?.backtestSchedules?.[config.portfolio]?.[frequency];
+      if (fallback?.available) return fallback;
+      throw requestError;
+    }
+  }, [data]);
+
   const value = useMemo(
     () => ({
       data,
@@ -146,10 +157,11 @@ export function MarketProvider({ children }) {
       dataNotice,
       staticMode: STATIC_SHOWCASE,
       refresh,
+      runBacktest,
       selectProvider,
       reload: load,
     }),
-    [data, dataNotice, error, lastLoadedAt, load, refresh, refreshing, selectProvider, status],
+    [data, dataNotice, error, lastLoadedAt, load, refresh, refreshing, runBacktest, selectProvider, status],
   );
 
   return <MarketContext.Provider value={value}>{children}</MarketContext.Provider>;

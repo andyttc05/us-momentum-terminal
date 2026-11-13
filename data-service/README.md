@@ -103,8 +103,18 @@ be constructed.
 
 ## Backtest
 
-Signals form at the final March and September sessions. Trades execute at the next available
-adjusted close, holdings are marked daily, and the historical book is equal-weighted.
+The default is semiannual. Supported schedules are monthly, quarterly
+(March/June/September/December), semiannual (March/September) and annual (September). Signals use
+the final actual trading session of each scheduled month and trades execute at the next available
+adjusted close, so weekends and holidays use the established next-session convention.
+
+The first eligible session in the requested range forms the initial book. A scheduled event in that
+formation month is suppressed to prevent duplicate formation. Holdings are marked daily and drift
+between scheduled rebalances. Historical books start from equal weights and apply the 9% stock and
+35% sector caps; point-in-time float caps are unavailable and are never projected backwards.
+
+`POST /api/backtest` accepts `portfolio`, `start`, `end`, and `rebalance_frequency`, then reruns the
+schedule against cached provider bars.
 
 - Transaction cost: 0.10% of traded notional.
 - Slippage: 0.00%.

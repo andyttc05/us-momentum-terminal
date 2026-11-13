@@ -80,13 +80,13 @@ composition; it does not infer trades from every ranking refresh.
 
 ## Backtest
 
-The historical simulation forms a new ranking at the final March or September trading session and
-executes at the next available adjusted close. It marks holdings to market daily and charges 0.10%
-of traded notional.
+The default historical simulation is semiannual, with monthly, quarterly and annual options.
+Scheduled signals use the final actual trading day of their selected months and execute next session.
+The first eligible session forms the initial book; holdings then drift and are marked daily.
 
-The historical book is equal-weighted because point-in-time float-adjusted market capitalization is
-not available. SPY and SPMO are used as benchmarks, and the Sharpe Ratio assumes a 0% risk-free
-rate.
+Historical books start from equal weights and apply the 9% stock and 35% sector caps because
+point-in-time float-adjusted market capitalization is not available. SPY and SPMO are benchmarks,
+and the Sharpe Ratio assumes a 0% risk-free rate.
 
 The test uses the audited 108-stock historical core rather than today's 200-stock live list. This
 avoids directly applying the 92 newer additions to earlier dates, but it does not remove all

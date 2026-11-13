@@ -34,6 +34,12 @@ import {
   placePriceTooltip,
   sideForMovement,
 } from "./utils/priceTooltip.js";
+import {
+  DEFAULT_REBALANCE_FREQUENCY,
+  REBALANCE_OPTIONS,
+  rebalanceLabel,
+  rebalanceSummaryLabel,
+} from "./utils/rebalanceFrequency.js";
 
 const RANGES = ["1Y", "3Y", "5Y", "All"];
 const SERIES = [
@@ -53,10 +59,16 @@ const DEFAULT_CONFIG = {
   cashflowEnabled: true,
   contributionAmount: "1000",
   contributionFrequency: "monthly",
+  rebalanceFrequency: DEFAULT_REBALANCE_FREQUENCY,
   reinvestDividends: true,
   inflationAdjusted: false,
   includeYtd: true,
 };
+
+function backtestRunKey(config) {
+  if (!config) return "";
+  return [config.portfolio, config.startDate, config.endDate, config.rebalanceFrequency].join("|");
+}
 
 function buildPath(points) {
   if (points.length < 2) return "";
@@ -674,7 +686,11 @@ function PerformanceSummary({ report, config }) {
     { label: "Initial Capital", value: formatMoney(report.initialCapital), icon: Bank },
     { label: "Reinvest Dividends", value: config.reinvestDividends ? "Yes" : "No", icon: TrendUp },
     { label: "Inflation Adjusted", value: config.inflationAdjusted ? "Yes" : "No", icon: ChartBar },
-    { label: "Rebalancing", value: "Semiannual (Mar / Sep)", icon: Scales },
+    {
+      label: "Rebalancing",
+      value: config ? rebalanceLabel(config.rebalanceFrequency) : "—",
+      icon: Scales,
+    },
   ];
   return (
     <DashboardCard title="Performance Summary" className="backtest-summary-card">
@@ -770,7 +786,7 @@ function MoneyField({ id, value, onChange, ariaLabel, invalid = false }) {
 }
 
 function AdvancedSettings({ open, onToggle, draft, updateDraft, amountErrors }) {
-  const summary = `${formatMoney(Number(draft.initialCapital))} initial${draft.cashflowEnabled ? ` · ${formatMoney(Number(draft.contributionAmount))} ${draft.contributionFrequency}` : " · No contributions"} · Reinvest: ${draft.reinvestDividends ? "On" : "Off"}`;
+  const summary = `${formatMoney(Number(draft.initialCapital))} initial${draft.cashflowEnabled ? ` · ${formatMoney(Number(draft.contributionAmount))} ${draft.contributionFrequency}` : " · No contributions"} · Reinvest: ${draft.reinvestDividends ? "On" : "Off"} · Rebalance: ${rebalanceSummaryLabel(draft.rebalanceFrequency)}`;
   return (
     <section className="backtest-advanced" data-open={open || undefined}>
       <button className="backtest-advanced__toggle" type="button" aria-expanded={open} onClick={onToggle}>
@@ -846,8 +862,17 @@ function AdvancedSettings({ open, onToggle, draft, updateDraft, amountErrors }) 
                 onChange={(checked) => updateDraft({ inflationAdjusted: checked })}
               />
               <div className="backtest-fixed-setting">
-                <span className="backtest-setting-label"><Scales size={21} aria-hidden="true" /><span>Rebalancing</span><InfoTooltip label="rebalancing">Signals use the last March and September session; trades execute at the next available close.</InfoTooltip></span>
-                <select aria-label="Rebalancing schedule" value="semiannual" disabled><option value="semiannual">Semiannual (Mar / Sep)</option></select>
+                <span className="backtest-setting-label"><Scales size={21} aria-hidden="true" /><span>Rebalancing</span><InfoTooltip label="rebalancing">Signals use the final scheduled trading session; trades execute at the next available close.</InfoTooltip></span>
+                <select
+                  id="backtest-rebalance-frequency"
+                  aria-label="Rebalancing schedule"
+                  value={draft.rebalanceFrequency}
+                  onChange={(event) => updateDraft({ rebalanceFrequency: event.target.value })}
+                >
+                  {REBALANCE_OPTIONS.map((option) => (
+                    <option value={option.value} key={option.value}>{option.label}</option>
+                  ))}
+                </select>
               </div>
               <SettingToggle
                 label="Include YTD"
@@ -865,20 +890,30 @@ function AdvancedSettings({ open, onToggle, draft, updateDraft, amountErrors }) 
 }
 
 export function BacktestingPage({ hidden = false }) {
-  const { data, refresh } = useMarket();
+  const { data, refresh, runBacktest: executeBacktest } = useMarket();
   const [draft, setDraft] = useState(DEFAULT_CONFIG);
   const [submittedConfig, setSubmittedConfig] = useState(null);
+  const [customRun, setCustomRun] = useState(null);
   const [range, setRange] = useState("All");
   const [logScale, setLogScale] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [notification, setNotification] = useState(null);
+  const [dismissedOutdatedKey, setDismissedOutdatedKey] = useState("");
   const [validationTouched, setValidationTouched] = useState(false);
   const notificationTimer = useRef(null);
-  const runTimer = useRef(null);
+  const runSequence = useRef(0);
 
   const draftBlock = data?.backtest?.[draft.portfolio] ?? null;
-  const resultBlock = submittedConfig ? data?.backtest?.[submittedConfig.portfolio] ?? null : null;
+  const submittedRunKey = backtestRunKey(submittedConfig);
+  const customResultBlock = customRun?.key === submittedRunKey ? customRun.block : null;
+  const snapshotResultBlock = submittedConfig
+    ? data?.backtest?.[submittedConfig.portfolio] ?? null
+    : null;
+  const resultBlock = customResultBlock
+    ?? (submittedConfig?.rebalanceFrequency === DEFAULT_REBALANCE_FREQUENCY
+      ? snapshotResultBlock
+      : null);
   const cpi = data?.macro?.cpi ?? null;
 
   useEffect(() => {
@@ -899,11 +934,16 @@ export function BacktestingPage({ hidden = false }) {
 
   useEffect(() => () => {
     window.clearTimeout(notificationTimer.current);
-    window.clearTimeout(runTimer.current);
+    runSequence.current += 1;
   }, []);
 
   function updateDraft(patch) {
     setDraft((current) => ({ ...current, ...patch }));
+    if ("rebalanceFrequency" in patch) {
+      setNotification((current) => (
+        current?.id === "backtest-complete" ? null : current
+      ));
+    }
     if ("startDate" in patch || "endDate" in patch) setValidationTouched(true);
     if ("initialCapital" in patch || "contributionAmount" in patch) setValidationTouched(true);
   }
@@ -1053,6 +1093,25 @@ export function BacktestingPage({ hidden = false }) {
       : null,
     [reportWindow, submittedConfig],
   );
+  const resultsOutdated = Boolean(
+    submittedConfig
+    && resultBlock?.available
+    && draft.rebalanceFrequency !== submittedConfig.rebalanceFrequency,
+  );
+  const outdatedKey = resultsOutdated
+    ? `${submittedConfig.rebalanceFrequency}:${draft.rebalanceFrequency}`
+    : "";
+  const displayNotification = notification ?? (
+    resultsOutdated && dismissedOutdatedKey !== outdatedKey
+      ? {
+        id: "backtest-outdated",
+        message: `Results still use ${rebalanceLabel(submittedConfig.rebalanceFrequency)}. Run Backtest to apply ${rebalanceLabel(draft.rebalanceFrequency)}.`,
+        kind: "partial",
+        durationMs: undefined,
+        onDismiss: () => setDismissedOutdatedKey(outdatedKey),
+      }
+      : null
+  );
 
   useEffect(() => {
     if (!data || !submittedConfig || resultBlock?.available) {
@@ -1062,16 +1121,46 @@ export function BacktestingPage({ hidden = false }) {
     showNotification("Missing price history", "error", undefined, "missing-data", true);
   }, [data, resultBlock?.available, submittedConfig]);
 
-  function runBacktest() {
+  async function runBacktest() {
     if (!canRun || isRunning) return;
+    const sequence = runSequence.current + 1;
+    runSequence.current = sequence;
     setIsRunning(true);
-    showNotification("Backtest started", "loading", 550, "backtest-running");
-    window.clearTimeout(runTimer.current);
-    runTimer.current = window.setTimeout(() => {
+    showNotification("Running selected rebalance schedule…", "loading", undefined, "backtest-running");
+    try {
+      const block = await executeBacktest({
+        portfolio: normalizedDraft.portfolio,
+        start: normalizedDraft.startDate,
+        end: normalizedDraft.endDate,
+        rebalance_frequency: normalizedDraft.rebalanceFrequency,
+      });
+      if (runSequence.current !== sequence) return;
+      if (!block?.available) {
+        showNotification(
+          block?.reason || "The backtest could not construct a valid portfolio.",
+          "error",
+          undefined,
+          "backtest-unavailable",
+          "backtest",
+        );
+        return;
+      }
+      const key = backtestRunKey(normalizedDraft);
+      setCustomRun({ key, block });
       setSubmittedConfig(normalizedDraft);
-      setIsRunning(false);
       showNotification("Backtest completed", "updated", 3200, "backtest-complete");
-    }, 550);
+    } catch (requestError) {
+      if (runSequence.current !== sequence) return;
+      showNotification(
+        requestError?.message || "The backtest service could not complete the run.",
+        "error",
+        undefined,
+        "backtest-request-error",
+        "backtest",
+      );
+    } finally {
+      if (runSequence.current === sequence) setIsRunning(false);
+    }
   }
 
   async function refreshPreview() {
@@ -1271,15 +1360,19 @@ export function BacktestingPage({ hidden = false }) {
           </div>
         ) : null}
       </div>
-      {notification && (
+      {displayNotification && (
         <Toast
-          kind={notification.kind}
-          message={notification.message}
+          kind={displayNotification.kind}
+          message={displayNotification.message}
           className="page-toast"
-          durationMs={notification.durationMs}
-          onDismiss={notification.onDismiss}
-          action={notification.retry ? (
-            <button type="button" className="notification-toast__action" onClick={refreshPreview}>Retry</button>
+          durationMs={displayNotification.durationMs}
+          onDismiss={displayNotification.onDismiss}
+          action={displayNotification.retry ? (
+            <button
+              type="button"
+              className="notification-toast__action"
+              onClick={displayNotification.retry === "backtest" ? runBacktest : refreshPreview}
+            >Retry</button>
           ) : null}
         />
       )}

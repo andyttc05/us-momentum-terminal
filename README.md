@@ -152,10 +152,18 @@ on the Screener does not create trades.
 
 The historical test is a research proxy for the ranking method, not a tradable track record:
 
-- Signals form at the last trading session of March or September.
+- The default is semiannual. Monthly, quarterly, semiannual and annual schedules are supported.
+- Scheduled signals use the final actual trading session of every month, March/June/September/
+  December, March/September, or September respectively. Holidays and weekends roll back to that
+  final valid session.
 - Execution happens at the next available adjusted close.
+- The first eligible session in the selected range forms the initial book; a scheduled event in the
+  same formation month is skipped so formation is never executed twice.
 - Holdings are marked to market every session between rebalances.
-- Historical books are equal-weighted.
+- Historical books start from equal weights and apply the 9% stock and 35% sector caps. Existing
+  holdings drift until the next scheduled rebalance, so daily ranking changes do not create trades.
+- Point-in-time float-adjusted market capitalisation is unavailable. The historical run does not
+  project today's float caps backwards.
 - Transaction costs are 0.10% of traded notional; assumed slippage is 0.00%.
 - SPY and SPMO are rebased to 100 on the strategy's first date and measured over the same window.
 - The Sharpe Ratio uses an explicitly documented 0% risk-free rate.
@@ -174,10 +182,14 @@ time-weighted return. XIRR uses dated investor cashflows and the ending account 
 adjustment, historical contributions and the terminal value are deflated to the backtest start's
 purchasing power before XIRR is solved.
 
+Run Backtest submits the selected schedule to the backend, which recalculates signals, holdings,
+turnover and transaction costs for that frequency. Changing frequency after a completed run marks
+the prior results as outdated until the new run finishes.
+
 The backtest runs on the audited 108-symbol historical core and does not apply today's 92 additions
 retrospectively. It is not a point-in-time reconstruction: current constituents and current
 fundamentals introduce survivorship, selection and look-ahead limitations. Historical float-adjusted
-market capitalisation is unavailable, which is why the historical book is equal-weighted.
+market capitalisation is unavailable, which is why historical raw weights remain equal-start.
 
 ## 9. Installation and Local Setup
 

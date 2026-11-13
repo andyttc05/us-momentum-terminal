@@ -10,7 +10,7 @@ import sys
 import threading
 import time
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from fastapi import Body, FastAPI, HTTPException, Query
@@ -23,6 +23,7 @@ if __package__ in (None, ""):
 from app import cache  # noqa: E402
 from app.clock import market_state  # noqa: E402
 from app.config import DOCS_DIR, SEED_PATH, settings  # noqa: E402
+from app.backtest import REBALANCE_FREQUENCIES, REBALANCE_LABELS  # noqa: E402
 from app.providers.registry import registry  # noqa: E402
 from app.snapshot import (  # noqa: E402
     PUBLICATION_VERSION,
@@ -32,6 +33,7 @@ from app.snapshot import (  # noqa: E402
     build_stock_detail,
     publication_is_current,
     refresh,
+    run_historical_backtest,
     snapshot_age_seconds,
 )
 
@@ -59,6 +61,7 @@ _WARMING = {
     "total": 0,
 }
 _WARMING_LOCK = threading.Lock()
+_BACKTEST_LOCK = threading.Lock()
 
 
 def _progress(phase: str, completed: int, total: int) -> None:
@@ -274,6 +277,41 @@ def bars(ticker: str, days: int = Query(default=750, ge=30, le=3000)) -> JSONRes
     if not payload.get("bars"):
         raise HTTPException(status_code=404, detail=f"no bars for {ticker.upper()}")
     return JSONResponse(payload)
+
+
+@app.post("/api/backtest")
+def backtest(payload: dict = Body(default={})) -> JSONResponse:
+    """Run a date-bounded backtest with the selected rebalance schedule."""
+    portfolio = str(payload.get("portfolio", "top100")).strip().lower()
+    frequency = str(payload.get("rebalance_frequency", "semiannual")).strip().lower()
+    start_text = str(payload.get("start", "")).strip()
+    end_text = str(payload.get("end", "")).strip()
+    if portfolio not in {"top100", "top20"}:
+        raise HTTPException(status_code=400, detail="portfolio must be top100 or top20")
+    if frequency not in REBALANCE_FREQUENCIES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"rebalance_frequency must be one of: {', '.join(REBALANCE_FREQUENCIES)}",
+        )
+    try:
+        start = date.fromisoformat(start_text)
+        end = date.fromisoformat(end_text)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="start and end must use YYYY-MM-DD") from exc
+    if start >= end:
+        raise HTTPException(status_code=400, detail="end must be after start")
+
+    with _BACKTEST_LOCK:
+        result = run_historical_backtest(
+            portfolio=portfolio,
+            rebalance_frequency=frequency,
+            start=start.isoformat(),
+            end=end.isoformat(),
+        )
+    result["rebalanceLabel"] = REBALANCE_LABELS[frequency]
+    response = JSONResponse(result)
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @app.post("/api/provider")

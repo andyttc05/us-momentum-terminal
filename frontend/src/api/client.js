@@ -63,6 +63,7 @@ export const api = {
   health: () => request("/health"),
   providers: () => request("/providers"),
   probe: () => request("/probe"),
+  backtest: (config) => request("/backtest", { method: "POST", body: config, timeout: 180_000 }),
   refresh: () => request("/refresh", { method: "POST", timeout: 120_000 }),
   setProvider: (id) => request("/provider", { method: "POST", body: { id }, timeout: 180_000 }),
 };

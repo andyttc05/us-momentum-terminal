@@ -21,6 +21,7 @@ from .backtest import (
     MIN_AVERAGE_DAILY_DOLLAR_VOLUME,
     MIN_PRICE,
     MIN_UNIVERSE_OBSERVATIONS,
+    REBALANCE_FREQUENCIES,
     historical_universe_eligible,
     run_backtest,
 )
@@ -28,6 +29,7 @@ from .clock import market_state
 from .config import SEED_PATH, settings
 from .macro import load_cpi
 from .models import (
+    NormalizedBar,
     ProviderAuthError,
     ProviderBlocked,
     ProviderError,
@@ -63,7 +65,7 @@ PERFORMANCE_PERIODS = ("1Y", "3Y", "5Y", "All")
 SERIES_COLORS = {"strategy": "#FFC83D", "spy": "#69A5F5", "spmo": "#AA8BF2"}
 SUPPORTED_EXCHANGES = {"NYSE", "NASDAQ", "NYSE American"}
 UNIVERSE_VERSION = "2026-11-12-live200-v2"
-PUBLICATION_VERSION = "2026-11-13-dividend-cpi-v7"
+PUBLICATION_VERSION = "2026-11-13-static-schedules-v8"
 
 
 def publication_is_current(payload: dict | None) -> bool:
@@ -286,6 +288,109 @@ def to_symbol_series(result: SeriesResult) -> SymbolSeries | None:
         cache_age_seconds=result.cache_age_seconds,
         warnings=[*result.warnings, *warnings],
     )
+
+
+def load_cached_backtest_series(
+    symbols: list[str] | None = None,
+    years: int | None = None,
+) -> dict[str, SymbolSeries]:
+    """Load the historical backtest universe from provider bar caches.
+
+    An on-demand backtest must not turn one Run click into a full universe
+    refresh. Recent provider caches are used first; only symbols absent from
+    all cache namespaces fall back to the normal bounded loader.
+    """
+    years = years or settings.history_years
+    requested = list(dict.fromkeys(symbols or [*HISTORICAL_BACKTEST_TICKERS, *BENCHMARKS]))
+    namespaces = (
+        ("yahoo_bars", "yahoo", "Yahoo Finance"),
+        ("twelvedata_bars", "twelvedata", "Twelve Data"),
+        ("fmp_bars", "fmp", "Financial Modeling Prep"),
+        ("stooq_bars", "stooq", "Stooq"),
+    )
+    series_map: dict[str, SymbolSeries] = {}
+    missing = []
+    for symbol in requested:
+        cached = None
+        for namespace, source, source_label in namespaces:
+            payload = cache.read_stale(namespace, f"{symbol}:{years}y")
+            if payload and payload.get("bars"):
+                cached = (payload, source, source_label, namespace, f"{symbol}:{years}y")
+                break
+        else:
+            stale = cache.read_stale("stooq_bars", symbol)
+            if stale and stale.get("bars"):
+                cached = (stale, "stooq", "Stooq", "stooq_bars", symbol)
+        if cached is None:
+            missing.append(symbol)
+            continue
+        payload, source, source_label, namespace, cache_key = cached
+        try:
+            bars = [NormalizedBar(**row) for row in payload.get("bars", [])]
+        except (TypeError, ValueError):
+            missing.append(symbol)
+            continue
+        result = SeriesResult(
+            symbol=symbol,
+            bars=bars,
+            source=(payload.get("source") or source),
+            source_label=(payload.get("source_label") or source_label),
+            fetched_at=payload.get("fetched_at") or _now(),
+            adjusted=bool(payload.get("adjusted")),
+            is_backup=False,
+            cached=True,
+            cache_age_seconds=cache.age_seconds(namespace, cache_key),
+        )
+        converted = to_symbol_series(result)
+        if converted:
+            series_map[symbol] = converted
+        else:
+            missing.append(symbol)
+
+    if missing:
+        results, _ = load_series(missing, years=years)
+        for symbol, result in results.items():
+            converted = to_symbol_series(result)
+            if converted:
+                series_map[symbol] = converted
+    return series_map
+
+
+def run_historical_backtest(
+    *,
+    portfolio: str,
+    rebalance_frequency: str,
+    start: str,
+    end: str,
+) -> dict:
+    """Run one requested historical backtest against cache-backed provider bars."""
+    series_map = load_cached_backtest_series()
+    universe_set = set(HISTORICAL_BACKTEST_TICKERS) & set(series_map)
+    sector_by_symbol = {
+        symbol: MEMBER_BY_TICKER[symbol].sector
+        for symbol in universe_set
+        if symbol in MEMBER_BY_TICKER
+    }
+    options = {
+        "universe_symbols": universe_set,
+        "rebalance_frequency": rebalance_frequency,
+        "start": start,
+        "end": end,
+        "sector_by_symbol": sector_by_symbol,
+    }
+    if portfolio == "top20":
+        result = run_backtest(series_map, top_n=None, top_fraction=0.2, **options)
+    else:
+        result = run_backtest(series_map, top_n=100, **options)
+    return {
+        **_backtest_block(result),
+        "request": {
+            "portfolio": portfolio,
+            "rebalanceFrequency": rebalance_frequency,
+            "start": start,
+            "end": end,
+        },
+    }
 
 
 def _weekly_price_history(series: SymbolSeries, weeks: int = 52) -> dict:
@@ -714,6 +819,7 @@ def _backtest_block(backtest: dict) -> dict:
         "annual": backtest["annual"],
         "metrics": backtest["metrics"],
         "rebalances": len(backtest["holdings_log"]),
+        "eventCounts": backtest.get("event_counts"),
         "rebalance_log": backtest["holdings_log"],
         "methodology": backtest.get("methodology"),
         "dividendCoverage": backtest.get("dividend_coverage"),
@@ -831,8 +937,41 @@ def build_publication(force: bool = False, progress=None) -> dict:
         backtest_map = {**{symbol: series_map[symbol] for symbol in TICKERS if symbol in series_map}, **benchmark_map}
 
         backtest_universe = set(HISTORICAL_BACKTEST_TICKERS) & set(universe_map)
-        top100 = run_backtest(backtest_map, top_n=100, universe_symbols=backtest_universe)
-        top20 = run_backtest(backtest_map, top_fraction=0.2, universe_symbols=backtest_universe)
+        backtest_sectors = {
+            symbol: MEMBER_BY_TICKER[symbol].sector
+            for symbol in backtest_universe
+            if symbol in MEMBER_BY_TICKER
+        }
+        top100 = run_backtest(
+            backtest_map,
+            top_n=100,
+            universe_symbols=backtest_universe,
+            sector_by_symbol=backtest_sectors,
+        )
+        top20 = run_backtest(
+            backtest_map,
+            top_fraction=0.2,
+            universe_symbols=backtest_universe,
+            sector_by_symbol=backtest_sectors,
+        )
+        backtest_schedules = {
+            "top100": {"semiannual": top100},
+            "top20": {"semiannual": top20},
+        }
+        for portfolio_id, selection in (
+            ("top100", {"top_n": 100}),
+            ("top20", {"top_fraction": 0.2}),
+        ):
+            for frequency in REBALANCE_FREQUENCIES:
+                if frequency == "semiannual":
+                    continue
+                backtest_schedules[portfolio_id][frequency] = run_backtest(
+                    backtest_map,
+                    universe_symbols=backtest_universe,
+                    sector_by_symbol=backtest_sectors,
+                    rebalance_frequency=frequency,
+                    **selection,
+                )
 
         portfolio = build_portfolio(scored)
         portfolio_tickers = {holding["ticker"] for holding in portfolio.get("holdings", [])}
@@ -1000,6 +1139,13 @@ def build_publication(force: bool = False, progress=None) -> dict:
             "backtest": {
                 "top100": _backtest_block(top100),
                 "top20": _backtest_block(top20),
+            },
+            "backtestSchedules": {
+                portfolio_id: {
+                    frequency: _backtest_block(block)
+                    for frequency, block in frequency_blocks.items()
+                }
+                for portfolio_id, frequency_blocks in backtest_schedules.items()
             },
             "macro": {"cpi": macro},
             "providers": {

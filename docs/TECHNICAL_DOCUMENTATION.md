@@ -358,16 +358,23 @@ returns a constraint-breaking book.
 ## Backtesting
 
 The backtest uses adjusted closes and a historically eligible subset of the audited 108-stock core.
-For every March and September signal:
+The default is semiannual; monthly, quarterly and annual schedules are also supported. For every
+signal in the selected schedule:
 
-1. Use the final available session in the month as the signal date.
+1. Use the final actual trading session in the scheduled month as the signal date.
 2. Apply the $5, 210-observation, and $2 million 63-session liquidity checks using data available at
    that date.
 3. Calculate the same 12–1 risk-adjusted momentum cross-section.
 4. Select Top 100 or `ceil(eligible_count × 0.20)`.
 5. Execute at the next available session close.
-6. Equal-weight the selected stocks.
-7. Mark holdings to market daily until the next rebalance.
+6. Start from equal weights and apply the 9% stock and 35% sector caps.
+7. Mark existing holdings daily until the next rebalance; rankings only change the book at scheduled
+   events.
+
+The first eligible session in the range forms the initial portfolio using information available
+before that session. A scheduled event in the same month is suppressed. Weekend and holiday signals
+roll back to the final valid session and execute next session. More frequent schedules increase
+turnover and transaction costs, while actual performance is reported from each run.
 
 Transaction cost is 0.10% of traded buy and sell notional. Slippage is 0.00%. SPY and SPMO are
 normalized from their first matching adjusted close. Sharpe uses a 0% annual risk-free rate.
@@ -385,8 +392,7 @@ annual returns, turnover, and cumulative transaction cost.
 - No taxes, market impact, capacity, financing, or execution model.
 - Exploratory results do not prove future profitability.
 
-The date controls on the website slice the stored backtest series. They do not rerun historical
-signals for an arbitrary date window.
+`POST /api/backtest` reruns the selected portfolio, dates and frequency against cached provider bars.
 
 ## API Endpoints
 
@@ -399,6 +405,7 @@ signals for an arbitrary date window.
 | GET | `/api/bars/{ticker}?days=N` | Normalized daily bars |
 | GET | `/api/probe` | Last recorded provider probe evidence |
 | GET | `/api/config` | Non-secret public configuration |
+| POST | `/api/backtest` | Run the selected portfolio and rebalance schedule |
 | POST | `/api/provider` | Select a provider and rebuild the publication |
 | POST | `/api/refresh` | Start a forced background refresh |
 

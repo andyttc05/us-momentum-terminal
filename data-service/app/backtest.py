@@ -1,13 +1,11 @@
-"""Semiannual, price-history backtest for the momentum ranking.
+"""Price-history backtest for the momentum ranking.
 
-Signals are formed at the last trading session of March and September. Trades
-are executed at the next available session close, and existing holdings are
-marked to market every session between rebalances.
-
-The historical book uses equal weights. Float-adjusted market caps with
-point-in-time share counts are not available from the current providers, so a
-capital-weighted historical book would either use look-ahead information or
-pretend that current capitalisations applied in the past.
+Signals are formed on the final trading session of each scheduled month. Trades
+execute at the next available session close, and existing holdings are marked
+to market every session between rebalances. The historical book starts from
+equal weights and applies the same stock and sector caps as the live portfolio.
+Point-in-time float capitalisation is unavailable, so using today's float caps
+historically would introduce look-ahead bias.
 """
 
 from __future__ import annotations
@@ -18,12 +16,24 @@ import numpy as np
 import pandas as pd
 
 from .momentum import cross_section_at
+from .portfolio import _apply_caps, group_sector
 
 MIN_UNIVERSE_OBSERVATIONS = 210
 LIQUIDITY_SESSIONS = 63
 MIN_PRICE = 5.0
 MIN_AVERAGE_DAILY_DOLLAR_VOLUME = 2_000_000.0
-REBALANCE_MONTHS = frozenset({3, 9})
+REBALANCE_FREQUENCIES = {
+    "monthly": tuple(range(1, 13)),
+    "quarterly": (3, 6, 9, 12),
+    "semiannual": (3, 9),
+    "annual": (9,),
+}
+REBALANCE_LABELS = {
+    "monthly": "Monthly (Every Month)",
+    "quarterly": "Quarterly (Mar / Jun / Sep / Dec)",
+    "semiannual": "Semiannual (Mar / Sep)",
+    "annual": "Annual (September)",
+}
 TRANSACTION_COST_RATE = 0.001
 SLIPPAGE_RATE = 0.0
 RISK_FREE_RATE = 0.0
@@ -134,6 +144,101 @@ def _selection_count(ranked: list[dict], top_n: int | None, top_fraction: float 
     return max(1, len(ranked))
 
 
+def rebalance_schedule(
+    trading_sessions,
+    *,
+    frequency: str = "semiannual",
+    start=None,
+    end=None,
+) -> list[dict]:
+    """Build unique initial-formation and scheduled rebalance events.
+
+    Month-end signals are the final actual trading session in each selected
+    month. A scheduled event is valid only when a later session is available
+    for execution. When a start date is supplied, the first eligible session in
+    the range forms the initial book; an event in that same formation month is
+    skipped so the initial trade is not repeated.
+    """
+    if frequency not in REBALANCE_FREQUENCIES:
+        raise ValueError(f"unsupported rebalance frequency: {frequency}")
+    sessions = pd.DatetimeIndex(trading_sessions).sort_values().unique()
+    if sessions.empty:
+        return []
+    months = frozenset(REBALANCE_FREQUENCIES[frequency])
+    start_stamp = pd.Timestamp(start) if start is not None else None
+    end_stamp = pd.Timestamp(end) if end is not None else None
+
+    month_labels = sessions.to_period("M")
+    month_lasts = pd.Series(sessions, index=sessions).groupby(month_labels).max()
+    scheduled = []
+    for signal in month_lasts:
+        if signal.month not in months:
+            continue
+        signal_position = int(sessions.searchsorted(signal, side="left"))
+        execution_position = signal_position + 1
+        if execution_position >= len(sessions):
+            continue
+        execution = sessions[execution_position]
+        if start_stamp is not None and execution < start_stamp:
+            continue
+        if end_stamp is not None and execution > end_stamp:
+            continue
+        scheduled.append(
+            {
+                "signal_position": signal_position,
+                "execution_position": execution_position,
+                "kind": "scheduled",
+                "scheduled_month": int(signal.month),
+            }
+        )
+
+    if start_stamp is None:
+        if not scheduled:
+            return []
+        events = [dict(scheduled[0], kind="initial_formation", scheduled_month=None)]
+        events.extend(scheduled[1:])
+        return events
+
+    formation_position = int(sessions.searchsorted(start_stamp, side="left"))
+    formation_position = max(formation_position, MIN_UNIVERSE_OBSERVATIONS)
+    if formation_position >= len(sessions):
+        return []
+    formation = sessions[formation_position]
+    if end_stamp is not None and formation > end_stamp:
+        return []
+    events = [
+        {
+            "signal_position": formation_position - 1,
+            "execution_position": formation_position,
+            "kind": "initial_formation",
+            "scheduled_month": None,
+        }
+    ]
+    seen_executions = {formation_position}
+    for event in scheduled:
+        if event["execution_position"] <= formation_position:
+            continue
+        if event["execution_position"] in seen_executions:
+            continue
+        seen_executions.add(event["execution_position"])
+        events.append(event)
+    return sorted(events, key=lambda event: event["execution_position"])
+
+
+def _target_weights(
+    targets: list[str],
+    sector_by_symbol: dict[str, str] | None,
+) -> tuple[dict[str, float], str | None]:
+    """Equal-start weights, with the live portfolio caps when sectors are known."""
+    raw = {symbol: 1.0 for symbol in targets}
+    if not sector_by_symbol or any(symbol not in sector_by_symbol for symbol in targets):
+        equal = 100.0 / len(targets)
+        return {symbol: equal for symbol in targets}, None
+    sectors = {symbol: group_sector(sector_by_symbol[symbol]) for symbol in targets}
+    weights, feasible, reason = _apply_caps(raw, sectors)
+    return weights, None if feasible else reason
+
+
 def _mark_to_market(
     holdings: dict[str, float],
     previous_prices: dict[str, float],
@@ -157,11 +262,33 @@ def run_backtest(
     months: int = 120,
     benchmark_symbols: tuple[str, ...] = ("SPY", "SPMO"),
     universe_symbols: set[str] | None = None,
-    rebalance_months: tuple[int, ...] = tuple(sorted(REBALANCE_MONTHS)),
+    rebalance_months: tuple[int, ...] | None = None,
+    rebalance_frequency: str = "semiannual",
+    start: str | None = None,
+    end: str | None = None,
+    sector_by_symbol: dict[str, str] | None = None,
     transaction_cost_rate: float = TRANSACTION_COST_RATE,
     slippage_rate: float = SLIPPAGE_RATE,
 ) -> dict:
-    """Run a semiannual ranking simulation with explicit execution timing."""
+    """Run a ranking simulation with explicit schedule and execution timing."""
+    if rebalance_months is not None:
+        requested_months = tuple(sorted({int(month) for month in rebalance_months}))
+        matching = next(
+            (
+                name
+                for name, months_for_frequency in REBALANCE_FREQUENCIES.items()
+                if tuple(months_for_frequency) == requested_months
+            ),
+            None,
+        )
+        if matching is None:
+            return {
+                "available": False,
+                "reason": f"unsupported rebalance months: {requested_months}",
+            }
+        rebalance_frequency = matching
+    if rebalance_frequency not in REBALANCE_FREQUENCIES:
+        return {"available": False, "reason": f"unsupported rebalance frequency: {rebalance_frequency}"}
     prices = _wide_frame(series_map)
     if prices.empty:
         return {"available": False, "reason": "no price data"}
@@ -174,23 +301,22 @@ def run_backtest(
     if not candidates:
         return {"available": False, "reason": "no eligible universe symbols"}
 
-    month_ends = prices.resample("ME").last().dropna(how="all").index
-    month_ends = [
-        stamp
-        for stamp in month_ends
-        if prices.index.searchsorted(stamp, side="right") >= MIN_UNIVERSE_OBSERVATIONS
-    ][-months:]
-    rebalance_set = frozenset(int(month) for month in rebalance_months)
-    signal_dates = [stamp for stamp in month_ends if stamp.month in rebalance_set]
-    if not signal_dates:
-        return {"available": False, "reason": "no March or September signal dates"}
+    rebalance_set = frozenset(REBALANCE_FREQUENCIES[rebalance_frequency])
+    schedule = rebalance_schedule(
+        prices.index,
+        frequency=rebalance_frequency,
+        start=start,
+        end=end,
+    )
+    schedule = [event for event in schedule if event["scheduled_month"] is None or event["scheduled_month"] in rebalance_set]
+    if not schedule:
+        label = REBALANCE_LABELS[rebalance_frequency].split(" (", 1)[0]
+        return {"available": False, "reason": f"no valid {label.lower()} signal dates in the selected period"}
 
     events = []
-    for signal in signal_dates:
-        execution_position = int(prices.index.searchsorted(signal, side="right"))
-        if execution_position >= len(prices.index):
-            continue
-        signal_date = prices.index[execution_position - 1]
+    for scheduled_event in schedule:
+        execution_position = scheduled_event["execution_position"]
+        signal_date = prices.index[scheduled_event["signal_position"]]
 
         def lookup(series, stamp=signal_date):
             position = int(series.frame.index.searchsorted(stamp, side="right") - 1)
@@ -203,11 +329,22 @@ def run_backtest(
         selected = [row["symbol"] for row in ranked[:_selection_count(ranked, top_n, top_fraction)]]
         if not selected:
             continue
+        target_weights, constraint_error = _target_weights(selected, sector_by_symbol)
+        if constraint_error:
+            return {
+                "available": False,
+                "reason": f"portfolio constraints infeasible on {signal_date:%Y-%m-%d}: {constraint_error}",
+            }
         events.append(
             {
-                "signal_position": execution_position - 1,
+                "signal_position": scheduled_event["signal_position"],
                 "execution_position": execution_position,
+                # Failed-to-score warm-up events are skipped. The first actual
+                # trade remains the initial formation even when its original
+                # scheduled slot could not produce an eligible ranking.
+                "kind": "initial_formation" if not events else scheduled_event["kind"],
                 "selected": selected,
+                "weights": target_weights,
             }
         )
 
@@ -228,13 +365,18 @@ def run_backtest(
     total_cost = 0.0
     total_price_cost = 0.0
     total_one_way_turnover = 0.0
+    effective_end_position = (
+        int(prices.index.searchsorted(pd.Timestamp(end), side="right"))
+        if end is not None
+        else len(prices.index)
+    )
 
     for event_index, event in enumerate(events):
         start_position = event["execution_position"]
         end_position = (
             events[event_index + 1]["execution_position"]
             if event_index + 1 < len(events)
-            else len(prices.index)
+            else effective_end_position
         )
         start = prices.index[start_position]
         targets = event["selected"]
@@ -255,7 +397,10 @@ def run_backtest(
                 start,
                 price_cash,
             )
-            target_values = {symbol: nav_before * (1.0 / len(targets)) for symbol in targets}
+            target_values = {
+                symbol: nav_before * (event["weights"][symbol] / 100.0)
+                for symbol in targets
+            }
             all_symbols = set(holdings) | set(targets)
             trade_notional = sum(
                 abs(target_values.get(symbol, 0.0) - holdings.get(symbol, 0.0))
@@ -263,7 +408,7 @@ def run_backtest(
             )
             one_way_turnover = trade_notional / (2.0 * nav_before) if nav_before > 0 else 0.0
             price_target_values = {
-                symbol: (price_nav_before - price_cash) * (1.0 / len(targets))
+                symbol: (price_nav_before - price_cash) * (event["weights"][symbol] / 100.0)
                 for symbol in targets
             }
             price_trade_notional = sum(
@@ -277,9 +422,14 @@ def run_backtest(
         price_nav_after_trade = max(0.0, price_nav_before - price_cost)
         nav = nav_after_trade
         price_nav = price_nav_after_trade
-        weight = 1.0 / len(targets)
-        holdings = {symbol: nav_after_trade * weight for symbol in targets}
-        price_holdings = {symbol: price_nav_after_trade * weight for symbol in targets}
+        holdings = {
+            symbol: nav_after_trade * (event["weights"][symbol] / 100.0)
+            for symbol in targets
+        }
+        price_holdings = {
+            symbol: price_nav_after_trade * (event["weights"][symbol] / 100.0)
+            for symbol in targets
+        }
         price_cash = 0.0
         previous_prices = {
             symbol: float(prices.at[start, symbol])
@@ -302,8 +452,13 @@ def run_backtest(
             {
                 "signal_date": prices.index[event["signal_position"]].strftime("%Y-%m-%d"),
                 "execution_date": start.strftime("%Y-%m-%d"),
+                "type": event["kind"],
                 "count": len(targets),
                 "leaders": targets[:5],
+                "holdings": {
+                    symbol: round(event["weights"][symbol], 4)
+                    for symbol in targets
+                },
                 "turnover_pct": round(one_way_turnover * 100.0, 2),
                 "cost_usd": round(cost, 4),
             }
@@ -415,6 +570,11 @@ def run_backtest(
     cagr = round((total ** (365.0 / days) - 1.0) * 100.0, 1) if total > 0 else None
     max_drawdown = round(float(drawdown.min()), 1)
     years = max(len(strategy) / 252.0, 1.0 / 252.0)
+    event_counts = {
+        "initial_formation": sum(event["type"] == "initial_formation" for event in holdings_log),
+        "scheduled": sum(event["type"] == "scheduled" for event in holdings_log),
+        "total": len(holdings_log),
+    }
 
     return {
         "available": True,
@@ -429,11 +589,19 @@ def run_backtest(
         "monthly_benchmarks": monthly_benchmarks,
         "annual": annual,
         "holdings_log": holdings_log,
+        "event_counts": event_counts,
         "methodology": {
             "selection": "top 100" if top_fraction is None and top_n == 100 else (
                 f"top {top_fraction:.0%}" if top_fraction is not None else f"top {top_n}"
             ),
-            "weighting": "equal weight (research proxy)",
+            "rebalance_frequency": rebalance_frequency,
+            "rebalance_months": list(sorted(rebalance_set)),
+            "initial_formation": events[0]["kind"] == "initial_formation",
+            "weighting": (
+                "equal-start weights with 9% stock and 35% sector caps"
+                if sector_by_symbol
+                else "equal weight (research proxy; sector caps unavailable)"
+            ),
             "signal_months": sorted(rebalance_set),
             "execution": "next available adjusted close",
             "transaction_cost_bps": transaction_cost_rate * 10_000,
