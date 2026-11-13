@@ -51,8 +51,8 @@ test("Run Backtest sends the latest frequency to live or published data", () => 
   assert.match(page, /rebalance_frequency: normalizedDraft\.rebalanceFrequency/);
   assert.match(page, /await executeBacktest\(/);
   assert.match(page, /setCustomRun\(\{ key, block \}\)/);
-  assert.match(page, /Backtest results use \$\{rebalanceLabel\(submittedConfig\.rebalanceFrequency\)\}/);
-  assert.match(page, /current\?\.id === "backtest-complete" \? null : current/);
+  // A pending frequency change is silent: only Run Backtest reports.
+  assert.doesNotMatch(page, /Backtest results use \$\{rebalanceLabel/);
   assert.match(provider, /const usesPublishedRange = Boolean/);
   assert.match(provider, /if \(usesPublishedRange && frequency === "semiannual"\)/);
   assert.match(provider, /return api\.backtest\(config\)/);

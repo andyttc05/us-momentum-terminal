@@ -189,8 +189,11 @@ test("Overview, Screener and Portfolio read the one active dataset", () => {
   assert.match(backtesting, /activateUniverse\(normalizedDraft\.portfolio\)/);
   // The Screener switch changes the dataset, so it moves the whole app.
   assert.match(screener, /activateUniverse\(nextMode\)/);
-  assert.match(backtesting, /universe !== submittedConfig\.portfolio/);
+  // A pending universe stays in the draft until the run is submitted.
+  assert.match(backtesting, /portfolio: universe,/);
   assert.doesNotMatch(backtesting, /backtest-results-outdated/);
+  // Switching universe in the backtest card raises no notification of its own.
+  assert.doesNotMatch(backtesting, /backtest-outdated/);
   assert.doesNotMatch(portfolio, /selectUniverse|aria-label="Portfolio selection"/);
 });
 

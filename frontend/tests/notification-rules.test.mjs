@@ -29,21 +29,42 @@ test("only one notification can be on screen at a time", () => {
   // A page toast suppresses the shared data-state toast.
   assert.match(appCss, /\.app-shell:has\(\.page-toast\) > \.status-toast \{ display: none; \}/);
   // Per page, a single resolved notification is rendered.
-  assert.match(backtesting, /const displayNotification = notification \?\? \(/);
-  assert.match(backtesting, /\{displayNotification && \(/);
+  assert.match(backtesting, /\{notification && \(/);
   assert.equal((backtesting.match(/<Toast\b/g) ?? []).length, 1);
   assert.equal((screener.match(/<Toast\b/g) ?? []).length, 1);
   assert.equal((portfolio.match(/<Toast\b/g) ?? []).length, 1);
 });
 
-test("the outdated-result message is concise, dismissible and never re-shown on render", () => {
-  assert.match(
-    backtesting,
-    /`Backtest results use \$\{universeLabel\(submittedConfig\.portfolio\)\}\. Run Backtest to apply \$\{universeLabel\(universe\)\}\.`/,
+test("changing the pending configuration never raises a notification", () => {
+  // Universe and rebalance changes only update the draft; no stale-result
+  // banner or toast is left to reappear on render.
+  assert.doesNotMatch(backtesting, /backtest-outdated/);
+  assert.doesNotMatch(backtesting, /dismissedOutdatedKey/);
+  assert.doesNotMatch(backtesting, /kind: "partial"/);
+  assert.doesNotMatch(backtesting, /displayNotification/);
+
+  const updateDraft = backtesting.slice(
+    backtesting.indexOf("function updateDraft"),
+    backtesting.indexOf("function selectBacktestUniverse"),
   );
-  assert.match(backtesting, /dismissedOutdatedKey !== outdatedKey/);
-  assert.match(backtesting, /onDismiss: \(\) => setDismissedOutdatedKey\(outdatedKey\)/);
-  assert.match(backtesting, /kind: "partial"/);
+  assert.doesNotMatch(updateDraft, /setNotification/);
+
+  const selectBacktestUniverse = backtesting.slice(
+    backtesting.indexOf("function selectBacktestUniverse"),
+    backtesting.indexOf("function showNotification"),
+  );
+  assert.doesNotMatch(selectBacktestUniverse, /setNotification|showNotification/);
+});
+
+test("a settings change never starts a backtest on its own", () => {
+  const runBacktest = backtesting.slice(
+    backtesting.indexOf("async function runBacktest"),
+    backtesting.indexOf("async function refreshPreview"),
+  );
+  // The only entry point into the backend call is the explicit click handler.
+  assert.equal((backtesting.match(/executeBacktest\(/g) ?? []).length, 1);
+  assert.match(runBacktest, /if \(!canRun \|\| isRunning\) return;/);
+  assert.match(backtesting, /onClick=\{runBacktest\}/);
 });
 
 test("export and failure messages use the shared concise wording", () => {

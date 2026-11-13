@@ -160,7 +160,7 @@
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 18px;
-  padding: 0 26px;
+  padding: 0 19px;
   border: 0;
   border-top: 1px solid var(--color-card-border);
   background: transparent;
@@ -168,13 +168,19 @@
   cursor: pointer;
   text-align: left;
 }
+/* Same type scale and icon rhythm as the Backtest Period / Universe headings,
+   so the third section reads as a peer rather than a heavier callout. */
 .backtest-advanced__title {
   display: inline-flex;
+  min-height: 28px;
   min-width: 0;
   align-items: center;
-  gap: 11px;
-  font-size: 1.15rem;
+  gap: 9px;
+  font-size: 1.05rem;
   font-weight: var(--font-weight-black);
+  letter-spacing: -0.018em;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 .backtest-advanced__title svg { flex: 0 0 auto; }
 .backtest-advanced__summary {
@@ -182,11 +188,13 @@
   color: var(--color-text-muted);
   font-size: 0.82rem;
   font-weight: 700;
+  line-height: 1.2;
+  text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.backtest-advanced__toggle > svg { transition: transform 220ms ease; }
-.backtest-advanced[data-open] .backtest-advanced__toggle > svg { transform: rotate(180deg); }
+.backtest-advanced__caret { flex: 0 0 auto; transition: transform 220ms ease; }
+.backtest-advanced[data-open] .backtest-advanced__caret { transform: rotate(180deg); }
 .backtest-advanced__reveal {
   display: grid;
   grid-template-rows: 0fr;
@@ -206,7 +214,7 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: stretch;
   gap: 24px;
-  padding: 2px 26px 18px;
+  padding: 2px 19px 18px;
   border-top: 0;
 }
 .backtest-advanced__column {
@@ -539,7 +547,6 @@
   stroke-linejoin: round;
   vector-effect: non-scaling-stroke;
 }
-.backtest-drawdown-point { fill: #F46E7D; stroke: var(--color-surface); stroke-width: 2; }
 /* Annual return ----------------------------------------------------------- */
 
 .backtest-analytics-grid > .backtest-annual-card { min-height: 248px; }
@@ -757,7 +764,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .backtest-advanced__reveal,
-  .backtest-advanced__toggle > svg,
+  .backtest-advanced__caret,
   .backtest-cashflow-fields,
   .backtest-switch,
   .backtest-switch i,
@@ -952,7 +959,7 @@
   .backtest-segmented button { min-height: 44px; font-size: 0.9rem; }
   .backtest-run-button { width: 100%; min-height: 50px; }
   .backtest-advanced__toggle { min-height: 57px; padding-inline: 16px; }
-  .backtest-advanced__grid { gap: 14px; padding: 2px 14px 16px; }
+  .backtest-advanced__grid { gap: 14px; padding: 2px 16px 16px; }
   .backtest-advanced__column { gap: 12px; }
   .backtest-capital-card .settings-card__header,
   .backtest-cashflow-card .settings-card__header,

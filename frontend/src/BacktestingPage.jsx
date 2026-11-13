@@ -61,10 +61,7 @@ import {
   rebalanceLabel,
   rebalanceSummaryLabel,
 } from "./utils/rebalanceFrequency.js";
-import {
-  UNIVERSE_OPTIONS,
-  universeLabel,
-} from "./utils/universeState.js";
+import { UNIVERSE_OPTIONS } from "./utils/universeState.js";
 
 const RANGES = ["1Y", "3Y", "5Y", "All"];
 const SERIES = [
@@ -547,7 +544,6 @@ function DrawdownChart({ window }) {
   values.forEach((value, index) => {
     if (value < values[maxIndex]) maxIndex = index;
   });
-  const maxPoint = points[maxIndex];
   const selectedPoint = selectedIndex == null ? null : points[selectedIndex];
   const tooltipWidth = fitTooltipWidth({
     containerWidth: width,
@@ -626,7 +622,6 @@ function DrawdownChart({ window }) {
           ))}
           <path d={area} fill="url(#drawdown-fill)" />
           <path d={line} className="backtest-drawdown-line" />
-          <circle cx={maxPoint.x} cy={maxPoint.y} r="5" className="backtest-drawdown-point" />
           {selectedPoint && (
             <g data-testid="backtest-drawdown-selection">
               <line x1={selectedPoint.x} x2={selectedPoint.x} y1={top} y2={top + plotHeight} className="backtest-crosshair" />
@@ -815,9 +810,9 @@ function AdvancedSettings({ open, onToggle, draft, updateDraft, amountErrors }) 
   return (
     <section className="backtest-advanced" data-open={open || undefined}>
       <button className="backtest-advanced__toggle" type="button" aria-expanded={open} onClick={onToggle}>
-        <span className="backtest-advanced__title"><SlidersHorizontal size={22} weight="regular" aria-hidden="true" /><span>Advanced Settings</span></span>
+        <span className="backtest-advanced__title"><SlidersHorizontal size={21} weight="regular" aria-hidden="true" /><span>Advanced Settings</span></span>
         <span className="backtest-advanced__summary">{summary}</span>
-        <CaretDown size={22} weight="bold" aria-hidden="true" />
+        <CaretDown size={20} weight="bold" aria-hidden="true" className="backtest-advanced__caret" />
       </button>
       <div className="backtest-advanced__reveal" aria-hidden={!open} inert={!open}>
         <div className="backtest-advanced__inner">
@@ -951,7 +946,6 @@ export function BacktestingPage({ hidden = false }) {
   const [isRunning, setIsRunning] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [notification, setNotification] = useState(null);
-  const [dismissedOutdatedKey, setDismissedOutdatedKey] = useState("");
   const [validationTouched, setValidationTouched] = useState(false);
   const notificationTimer = useRef(null);
   const runSequence = useRef(0);
@@ -1000,11 +994,6 @@ export function BacktestingPage({ hidden = false }) {
 
   function updateDraft(patch) {
     setDraft((current) => ({ ...current, ...patch }));
-    if ("rebalanceFrequency" in patch) {
-      setNotification((current) => (
-        current?.id === "backtest-complete" ? null : current
-      ));
-    }
     if ("startDate" in patch || "endDate" in patch) setValidationTouched(true);
     if ("initialCapital" in patch || "contributionAmount" in patch) setValidationTouched(true);
   }
@@ -1012,10 +1001,6 @@ export function BacktestingPage({ hidden = false }) {
   function selectBacktestUniverse(value) {
     if (value === universe) return;
     selectUniverse(value);
-    setDismissedOutdatedKey("");
-    setNotification((current) => (
-      current?.id === "backtest-complete" ? null : current
-    ));
   }
 
   function showNotification(message, kind = "updated", durationMs = 3200, id = message, retry = false) {
@@ -1181,33 +1166,8 @@ export function BacktestingPage({ hidden = false }) {
         ? "loading"
         : sourceState;
   const resultsLoading = !resultsReady && resultsState === "loading";
-  const resultsOutdated = Boolean(
-    submittedConfig
-    && resultBlock?.available
-    && (
-      universe !== submittedConfig.portfolio
-      || draft.rebalanceFrequency !== submittedConfig.rebalanceFrequency
-    ),
-  );
-  const outdatedKey = resultsOutdated
-    ? `${submittedConfig.portfolio}:${universe}:${submittedConfig.rebalanceFrequency}:${draft.rebalanceFrequency}`
-    : "";
-  const outdatedMessage = resultsOutdated
-    ? universe !== submittedConfig.portfolio
-      ? `Backtest results use ${universeLabel(submittedConfig.portfolio)}. Run Backtest to apply ${universeLabel(universe)}.`
-      : `Backtest results use ${rebalanceLabel(submittedConfig.rebalanceFrequency)}. Run Backtest to apply ${rebalanceLabel(draft.rebalanceFrequency)}.`
-    : "";
-  const displayNotification = notification ?? (
-    resultsOutdated && dismissedOutdatedKey !== outdatedKey
-      ? {
-        id: "backtest-outdated",
-        message: outdatedMessage,
-        kind: "partial",
-        durationMs: undefined,
-        onDismiss: () => setDismissedOutdatedKey(outdatedKey),
-      }
-      : null
-  );
+  // Pending universe/rebalance changes only update the draft. They never raise
+  // a notification: feedback belongs to Run Backtest and its real outcome.
 
   useEffect(() => {
     if (!data || !submittedConfig || resultBlock?.available || sourceState !== "ready") {
@@ -1534,18 +1494,18 @@ export function BacktestingPage({ hidden = false }) {
           />
           </div>
       </div>
-      {displayNotification && (
+      {notification && (
         <Toast
-          kind={displayNotification.kind}
-          message={displayNotification.message}
+          kind={notification.kind}
+          message={notification.message}
           className="page-toast"
-          durationMs={displayNotification.durationMs}
-          onDismiss={displayNotification.onDismiss}
-          action={displayNotification.retry ? (
+          durationMs={notification.durationMs}
+          onDismiss={notification.onDismiss}
+          action={notification.retry ? (
             <button
               type="button"
               className="notification-toast__action"
-              onClick={displayNotification.retry === "backtest" ? runBacktest : refreshPreview}
+              onClick={notification.retry === "backtest" ? runBacktest : refreshPreview}
             >Retry</button>
           ) : null}
         />
