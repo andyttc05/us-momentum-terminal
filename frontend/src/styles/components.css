@@ -88,18 +88,24 @@ button:focus-visible, a:focus-visible { outline: none; box-shadow: var(--focus-r
    them out of the inline box so the desktop layout is untouched. */
 .legend-name-full { display: contents; }
 .legend-name-short { display: none; }
+/* One value style for every KPI card, in every state — including "Loading…"
+   and "Unavailable". A composite value such as `GOOGL 9.0%` keeps the same
+   size and truncates instead, so no card can shrink its own number. */
 .kpi-card__value {
   position: relative;
   z-index: 1;
   display: block;
+  max-width: 100%;
+  overflow: hidden;
   margin-top: 4px;
   color: var(--color-ink);
   font-size: var(--font-size-kpi);
   font-weight: var(--font-weight-black);
   letter-spacing: -0.045em;
   line-height: 1.1;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
-.kpi-card__value--long { font-size: var(--font-size-kpi-long); letter-spacing: -0.04em; white-space: nowrap; }
 .kpi-card__detail { position: relative; z-index: 1; margin: var(--space-1) 0 0; color: var(--color-text-muted); font-size: var(--font-size-meta); }
 
 .app-button {

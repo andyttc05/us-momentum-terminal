@@ -487,8 +487,6 @@
   .kpi-card__label { gap: 7px; font-size: 0.82rem; line-height: 1.25; }
   .kpi-card__label svg { width: 18px; height: 18px; }
   .kpi-card__value { margin-top: 5px; font-size: 1.8rem; }
-  /* A composite value such as "GOOGL 9.0%" has to fit a half-width card. */
-  .kpi-card__value--long { font-size: 1.4rem; letter-spacing: -0.03em; }
   .kpi-card__detail, .kpi-card__sample { display: none; }
   .kpi-card__label-full { display: none; }
   .kpi-card__label-short { display: inline; }

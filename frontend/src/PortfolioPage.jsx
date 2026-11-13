@@ -197,7 +197,7 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
 
         <section className="overview-kpis portfolio-kpis" aria-label="Portfolio summary">
           <KpiCard label="Total Holdings" value={portfolioSummary?.totalHoldings ?? pendingKpi} icon={Briefcase} tint="cream" mascotVariant="cream" mascotColor="var(--color-cream)" />
-          <KpiCard label="Largest Holding" value={portfolioSummary ? `${portfolioSummary.largestHolding.ticker} ${displayPercent(portfolioSummary.largestHolding.finalWeight)}` : pendingKpi} icon={Stack} tint="mint" mascotVariant="mint" mascotColor="var(--color-mint)" longValue />
+          <KpiCard label="Largest Holding" value={portfolioSummary ? `${portfolioSummary.largestHolding.ticker} ${displayPercent(portfolioSummary.largestHolding.finalWeight)}` : pendingKpi} icon={Stack} tint="mint" mascotVariant="mint" mascotColor="var(--color-mint)" />
           <KpiCard label="Top 10 Weight" value={portfolioSummary ? displayPercent(portfolioSummary.topTenWeight) : pendingKpi} icon={ChartPieSlice} tint="pink" mascotVariant="pink" mascotColor="var(--color-pink)" />
           <KpiCard label="Invested Capital" value={portfolioSummary ? `${Math.round(portfolioSummary.investedCapital)}%` : pendingKpi} icon={Target} tint="blue" mascotVariant="blue" mascotColor="var(--color-blue)" />
         </section>
