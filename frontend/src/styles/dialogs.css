@@ -1,0 +1,320 @@
+/* Application dialogs — one modal foundation for both About Project and the
+   Published Snapshot ------------------------------------------------
+
+   Both are native <dialog> elements opened with showModal(), so the browser
+   owns the top layer, the focus trap, Escape and the inert page behind. What
+   lives here is only what the browser does not decide: the panel, the scrim,
+   the close button and the four header slots.
+
+   The two contents stay different on purpose — About is an editorial list of
+   sections, the Snapshot is a grid of fact cards — but they sit on this same
+   chrome, so they read as two views of one application rather than two design
+   systems that happen to share a cream palette.
+
+   Everything is declared once. Neither component sheet defines a dialog
+   container, a backdrop, a close button or a header; if a rule for those shows
+   up anywhere else, it is a duplicate and should move back here. */
+
+.app-dialog {
+  position: fixed;
+  inset: 0;
+  width: min(640px, calc(100vw - 32px));
+  max-width: 640px;
+  height: max-content;
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink);
+}
+
+/* One scrim for both dialogs: a warm-neutral wash with just enough blur to push
+   the page back. Identical opacity and radius on each, so opening one dialog
+   after the other never changes how dark the app behind it looks. */
+.app-dialog::backdrop {
+  background: rgb(17 17 17 / 32%);
+  backdrop-filter: blur(3px);
+}
+
+/* The panel is the whole visual surface: floating, quiet, and scrollable on its
+   own so a long About list or a small phone viewport never scrolls the page. */
+.app-dialog__panel {
+  position: relative;
+  box-sizing: border-box;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: #D8D1C8 transparent;
+  scrollbar-width: thin;
+  padding: 28px 30px 24px;
+  border: 1px solid var(--color-card-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-float);
+}
+.app-dialog__panel::-webkit-scrollbar { width: 6px; }
+.app-dialog__panel::-webkit-scrollbar-thumb {
+  border-radius: var(--radius-pill);
+  background: #D8D1C8;
+}
+
+/* Close: the same 36px circle in both dialogs, in every state. It is the one
+   control a reader uses without reading, so its size, resting colour and hover
+   response cannot differ between the two. Focus uses the shared button ring
+   from components.css; nothing here overrides it. */
+.app-dialog__close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--color-surface-soft);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+.app-dialog__close:hover {
+  background: var(--color-nav-hover);
+  color: var(--color-ink);
+}
+
+/* Header: pastel badge, eyebrow, title, description — in that order, in both
+   dialogs. The right padding reserves the close button's column, so a long
+   title wraps instead of sliding underneath the X. */
+.app-dialog__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  padding-right: 60px;
+}
+.app-dialog__heading { min-width: 0; }
+.app-dialog__icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--color-yellow-soft);
+  color: var(--color-accent-text);
+}
+.app-dialog__eyebrow {
+  margin: 2px 0 6px;
+  color: var(--color-accent-text);
+  font-size: var(--font-size-eyebrow);
+  font-weight: var(--font-weight-black);
+  letter-spacing: var(--letter-spacing-eyebrow);
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+.app-dialog__title {
+  margin: 0;
+  font-size: 1.55rem;
+  font-weight: var(--font-weight-black);
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+  overflow-wrap: break-word;
+}
+.app-dialog__description {
+  margin: 7px 0 0;
+  color: var(--color-text-secondary);
+  font-size: 0.86rem;
+  font-weight: var(--font-weight-medium);
+  line-height: 1.5;
+}
+
+/* About Project content ---------------------------------------------------
+   An editorial list rather than cards: each section is a row with the label in
+   the column and the reading text beside it. Labels use the same small muted
+   uppercase as the Snapshot's fact labels, which is what ties the two contents
+   together without forcing them into the same shape. */
+
+.project-info__sections {
+  display: grid;
+  gap: 0;
+  margin: 22px 0 0;
+}
+.project-info__sections > div {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  gap: 18px;
+  padding: 12px 0;
+  border-top: 1px solid var(--color-line);
+}
+.project-info__sections dt {
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.04em;
+  line-height: 1.45;
+  text-transform: uppercase;
+}
+.project-info__sections dd {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+/* The disclaimer is About's quiet counterpart to the Snapshot's yellow note:
+   same box geometry, neutral surface, so both dialogs close on one soft strip
+   instead of one ending in a card and the other in a bare line of small print. */
+.project-info__notice {
+  margin: 16px 0 0;
+  padding: 12px 14px;
+  border: 1px solid var(--color-card-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-soft);
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+/* Documentation links read as application action cards: the same height and
+   radius as the Snapshot's button, so the two dialogs end with equally weighted
+   controls. */
+.project-info__links {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+.project-info__links a {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 9px;
+  padding: 0 14px;
+  border: 1px solid var(--color-card-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-soft);
+  color: var(--color-ink);
+  font-size: 0.82rem;
+  font-weight: var(--font-weight-bold);
+  text-decoration: none;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+.project-info__links a:hover {
+  border-color: #E4D49B;
+  background: var(--color-yellow-soft);
+}
+.project-info__links a > svg:last-child {
+  margin-left: auto;
+  flex: 0 0 auto;
+  color: var(--color-text-muted);
+}
+
+/* Published Snapshot content ---------------------------------------------
+   Two columns of soft cream facts on desktop. The values carry the ink weight
+   and the labels stay muted, so a dense metadata set still reads top-down
+   instead of turning into a wall of bold text. */
+
+.data-status-dialog__facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 22px 0 0;
+}
+.data-status-dialog__facts > div {
+  min-width: 0;
+  padding: 11px 13px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-soft);
+}
+/* The static build publishes nine facts and the live service six. When the
+   count is odd the last card takes the whole row instead of leaving a hole next
+   to it — which also gives the long publication version room to stay on one
+   line. */
+.data-status-dialog__facts > div:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+.data-status-dialog__facts dt {
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+/* Long publication versions have no spaces to break on, so the value is allowed
+   to break anywhere rather than overflow the card. */
+.data-status-dialog__facts dd {
+  margin: 3px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--color-ink);
+  font-size: 0.84rem;
+  font-weight: var(--font-weight-bold);
+}
+.data-status-dialog__note {
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  border: 1px solid var(--color-card-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-yellow-soft);
+  color: var(--color-accent-copy);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+.data-status-dialog__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 14px;
+}
+.data-status-dialog__footer > span {
+  min-width: 0;
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+/* Matches the documentation cards' 44px, so the button in one dialog and the
+   links in the other have the same visual weight. */
+.data-status-dialog__footer .app-button {
+  flex: 0 0 auto;
+  min-height: 44px;
+}
+
+/* Phones ---------------------------------------------------------------- */
+@media (max-width: 560px) {
+  .app-dialog {
+    width: calc(100vw - 24px);
+    max-height: calc(100dvh - 24px);
+  }
+  .app-dialog__panel {
+    max-height: calc(100dvh - 24px);
+    padding: 22px 18px;
+  }
+  /* The close button keeps its 36px circle and its 16px offsets, so the header
+     keeps reserving exactly the same column. */
+  .app-dialog__header { gap: 11px; }
+  .app-dialog__title { font-size: 1.32rem; }
+  .app-dialog__description { font-size: 0.82rem; }
+  .project-info__sections > div {
+    grid-template-columns: 84px minmax(0, 1fr);
+    gap: 12px;
+    padding: 11px 0;
+  }
+  .project-info__links { grid-template-columns: 1fr; }
+  .data-status-dialog__facts { grid-template-columns: 1fr; }
+  .data-status-dialog__footer {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .data-status-dialog__footer .app-button { width: 100%; }
+}
+
+/* The only motion in the shared chrome is the close button's colour change;
+   drop it when the reader has asked for less movement. */
+@media (prefers-reduced-motion: reduce) {
+  .app-dialog__close,
+  .project-info__links a,
+  .data-status-dialog__footer .app-button { transition: none; }
+}

@@ -48,24 +48,27 @@ export function ProjectInfo() {
 
       <dialog
         ref={dialogRef}
-        className="project-info-dialog"
+        className="app-dialog"
         aria-labelledby="project-info-title"
         onCancel={(event) => { event.preventDefault(); close(); }}
         onClose={() => setOpen(false)}
         onClick={(event) => { if (event.target === event.currentTarget) close(); }}
       >
-        <section className="project-info__modal">
-          <button type="button" className="project-info__close" aria-label="Close project information" onClick={close}>
-            <X size={19} weight="bold" aria-hidden="true" />
+        <section className="app-dialog__panel">
+          <button type="button" className="app-dialog__close" aria-label="Close project information" onClick={close}>
+            <X size={18} weight="bold" aria-hidden="true" />
           </button>
 
-          <header className="project-info__header">
-            <p className="project-info__eyebrow">About the project</p>
-            <h2 id="project-info-title">US Momentum Terminal</h2>
-            <p>
-              An academic research terminal for studying risk-adjusted US equity momentum,
-              portfolio construction and historical behaviour.
-            </p>
+          <header className="app-dialog__header">
+            <span className="app-dialog__icon"><Info size={22} weight="regular" aria-hidden="true" /></span>
+            <div className="app-dialog__heading">
+              <p className="app-dialog__eyebrow">About the project</p>
+              <h2 id="project-info-title" className="app-dialog__title">US Momentum Terminal</h2>
+              <p className="app-dialog__description">
+                An academic research terminal for studying risk-adjusted US equity momentum,
+                portfolio construction and historical behaviour.
+              </p>
+            </div>
           </header>
 
           <dl className="project-info__sections">

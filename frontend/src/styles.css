@@ -8,6 +8,10 @@
 @import "./styles/backtesting.css";
 @import "./styles/stock-analysis.css";
 @import "./styles/data-source.css";
+/* Owns every dialog's container, scrim, close button and header. It has to load
+   after the sheets that used to carry half of that chrome (components.css and
+   data-source.css) so one file, not three, decides what a modal looks like. */
+@import "./styles/dialogs.css";
 @import "./styles/export.css";
 /* Loaded last on purpose: it owns the hover/focus states of every editable
    field, and those states have to beat the pages' resting border colours. */

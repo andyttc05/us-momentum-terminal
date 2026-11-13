@@ -83,22 +83,22 @@ export function DataStatusDialog({ open, onClose }) {
   return (
     <dialog
       ref={dialogRef}
-      className="data-status-dialog"
+      className="app-dialog"
       aria-labelledby="data-status-title"
       onCancel={(event) => { event.preventDefault(); onClose(); }}
       onClose={onClose}
       onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}
     >
-      <section className="data-status-dialog__panel">
-        <button type="button" className="data-status-dialog__close" aria-label="Close data status" onClick={onClose}>
+      <section className="app-dialog__panel">
+        <button type="button" className="app-dialog__close" aria-label="Close data status" onClick={onClose}>
           <X size={18} weight="bold" aria-hidden="true" />
         </button>
-        <header className="data-status-dialog__header">
-          <span className="data-status-dialog__icon"><Database size={22} weight="regular" aria-hidden="true" /></span>
-          <div>
-            <p className="eyebrow">Data &amp; cache</p>
-            <h2 id="data-status-title">{modeCopy}</h2>
-            <p>{stateCopy}</p>
+        <header className="app-dialog__header">
+          <span className="app-dialog__icon"><Database size={22} weight="regular" aria-hidden="true" /></span>
+          <div className="app-dialog__heading">
+            <p className="app-dialog__eyebrow">Data &amp; cache</p>
+            <h2 id="data-status-title" className="app-dialog__title">{modeCopy}</h2>
+            <p className="app-dialog__description">{stateCopy}</p>
           </div>
         </header>
 

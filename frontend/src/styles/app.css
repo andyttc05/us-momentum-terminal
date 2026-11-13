@@ -509,22 +509,9 @@
 }
 
 @media (max-width: 520px) {
-  .project-info-dialog {
-    inset: 0;
-    width: calc(100vw - 24px);
-    max-height: calc(100dvh - 24px);
-  }
-  .project-info__modal {
-    max-height: calc(100dvh - 24px);
-    padding: 24px 20px 20px;
-    border-radius: var(--radius-md);
-  }
-  .project-info__close { top: 14px; right: 14px; }
-  .project-info__header { padding-right: 34px; }
-  .project-info__header > p:last-child { font-size: 0.84rem; }
-  .project-info__sections { margin-top: 18px; }
-  .project-info__sections > div { grid-template-columns: 88px minmax(0, 1fr); gap: 12px; padding: 11px 0; }
-  .project-info__links { grid-template-columns: 1fr; }
+  /* The About dialog's phone layout is part of the shared modal contract in
+     styles/dialogs.css, next to the Published Snapshot's, so the two cannot
+     drift apart at this width. */
   .overview-grid__side { grid-template-columns: 1fr; }
   .sector-card .dashboard-card__header { align-items: center; flex-direction: row; }
   .update-bar { gap: 7px; padding-left: 10px; }
