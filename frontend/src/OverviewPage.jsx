@@ -12,8 +12,10 @@ import { SectorAllocation } from "./components/SectorAllocation.jsx";
 import { Sparkline } from "./components/Sparkline.jsx";
 import { UpdateBar } from "./components/UpdateBar.jsx";
 import { useMarket } from "./api/MarketProvider.jsx";
+import { useUniverse } from "./api/UniverseProvider.jsx";
 import { getSectionState } from "./utils/dataState.js";
 import { getPortfolioState } from "./utils/portfolioState.js";
+import { datasetForUniverse } from "./utils/universeState.js";
 
 const periods = ["1Y", "3Y", "5Y", "All"];
 const placeholderSeries = [
@@ -25,13 +27,17 @@ const placeholderSeries = [
 export function OverviewPage({ onNavigate, onSelectStock, hidden = false }) {
   const [period, setPeriod] = useState("1Y");
   const { data, error, meta, status, refreshing } = useMarket();
+  const { activeUniverse } = useUniverse();
 
-  const snapshot = data?.overview?.snapshot;
-  const performance = data?.overview?.performance?.[period];
-  const topMomentum = data?.overview?.topMomentum ?? [];
-  const sectorAllocation = data?.overview?.sectorAllocation ?? [];
+  // Every section below comes from the one active dataset: a Top 20 view can
+  // never pair a Top 20 holding count with Top 100 momentum rows or weights.
+  const dataset = datasetForUniverse(data, activeUniverse);
+  const snapshot = dataset?.overview?.snapshot;
+  const performance = dataset?.overview?.performance?.[period];
+  const topMomentum = dataset?.overview?.topMomentum ?? [];
+  const sectorAllocation = dataset?.overview?.sectorAllocation ?? [];
   const portfolioState = getPortfolioState({
-    portfolio: data?.portfolio,
+    portfolio: dataset?.portfolio,
     status,
     meta,
     error,

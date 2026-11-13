@@ -72,7 +72,10 @@
 .screener-toolbar__actions { display: flex; align-items: center; gap: var(--card-gap); }
 .screener-export-control { display: flex; flex: 0 0 auto; align-items: center; }
 .screener-filter-wrap { position: relative; }
-.screener-toolbar__button { min-height: 56px; padding-inline: 24px; border-color: var(--color-line); font-size: 1.05rem; box-shadow: var(--shadow-card); }
+/* One box for both toolbar buttons. Filters and Export are the same component
+   and the same size: the shared minimum equals the wider label (Export, which
+   also carries the dropdown caret), so neither pill reads as the smaller one. */
+.screener-toolbar__button { min-width: 161px; min-height: 56px; padding-inline: 24px; border-color: var(--color-line); font-size: 1.05rem; box-shadow: var(--shadow-card); }
 .screener-toolbar__button > svg { width: 22px; height: 22px; }
 .screener-toolbar__button.has-active-filters { border-color: #D6B955; }
 .active-filter-dot { width: 8px; height: 8px; margin-left: -2px; border-radius: 50%; background: #B58A0B; }
@@ -231,7 +234,9 @@
   .screener-search > svg { width: 20px; height: 20px; }
   .screener-toolbar__actions { justify-content: stretch; gap: 10px; }
   .screener-filter-wrap, .screener-filter-wrap > .app-button, .screener-export-control { flex: 1 1 0; }
-  .screener-toolbar__button { min-height: 46px; justify-content: center; padding-inline: 12px; font-size: 0.9rem; }
+  .screener-filter-wrap > .app-button,
+  .screener-export-control .export-menu__app-trigger { width: 100%; }
+  .screener-toolbar__button { min-width: 0; min-height: 46px; justify-content: center; padding-inline: 12px; font-size: 0.9rem; }
   .screener-filter-panel { position: fixed; top: auto; right: 16px; bottom: 20px; left: 16px; width: auto; max-height: min(80vh, 520px); overflow-y: auto; }
   .screener-table-card { padding: 4px 10px 0; border-radius: var(--radius-md); }
   /* Phones drop the rank column (see ScreenerPage), so the eight remaining

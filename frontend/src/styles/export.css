@@ -44,12 +44,28 @@
   opacity: 0.54;
 }
 
+/* Toolbar variant: the trigger *is* the shared AppButton, so it inherits the
+   Filters button's height, padding, radius, type and states instead of
+   re-declaring a look-alike. */
+.export-menu__app-trigger > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.export-menu__app-trigger .export-menu__caret {
+  flex: 0 0 auto;
+  transition: transform 160ms ease;
+}
+
 .export-menu__caret {
   margin-left: 1px;
   transition: transform 160ms ease;
 }
 
-.export-menu__trigger[aria-expanded="true"] .export-menu__caret {
+.export-menu__trigger[aria-expanded="true"] .export-menu__caret,
+.export-menu__app-trigger[aria-expanded="true"] .export-menu__caret {
   transform: rotate(180deg);
 }
 
@@ -57,9 +73,9 @@
   position: fixed;
   z-index: 1200;
   display: grid;
-  gap: 4px;
+  gap: 2px;
   max-width: calc(100vw - 24px);
-  padding: 7px;
+  padding: 5px;
   border: 1px solid var(--color-card-border);
   border-radius: var(--radius-md);
   background: var(--color-surface);
@@ -69,13 +85,13 @@
 .export-menu__option {
   display: grid;
   width: 100%;
-  min-height: 52px;
-  grid-template-columns: 30px minmax(0, 1fr) auto;
+  min-height: 42px;
+  grid-template-columns: 24px minmax(0, 1fr);
   align-items: center;
   gap: 9px;
-  padding: 7px 9px;
+  padding: 6px 8px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 9px;
   background: transparent;
   color: var(--color-ink);
   cursor: pointer;
@@ -95,11 +111,11 @@
 
 .export-menu__format-icon {
   display: inline-flex;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: 7px;
 }
 
 .export-menu__format-icon--excel {
@@ -118,21 +134,7 @@
 
 .export-menu__option-copy strong {
   display: block;
-  overflow: hidden;
-  font-size: 0.83rem;
-  font-weight: var(--font-weight-bold);
-  line-height: 1.25;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.export-menu__recommended {
-  padding: 3px 7px;
-  border: 1px solid #EFDDA9;
-  border-radius: var(--radius-pill);
-  background: var(--color-badge-surface);
-  color: var(--color-badge-text);
-  font-size: 0.61rem;
+  font-size: 0.82rem;
   font-weight: var(--font-weight-bold);
   line-height: 1.2;
   white-space: nowrap;
@@ -155,7 +157,8 @@
   }
 
   .screener-export-control .export-menu,
-  .screener-export-control .export-menu__trigger {
+  .screener-export-control .export-menu__trigger,
+  .screener-export-control .export-menu__app-trigger {
     width: 100%;
   }
 

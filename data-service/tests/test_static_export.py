@@ -30,6 +30,30 @@ def valid_publication(as_of: str | None = None) -> dict:
             ],
         }
 
+    def dataset(universe: str, count: int) -> dict:
+        tickers = [f"T{index}" for index in range(count)]
+        rows = [
+            {"ticker": ticker, "rank": index + 1, "price": 100.0, "score": 1.0, "trend": []}
+            for index, ticker in enumerate(tickers)
+        ]
+        return {
+            "universe": universe,
+            "meta": {
+                "universe": universe,
+                "targetHoldings": count,
+                "selectedCount": count,
+                "status": "success",
+            },
+            "stockTickers": tickers,
+            "portfolio": portfolio(count),
+            "overview": {
+                "snapshot": {},
+                "topMomentum": rows[:5],
+                "sectorAllocation": [],
+                "performance": {"series": []},
+            },
+        }
+
     return {
         "meta": {
             "generated_at": f"{date}T22:30:00+00:00",
@@ -47,6 +71,10 @@ def valid_publication(as_of: str | None = None) -> dict:
         "portfolios": {
             "top100": portfolio(100),
             "top20": portfolio(20),
+        },
+        "datasets": {
+            "top100": dataset("top100", 100),
+            "top20": dataset("top20", 20),
         },
         "backtest": {
             "top100": backtest,
@@ -119,6 +147,31 @@ class StaticExportValidationTests(unittest.TestCase):
                 min_stock_ratio=0.95,
             )
             self.assertIn("1 stock detail files are missing", " ".join(errors))
+
+    def test_dataset_must_match_its_own_portfolio(self) -> None:
+        payload = valid_publication()
+        payload["datasets"]["top20"]["stockTickers"] = payload["datasets"]["top20"]["stockTickers"][:10]
+        errors = export_static.validate_publication(
+            payload,
+            max_as_of_age_days=10,
+            min_stock_ratio=0.95,
+        )
+        text = " ".join(errors)
+        self.assertIn("top20 dataset lists 10 stocks, expected 20", text)
+        self.assertIn("top20 dataset stocks do not match its portfolio holdings", text)
+
+    def test_missing_dataset_is_rejected(self) -> None:
+        payload = valid_publication()
+        payload["datasets"].pop("top100")
+        payload["datasets"]["top20"]["overview"]["performance"] = {}
+        errors = export_static.validate_publication(
+            payload,
+            max_as_of_age_days=10,
+            min_stock_ratio=0.95,
+        )
+        text = " ".join(errors)
+        self.assertIn("top100 dataset is missing", text)
+        self.assertIn("top20 dataset has no performance series", text)
 
 
 if __name__ == "__main__":

@@ -10,10 +10,12 @@ export function AppButton({
   className = "",
   ariaLabel,
   disabled = false,
+  buttonRef,
   ...buttonProps
 }) {
   return (
     <button
+      ref={buttonRef}
       className={`app-button app-button--${variant}${iconOnly ? " app-button--icon-only" : ""} ${className}`.trim()}
       type={type}
       onClick={onClick}

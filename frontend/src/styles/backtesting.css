@@ -281,23 +281,6 @@
   gap: var(--backtest-section-gap);
   transition: opacity 160ms ease;
 }
-.backtest-results-outdated {
-  display: flex;
-  min-height: 42px;
-  align-items: center;
-  gap: 9px;
-  padding: 9px 14px;
-  border: 1px solid #E8D7A8;
-  border-radius: 14px;
-  background: #FFF9E8;
-  color: var(--color-ink);
-  font-size: 0.78rem;
-  font-weight: 700;
-}
-.backtest-results-outdated svg {
-  flex: 0 0 auto;
-  color: var(--color-warning);
-}
 .backtest-results[data-loading] {
   opacity: 0.42;
   pointer-events: none;
@@ -384,13 +367,13 @@
 .backtest-chart-tooltip {
   display: grid;
   box-sizing: border-box;
-  width: 338px;
-  min-height: 148px;
+  width: 272px;
+  min-height: 116px;
   align-content: center;
-  gap: 10px;
-  padding: 17px 19px;
+  gap: 8px;
+  padding: 14px 16px;
   border: 1px solid rgb(52 43 32 / 7%);
-  border-radius: 20px;
+  border-radius: 18px;
   background: rgb(255 255 254 / 98%);
   box-shadow: var(--shadow-float);
   color: var(--color-ink);
@@ -405,11 +388,15 @@
   line-height: 1.3;
   text-transform: uppercase;
 }
+/* Three columns after the series dot: name, portfolio value, return. The name
+   column is fixed so the money column starts at the same x on every row instead
+   of drifting with the label length; the remaining slack sits between the value
+   and the right-aligned percentage. */
 .backtest-chart-tooltip__row {
   display: grid;
-  grid-template-columns: 9px minmax(62px, 1fr) minmax(78px, auto) minmax(66px, auto);
+  grid-template-columns: 9px 64px max-content minmax(52px, 1fr);
   align-items: center;
-  gap: 10px;
+  column-gap: 10px;
   font-size: 0.78rem;
   font-weight: 750;
   line-height: 1.35;
@@ -434,7 +421,7 @@
 }
 .backtest-chart-tooltip__portfolio { text-align: right; }
 .backtest-chart-tooltip__return {
-  min-width: 66px;
+  min-width: 52px;
   text-align: right;
 }
 .backtest-chart-tooltip .is-positive { color: #078C47; }
@@ -1019,11 +1006,11 @@
   .backtest-range-control button { min-width: 36px; min-height: 29px; padding-inline: 8px; }
   .backtest-chart-frame { height: 292px; min-height: 292px; flex-basis: 292px; }
   .backtest-axis-label { font-size: 10px; }
-  .backtest-chart-tooltip { width: 196px; min-height: 126px; gap: 7px; padding: 10px 7px; }
+  .backtest-chart-tooltip { width: 208px; min-height: 110px; gap: 6px; padding: 10px 9px; }
   .backtest-chart-tooltip__date { font-size: 0.58rem; }
   .backtest-chart-tooltip__row {
-    grid-template-columns: 5px minmax(0, 1fr) max-content max-content;
-    gap: 2px;
+    grid-template-columns: 5px 40px max-content minmax(0, 1fr);
+    column-gap: 6px;
     font-size: 0.55rem;
   }
   .backtest-chart-tooltip__row i { width: 5px; height: 5px; }

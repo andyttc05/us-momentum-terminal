@@ -65,7 +65,11 @@ PERFORMANCE_PERIODS = ("1Y", "3Y", "5Y", "All")
 SERIES_COLORS = {"strategy": "#FFC83D", "spy": "#69A5F5", "spmo": "#AA8BF2"}
 SUPPORTED_EXCHANGES = {"NYSE", "NASDAQ", "NYSE American"}
 UNIVERSE_VERSION = "2026-11-12-live200-v2"
-PUBLICATION_VERSION = "2026-11-14-shared-universe-v9"
+PUBLICATION_VERSION = "2026-11-14-universe-datasets-v10"
+# The two published universes. Every page reads one of these datasets; there is
+# no third "20%" variant and no page-local selection.
+DATASET_UNIVERSES = ("top100", "top20")
+DATASET_TARGET_HOLDINGS = {"top100": 100, "top20": 20}
 
 
 def publication_is_current(payload: dict | None) -> bool:
@@ -830,6 +834,115 @@ def _backtest_block(backtest: dict) -> dict:
 # Publication                                                                  #
 # --------------------------------------------------------------------------- #
 
+def _dataset_meta(
+    *,
+    universe: str,
+    as_of: str,
+    generated_at: str,
+    portfolio: dict,
+    backtest: dict,
+) -> dict:
+    """Provenance for one dataset, so a page can never pass stale data off as current."""
+    target = DATASET_TARGET_HOLDINGS[universe]
+    holdings = portfolio.get("holdings") or []
+    portfolio_ready = bool(portfolio.get("available")) and len(holdings) == target
+    backtest_ready = bool(backtest.get("available"))
+    if portfolio_ready and backtest_ready:
+        status = "success"
+    elif portfolio_ready:
+        status = "partial"
+    else:
+        status = "unavailable"
+    return {
+        "universe": universe,
+        "targetHoldings": target,
+        "selectedCount": len(holdings),
+        "calculationDate": as_of,
+        "dataTimestamp": generated_at,
+        "runId": f"{universe}@{as_of}#{generated_at}",
+        "status": status,
+        "portfolioStatus": "ready" if portfolio_ready else str(portfolio.get("status") or "unavailable"),
+        "backtestStatus": "success" if backtest_ready else "unavailable",
+    }
+
+
+def _momentum_row(row: dict) -> dict:
+    """One Top Momentum row from a ranked stock row (tolerant of partial rows)."""
+    price = row.get("price")
+    score = row.get("score")
+    return {
+        "rank": row.get("rank"),
+        "ticker": row.get("ticker"),
+        "price": f"${price:.2f}" if isinstance(price, (int, float)) else "—",
+        "score": f"{score:.2f}" if isinstance(score, (int, float)) else "—",
+        "trend": row.get("trend") or [],
+    }
+
+
+def build_universe_datasets(payload: dict, performances: dict[str, dict] | None = None) -> dict:
+    """Split the publication into one self-contained dataset per universe.
+
+    Overview, Screener and Portfolio all read a single dataset, so a Top 20
+    view can never borrow a Top 100 ranking row, sector weight or chart. The
+    stock rows come from the portfolio's own selection: the screener list, the
+    holdings table and the exports therefore describe exactly the same names.
+    """
+    performances = performances or {}
+    stocks = payload.get("stocks") or []
+    portfolios = payload.get("portfolios") or {}
+    backtests = payload.get("backtest") or {}
+    meta = payload.get("meta") or {}
+    as_of = str(meta.get("as_of") or "")
+    generated_at = str(meta.get("generated_at") or "")
+    scanned_count = (payload.get("universe") or {}).get("scanned") or 0
+    eligible_count = len(stocks)
+
+    datasets: dict[str, dict] = {}
+    for universe in DATASET_UNIVERSES:
+        target = DATASET_TARGET_HOLDINGS[universe]
+        portfolio = portfolios.get(universe) or {"available": False, "holdings": []}
+        backtest = backtests.get(universe) or {"available": False}
+        selected = {
+            holding.get("ticker")
+            for holding in portfolio.get("holdings") or []
+            if holding.get("ticker")
+        }
+        if selected:
+            rows = [row for row in stocks if row.get("ticker") in selected]
+        else:
+            rows = stocks[:target]
+        portfolio_summary = portfolio.get("summary") or {}
+        portfolio_count = portfolio_summary.get("totalHoldings") or len(portfolio.get("holdings") or [])
+        datasets[universe] = {
+            "universe": universe,
+            "meta": _dataset_meta(
+                universe=universe,
+                as_of=as_of,
+                generated_at=generated_at,
+                portfolio=portfolio,
+                backtest=backtest,
+            ),
+            # The selection is published by ticker, in rank order. The ranked
+            # rows themselves live once in ``stocks``: a second copy could drift
+            # from the Screener table it is supposed to describe.
+            "stockTickers": [row["ticker"] for row in rows],
+            "portfolio": portfolio,
+            "overview": {
+                "snapshot": {
+                    "asOfDate": _label_date(as_of) if as_of else "",
+                    "asOf": as_of,
+                    "scannedStocks": f"{scanned_count:,}",
+                    "eligibleStocks": f"{eligible_count:,}",
+                    "portfolioStocks": f"{portfolio_count:,}" if portfolio_count else "—",
+                },
+                "topMomentum": [_momentum_row(row) for row in rows[:5]],
+                "sectorAllocation": _sector_allocation(portfolio),
+                "performance": performances.get(universe, {}),
+            },
+        }
+    return datasets
+
+
 def build_publication(force: bool = False, progress=None) -> dict:
     """Assemble the full dashboard payload (cached on disk)."""
     ttl = 0 if force else settings.ttl_snapshot
@@ -1089,6 +1202,8 @@ def build_publication(force: bool = False, progress=None) -> dict:
                 "history_years": settings.history_years,
                 "universe_version": UNIVERSE_VERSION,
                 "publication_version": PUBLICATION_VERSION,
+                "dataset_universes": list(DATASET_UNIVERSES),
+                "default_dataset_universe": DATASET_UNIVERSES[0],
                 "cache_state": cache_state,
                 "refresh_in_progress": False,
                 "scan_duration_seconds": round(time.perf_counter() - build_started, 1),
@@ -1123,31 +1238,7 @@ def build_publication(force: bool = False, progress=None) -> dict:
                 },
             },
             "stocks": stocks,
-            "overview": {
-                "snapshot": {
-                    "asOfDate": _label_date(as_of),
-                    "asOf": as_of,
-                    "scannedStocks": f"{scanned_count:,}",
-                    "eligibleStocks": f"{len(stocks):,}",
-                    "portfolioStocks": (
-                        f"{portfolio.get('summary', {}).get('totalHoldings', 0):,}"
-                        if portfolio.get("available")
-                        else "—"
-                    ),
-                },
-                "topMomentum": [
-                    {
-                        "rank": row["rank"],
-                        "ticker": row["ticker"],
-                        "price": f"${row['price']:.2f}",
-                        "score": f"{row['score']:.2f}",
-                        "trend": row["trend"],
-                    }
-                    for row in stocks[:5]
-                ],
-                "sectorAllocation": _sector_allocation(portfolio),
-                "performance": _performance_payload(top100),
-            },
+            "overview": {},
             "portfolio": portfolio,
             "portfolios": portfolios,
             "backtest": {
@@ -1167,6 +1258,18 @@ def build_publication(force: bool = False, progress=None) -> dict:
                 "configured_keys": settings.keys_present(),
             },
         }
+
+        # One dataset per universe, then the legacy top-level sections mirror the
+        # Top 100 dataset so older cached clients stay self-consistent.
+        datasets = build_universe_datasets(
+            payload,
+            performances={
+                "top100": _performance_payload(top100),
+                "top20": _performance_payload(top20),
+            },
+        )
+        payload["datasets"] = datasets
+        payload["overview"] = datasets["top100"]["overview"]
 
         cache.write("publication", "snapshot", payload)
         return payload

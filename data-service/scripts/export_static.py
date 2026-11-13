@@ -111,6 +111,28 @@ def validate_publication(
             errors.append(f"{key} backtest is unavailable")
         elif not backtest.get("dates") or not backtest.get("strategy"):
             errors.append(f"{key} backtest has no published series")
+    datasets = payload.get("datasets") or {}
+    for universe, expected_count in (("top100", 100), ("top20", 20)):
+        dataset = datasets.get(universe) or {}
+        if not dataset:
+            errors.append(f"{universe} dataset is missing")
+            continue
+        if (dataset.get("meta") or {}).get("universe") != universe:
+            errors.append(f"{universe} dataset does not describe its own universe")
+        rows = dataset.get("stockTickers") or []
+        holdings = (dataset.get("portfolio") or {}).get("holdings") or []
+        if len(rows) != expected_count:
+            errors.append(f"{universe} dataset lists {len(rows)} stocks, expected {expected_count}")
+        if len(holdings) != expected_count:
+            errors.append(
+                f"{universe} dataset portfolio has {len(holdings)} holdings, expected {expected_count}"
+            )
+        row_tickers = set(rows)
+        holding_tickers = {holding.get("ticker") for holding in holdings}
+        if row_tickers and holding_tickers and row_tickers != holding_tickers:
+            errors.append(f"{universe} dataset stocks do not match its portfolio holdings")
+        if not (dataset.get("overview") or {}).get("performance"):
+            errors.append(f"{universe} dataset has no performance series")
     if require_schedules:
         schedules = payload.get("backtestSchedules") or {}
         for portfolio in ("top100", "top20"):

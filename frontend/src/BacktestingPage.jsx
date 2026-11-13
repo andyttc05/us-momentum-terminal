@@ -10,7 +10,6 @@ import {
   SlidersHorizontal,
   Stack,
   TrendUp,
-  WarningCircle,
 } from "@phosphor-icons/react";
 import { AppButton } from "./components/AppButton.jsx";
 import { ChartState, DataState, Skeleton, TableSkeletonRows, TableStateRow } from "./components/DataState.jsx";
@@ -74,7 +73,7 @@ const SERIES = [
   { id: "spmo", name: "SPMO", color: "#AA8BF2" },
 ];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const CHART_TOOLTIP = { width: 338, height: 148 };
+const CHART_TOOLTIP = { width: 272, height: 116 };
 const PERIOD_TOOLTIP = { width: 196, height: 82 };
 
 const DEFAULT_CONFIG = {
@@ -357,12 +356,17 @@ function CumulativeChart({ window, range, logScale, seriesValues, onLogUnavailab
   const labelBoundary = left + plotWidth + (compact ? 9 : 14);
   const tooltipGap = compact ? 14 : CHART_TOOLTIP_GAP;
   const tooltipMargin = compact ? 8 : CHART_TOOLTIP_MARGIN;
-  const tooltipWidth = fitTooltipWidth({
-    containerWidth: width,
-    preferredWidth: compact ? 260 : CHART_TOOLTIP.width,
-    gap: tooltipGap,
-    margin: tooltipMargin,
-  });
+  const tooltipWidth = compact
+    // A phone chart is narrower than two tooltip widths, so the card keeps a
+    // readable width and is nudged vertically away from the crosshair instead
+    // of being squeezed until the columns collide.
+    ? Math.min(208, width - tooltipMargin * 2)
+    : fitTooltipWidth({
+      containerWidth: width,
+      preferredWidth: CHART_TOOLTIP.width,
+      gap: tooltipGap,
+      margin: tooltipMargin,
+    });
   const placement = selectedPoint
     ? placePriceTooltip({
       anchorX: selectedPoint.x,
@@ -377,6 +381,23 @@ function CumulativeChart({ window, range, logScale, seriesValues, onLogUnavailab
       margin: tooltipMargin,
     })
     : null;
+  const tooltipHeight = tooltipSize?.height ?? CHART_TOOLTIP.height;
+  const coversCrosshair = Boolean(
+    compact
+    && placement
+    && selectedPoint
+    && placement.x <= selectedPoint.x
+    && placement.x + (tooltipSize?.width ?? tooltipWidth) >= selectedPoint.x,
+  );
+  // Keep the vertical crosshair visible: on a phone the card is wider than one
+  // side of the plot, so it sits above or below the hovered point instead.
+  const tooltipTop = !placement
+    ? null
+    : !coversCrosshair
+      ? placement.y
+      : selectedPoint.y > top + plotHeight / 2
+        ? Math.max(tooltipMargin, selectedPoint.y - tooltipHeight - 16)
+        : Math.min(height - tooltipHeight - tooltipMargin, selectedPoint.y + 16);
 
   function selectAt(clientX) {
     const rect = boxRef.current?.getBoundingClientRect();
@@ -487,7 +508,7 @@ function CumulativeChart({ window, range, logScale, seriesValues, onLogUnavailab
         <div
           className="backtest-floating-tooltip"
           ref={tooltipRef}
-          style={{ left: placement.x, top: placement.y }}
+          style={{ left: placement.x, top: tooltipTop }}
           data-testid="backtest-cumulative-tooltip"
         >
           <CumulativeTooltip
@@ -920,7 +941,7 @@ function AdvancedSettings({ open, onToggle, draft, updateDraft, amountErrors }) 
 
 export function BacktestingPage({ hidden = false }) {
   const { data, refresh, status, error, refreshing, runBacktest: executeBacktest } = useMarket();
-  const { universe, selectUniverse } = useUniverse();
+  const { universe, selectUniverse, activeUniverse, activateUniverse } = useUniverse();
   const [draft, setDraft] = useState(DEFAULT_CONFIG);
   const [submittedConfig, setSubmittedConfig] = useState(null);
   const [customRun, setCustomRun] = useState(null);
@@ -960,15 +981,17 @@ export function BacktestingPage({ hidden = false }) {
       startDate: current.startDate || draftBlock.start,
       endDate: current.endDate || draftBlock.end,
     }));
+    // Start from the dataset the other pages are showing, so the first render
+    // cannot present one universe's results beside another universe's data.
     setSubmittedConfig((current) => current ?? {
       ...DEFAULT_CONFIG,
-      portfolio: universe,
+      portfolio: activeUniverse,
       startDate: draftBlock.start,
       endDate: draftBlock.end,
       initialCapital: Number(DEFAULT_CONFIG.initialCapital),
       contributionAmount: Number(DEFAULT_CONFIG.contributionAmount),
     });
-  }, [draftBlock?.available, draftBlock?.start, draftBlock?.end, universe]);
+  }, [draftBlock?.available, draftBlock?.start, draftBlock?.end, activeUniverse]);
 
   useEffect(() => () => {
     window.clearTimeout(notificationTimer.current);
@@ -1171,8 +1194,8 @@ export function BacktestingPage({ hidden = false }) {
     : "";
   const outdatedMessage = resultsOutdated
     ? universe !== submittedConfig.portfolio
-      ? `Displayed results use ${universeLabel(submittedConfig.portfolio)}. Rerun Backtesting for ${universeLabel(universe)}.`
-      : `Displayed results use ${rebalanceLabel(submittedConfig.rebalanceFrequency)}. Rerun Backtesting for ${rebalanceLabel(draft.rebalanceFrequency)}.`
+      ? `Backtest results use ${universeLabel(submittedConfig.portfolio)}. Run Backtest to apply ${universeLabel(universe)}.`
+      : `Backtest results use ${rebalanceLabel(submittedConfig.rebalanceFrequency)}. Run Backtest to apply ${rebalanceLabel(draft.rebalanceFrequency)}.`
     : "";
   const displayNotification = notification ?? (
     resultsOutdated && dismissedOutdatedKey !== outdatedKey
@@ -1221,6 +1244,8 @@ export function BacktestingPage({ hidden = false }) {
       const key = backtestRunKey(normalizedDraft);
       setCustomRun({ key, block });
       setSubmittedConfig(normalizedDraft);
+      // A completed run defines the dataset every other page displays.
+      activateUniverse(normalizedDraft.portfolio);
       showNotification("Backtest completed", "updated", 3200, "backtest-complete");
     } catch (requestError) {
       if (runSequence.current !== sequence) return;
@@ -1259,17 +1284,16 @@ export function BacktestingPage({ hidden = false }) {
           backtestFilename(submittedConfig, "csv", exportedAt),
           exportData.csv,
         );
-        showNotification("CSV export downloaded", "updated", 3200, "backtest-export-complete");
       } else {
         await downloadWorkbookFile(
           backtestFilename(submittedConfig, "xlsx", exportedAt),
           exportData.workbookSheets,
         );
-        showNotification("Excel workbook downloaded", "updated", 3200, "backtest-export-complete");
       }
+      showNotification("Export completed", "updated", 3200, "backtest-export-complete");
     } catch (exportError) {
       showNotification(
-        exportError?.message || "The backtest export could not be created.",
+        exportError?.message || "Export failed",
         "error",
         5200,
         "backtest-export-error",
@@ -1383,15 +1407,8 @@ export function BacktestingPage({ hidden = false }) {
           className="backtest-results"
           data-loading={isRunning || undefined}
           data-state={resultsState}
-          data-outdated={resultsOutdated || undefined}
           aria-busy={isRunning || resultsLoading || undefined}
         >
-          {resultsOutdated && (
-            <div className="backtest-results-outdated" role="status">
-              <WarningCircle size={18} weight="fill" aria-hidden="true" />
-              <span>{outdatedMessage}</span>
-            </div>
-          )}
           <section className="backtest-kpis" aria-label="Backtest summary">
             <KpiCard
               loading={resultsLoading}

@@ -26,10 +26,20 @@ Screener controls, table headings and pagination remain available during loading
 constraints remain “Not evaluated” until a valid holdings book exists. Backtesting keeps its KPI,
 chart, drawdown, annual-return and performance-summary structures mounted in every state.
 
-Backtesting's Universe selector writes `top100` or `top20` to the shared `UniverseProvider`. The
-selection is persisted under `umt:universe:v1`, restored on refresh and read by Portfolio, which has
-no selector of its own. Portfolio resolves the matching published book by the selected count, so its
-holdings, KPIs, allocation, constraints and CSV export cannot drift from another universe.
+Screener, Portfolio and Backtesting share one `ExportMenu`. It lists exactly two formats — Excel
+Workbook (.xlsx) and CSV (.csv) — in a compact two-row popover. CSV exports preserve the complete
+result set, not only the visible page. Excel workbooks include the relevant results, settings and
+methodology sheets; the workbook libraries load only when an Excel export is requested. The Screener
+renders its trigger through the same `AppButton` used by Filters, so the two toolbar pills cannot
+drift apart in size or state.
+
+`UniverseProvider` keeps two values apart: the universe selected for the next Backtesting run
+(`umt:universe:v1`) and the active dataset universe (`umt:active-universe:v1`). Overview, Screener and
+Portfolio resolve `datasetForUniverse(data, activeUniverse)` and read the selected tickers, portfolio,
+holding count, sector split, Top Momentum, performance and export rows from that one dataset. A
+successful backtest activates its own universe; the Screener toolbar switch activates a dataset
+app-wide. Editing the Backtesting selector alone never relabels completed results — the mismatch is
+reported through the shared black notification card.
 
 ## Run
 

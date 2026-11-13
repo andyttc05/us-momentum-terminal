@@ -80,6 +80,38 @@ test("the export popover is portalled, viewport-clamped and keyboard dismissible
   assert.match(menu, /CSV \(\.csv\)/);
 });
 
+test("the export menu offers exactly two formats and no promotional extras", () => {
+  const menu = source("../src/components/ExportMenu.jsx");
+  const formats = menu.slice(menu.indexOf("const FORMATS"), menu.indexOf("function menuPosition"));
+  assert.equal((formats.match(/id: "xlsx"|id: "csv"/g) ?? []).length, 2);
+  assert.doesNotMatch(menu, /Recommended/);
+  assert.doesNotMatch(menu, /What's included/i);
+  assert.doesNotMatch(menu, /export-menu__recommended/);
+  assert.doesNotMatch(menu, /re-?runs? the whole scan|Includes every/i);
+
+  const css = source("../src/styles/export.css");
+  assert.doesNotMatch(css, /export-menu__recommended/);
+  // Two compact rows: a single 42px row and a 238px menu keep the label whole.
+  assert.match(css, /\.export-menu__option \{[\s\S]*?min-height: 42px/);
+  assert.match(css, /\.export-menu__option-copy strong \{[\s\S]*?white-space: nowrap/);
+  assert.match(menu, /const MENU_WIDTH = 238;/);
+});
+
+test("the Screener Export trigger is the same shared button as Filters", () => {
+  const screener = source("../src/ScreenerPage.jsx");
+  const menu = source("../src/components/ExportMenu.jsx");
+  const button = source("../src/components/AppButton.jsx");
+
+  assert.match(screener, /triggerVariant="app"/);
+  assert.match(screener, /triggerClassName="screener-toolbar__button"/);
+  assert.match(screener, /<AppButton[\s\S]*?className=\{`screener-toolbar__button/);
+  // The toolbar variant renders through AppButton, so height, padding, radius,
+  // type and hover states cannot drift between the two buttons.
+  assert.match(menu, /<AppButton[\s\S]*?variant="secondary"/);
+  assert.match(menu, /className=\{`export-menu__app-trigger \$\{triggerClassName\}`\.trim\(\)\}/);
+  assert.match(button, /className=\{`app-button app-button--\$\{variant\}/);
+});
+
 test("Backtesting CSV and workbook retain every configured trading date", async () => {
   const { block, data } = backtestExport();
   assert.equal(data.rowCount, block.dates.length);

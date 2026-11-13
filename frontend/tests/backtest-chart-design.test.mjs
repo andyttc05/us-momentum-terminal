@@ -36,3 +36,34 @@ test("final return labels render independently of hover and are reserved from th
   assert.match(page, /rightBoundary: labelBoundary/);
   assert.doesNotMatch(page, /selectedPoint && \([\s\S]{0,120}endLabels\.map/);
 });
+
+test("the cumulative tooltip is a compact three-column card", () => {
+  const css = readFileSync(
+    fileURLToPath(new URL("../src/styles/backtesting.css", import.meta.url)),
+    "utf8",
+  );
+  const tooltip = css.slice(
+    css.indexOf(".backtest-chart-tooltip {"),
+    css.indexOf(".backtest-chart-tooltip--compact"),
+  );
+  assert.match(tooltip, /width: 272px/);
+  assert.match(tooltip, /min-height: 116px/);
+  // dot + fixed name column + auto money column + flexible right-aligned return
+  assert.match(tooltip, /grid-template-columns: 9px 64px max-content minmax\(52px, 1fr\)/);
+  assert.match(tooltip, /column-gap: 10px/);
+  assert.match(tooltip, /\.backtest-chart-tooltip__portfolio \{ text-align: right; \}/);
+  assert.match(tooltip, /\.backtest-chart-tooltip__return \{[\s\S]*?text-align: right/);
+  assert.doesNotMatch(tooltip, /minmax\(78px, auto\)/);
+  assert.match(page, /const CHART_TOOLTIP = \{ width: 272, height: 116 \};/);
+});
+
+test("the tooltip is offset from the crosshair and never covers the end labels", () => {
+  const tooltip = readFileSync(
+    fileURLToPath(new URL("../src/utils/priceTooltip.js", import.meta.url)),
+    "utf8",
+  );
+  assert.match(tooltip, /export const CHART_TOOLTIP_GAP = 24;/);
+  assert.match(tooltip, /export const CHART_TOOLTIP_MARGIN = 12;/);
+  assert.match(page, /const labelBoundary = left \+ plotWidth \+ \(compact \? 9 : 14\);/);
+  assert.match(page, /rightBoundary: labelBoundary/);
+});

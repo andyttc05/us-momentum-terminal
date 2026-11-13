@@ -28,6 +28,7 @@ import { momentumSeriesDomain, momentumSeriesValues } from "./utils/momentumSeri
 import { shouldOpenRow, shouldRouteTickerClick, stockLinkLabel } from "./utils/rowNavigation.js";
 import { buildScreenerExportData, screenerFilename } from "./utils/screenerExport.js";
 import { searchMatch } from "./utils/stockSearch.js";
+import { datasetForUniverse } from "./utils/universeState.js";
 import { stockPath } from "./router.jsx";
 
 const emptyFilters = { sector: "", minPrice: "", maxPrice: "", minMomentum: "", minScore: "" };
@@ -71,18 +72,22 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
   const [isExporting, setIsExporting] = useState(false);
   const filterControlRef = useRef(null);
   const { data, refresh, status, error, refreshing } = useMarket();
-  const { universe, selectUniverse } = useUniverse();
+  const { activeUniverse, activateUniverse } = useUniverse();
   // The rank column is dropped on phones so the ticker can stay pinned at the
   // left edge with no dead space beside it. It is not rendered there at all —
   // hiding the cells with CSS would leave the column's width behind in the
   // fixed table layout — but the rank itself stays on every row's data, in the
   // CSV export and in the desktop table.
   const isPhone = useMediaQuery(PHONE_TABLE_MEDIA_QUERY);
-  const mode = universe;
+  const universe = activeUniverse;
 
-  const stocks = data?.stocks ?? [];
+  // The rows are the active dataset's selection — exactly the names the model
+  // portfolio holds, so the record count, the pagination and the exports all
+  // agree with Overview and Portfolio.
+  const dataset = datasetForUniverse(data, activeUniverse);
+  const stocks = dataset?.stocks ?? [];
   const sectors = useMemo(() => [...new Set(stocks.map((stock) => stock.sector))].sort(), [stocks]);
-  const snapshot = data?.overview?.snapshot;
+  const snapshot = dataset?.overview?.snapshot;
   const tableState = getSectionState({
     hasData: stocks.length > 0,
     status,
@@ -90,6 +95,10 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
     refreshing,
   });
   const columnCount = isPhone ? 8 : 9;
+
+  useEffect(() => {
+    setPage(1);
+  }, [activeUniverse]);
 
   useEffect(() => {
     if (!filtersOpen) return undefined;
@@ -115,8 +124,7 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
 
   const filteredStocks = useMemo(() => {
     const query = search.trim();
-    const source = mode === "top20" ? stocks.slice(0, 20) : stocks.slice(0, 100);
-    return source
+    return stocks
       .map((stock) => ({ stock, searchPriority: searchMatch(stock, query) }))
       .filter((entry) => entry.searchPriority !== null)
       .filter(({ stock }) => !filters.sector || stock.sector === filters.sector)
@@ -144,7 +152,7 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
         return result * (sort.direction === "asc" ? 1 : -1);
       })
       .map(({ stock }) => stock);
-  }, [filters, mode, search, sort, stocks]);
+  }, [filters, search, sort, stocks]);
   // One scale for the whole universe, not for the visible page: narrowing the
   // table must never silently rescale the sparklines, and a row keeps its shape
   // wherever sorting, search and pagination move it.
@@ -164,7 +172,8 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
   }
 
   function selectMode(nextMode) {
-    selectUniverse(nextMode);
+    if (nextMode === activeUniverse) return;
+    activateUniverse(nextMode);
     setPage(1);
   }
 
@@ -208,11 +217,10 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
       const filename = screenerFilename(universe, format);
       if (format === "csv") {
         downloadCsvFile(filename, exportData.csv);
-        showToast("CSV export downloaded");
       } else {
         await downloadWorkbookFile(filename, exportData.workbookSheets);
-        showToast("Excel workbook downloaded");
       }
+      showToast("Export completed");
     } catch {
       showToast("Export failed", "error");
     } finally {
@@ -238,9 +246,9 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
         />
 
         <section className="screener-toolbar" aria-label="Screener controls">
-          <div className="screener-scope" role="group" aria-label="Stock universe">
-            <button type="button" aria-pressed={mode === "top100"} className={mode === "top100" ? "is-selected" : ""} onClick={() => selectMode("top100")}>Top 100</button>
-            <button type="button" aria-pressed={mode === "top20"} className={mode === "top20" ? "is-selected" : ""} onClick={() => selectMode("top20")}>Top 20</button>
+          <div className="screener-scope" role="group" aria-label="Dataset universe">
+            <button type="button" aria-pressed={universe === "top100"} className={universe === "top100" ? "is-selected" : ""} onClick={() => selectMode("top100")}>Top 100</button>
+            <button type="button" aria-pressed={universe === "top20"} className={universe === "top20" ? "is-selected" : ""} onClick={() => selectMode("top20")}>Top 20</button>
           </div>
 
           <label className="screener-search">
@@ -306,6 +314,8 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
                 disabled={!filteredStocks.length}
                 busy={isExporting}
                 ariaLabel="Export current Screener results"
+                triggerVariant="app"
+                triggerClassName="screener-toolbar__button"
               />
             </div>
           </div>

@@ -115,10 +115,33 @@ the publication; monthly, quarterly and annual schedules are loaded from `backte
 user runs them. Date-window slicing and account cashflow calculations happen in the browser from the
 published daily series.
 
-Backtesting's persisted Universe choice selects between the published `portfolios.top100` and
-`portfolios.top20` books. Portfolio resolves all of its KPIs, allocation views, constraints and CSV
-export from that same selected book. Switching Universe marks any previously displayed backtest as
-outdated until the user reruns it.
+Backtesting's persisted Universe choice selects the universe for the *next* run. The publication
+carries one dataset per universe (`datasets.top100`, `datasets.top20`); each dataset holds its own
+selected tickers, model portfolio, Overview block and provenance. A successful backtest promotes its
+universe to the active dataset, which is what Overview, Screener and Portfolio display, so a page can
+never mix a Top 20 holding count with Top 100 momentum rows, sector weights or export rows. Switching
+the selector without rerunning leaves the completed results labelled with the universe that produced
+them and reports the difference through the shared notification card.
+
+## Universe datasets
+
+`build_universe_datasets` derives both datasets from the same verified publication:
+
+| Field | Content |
+| --- | --- |
+| `universe` | `top100` or `top20` |
+| `meta` | Universe, target holdings, selected count, calculation date, data timestamp, run id, portfolio/backtest status |
+| `stockTickers` | The selection in rank order (the ranked rows live once in `stocks`) |
+| `portfolio` | That universe's model portfolio — holdings, sectors, summary, constraints |
+| `overview` | Snapshot counts, Top Momentum, sector allocation and performance for that universe |
+
+Stock rows are resolved from the portfolio's own selection rather than sliced from the top of the
+ranking, so the Screener record count, its pagination, the holdings table and every export describe the
+same names. The legacy top-level `overview` mirrors the Top 100 dataset for older cached clients.
+
+Validation rejects an export when a dataset is missing, lists a different number of stocks than its
+target, disagrees with its own portfolio holdings, or has no performance series.
+
 
 The workflow uses the official `actions/configure-pages`, `actions/upload-pages-artifact` and
 `actions/deploy-pages` actions with OIDC permissions.

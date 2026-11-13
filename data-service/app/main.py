@@ -179,6 +179,7 @@ def _loading_payload(error: str | None = None) -> dict:
             "sectorAllocation": [],
             "performance": {},
         },
+        "datasets": {},
         "portfolio": {
             "available": False,
             "holdings": [],

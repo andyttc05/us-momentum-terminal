@@ -40,8 +40,8 @@ import {
 import { getPortfolioState } from "./utils/portfolioState.js";
 import { shouldOpenRow, shouldRouteTickerClick, stockLinkLabel } from "./utils/rowNavigation.js";
 import {
-  holdingCountForUniverse,
-  portfolioForUniverse,
+  datasetForUniverse,
+  targetHoldingsForDataset,
 } from "./utils/universeState.js";
 import { stockPath } from "./router.jsx";
 
@@ -123,19 +123,23 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
   const [toast, setToast] = useState("");
   const [isExporting, setIsExporting] = useState(false);
   const { data, error, meta, refresh, status, refreshing } = useMarket();
-  const { universe } = useUniverse();
+  const { activeUniverse } = useUniverse();
   // Phones drop the rank column so the ticker can pin to the left edge without
   // an empty lane beside it. The rank stays on every holding and in the CSV
   // export; only the phone table stops rendering the cell.
   const isPhone = useMediaQuery(PHONE_TABLE_MEDIA_QUERY);
 
-  const portfolio = portfolioForUniverse(data, universe);
-  const targetHoldings = holdingCountForUniverse(universe);
+  const universe = activeUniverse;
+  // One dataset drives the book, its summary, its sector split and the
+  // constraint targets: nothing here is sized from a fixed 100-holding guess.
+  const dataset = datasetForUniverse(data, activeUniverse);
+  const portfolio = dataset?.portfolio ?? null;
+  const targetHoldings = targetHoldingsForDataset(dataset, activeUniverse);
   const portfolioHoldings = portfolio?.holdings ?? [];
   const portfolioSectors = portfolio?.sectors ?? [];
   const portfolioPreviewValidation = portfolio?.validation ?? { maximumHoldingWeight: 9 };
   const portfolioSummary = portfolio?.summary ?? null;
-  const snapshot = data?.overview?.snapshot;
+  const snapshot = dataset?.overview?.snapshot;
   const portfolioState = getPortfolioState({
     portfolio,
     status,
@@ -225,7 +229,6 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
       const filename = portfolioFilename(universe, format);
       if (format === "csv") {
         downloadCsvFile(filename, buildPortfolioCsv(holdings));
-        showToast("CSV export downloaded");
       } else {
         const exportData = buildPortfolioExportData({
           portfolio,
@@ -234,8 +237,8 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
           exportedAt: new Date().toISOString(),
         });
         await downloadWorkbookFile(filename, exportData.workbookSheets);
-        showToast("Excel workbook downloaded");
       }
+      showToast("Export completed");
     } catch (error) {
       showToast(error?.message || "Export failed", "error", 4200);
     } finally {

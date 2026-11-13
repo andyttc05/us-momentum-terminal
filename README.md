@@ -14,12 +14,13 @@ The application does not execute orders and is not investment advice.
 ## Features
 
 - Overview of market breadth, strategy performance, leading stocks and sector allocation.
-- Searchable Screener with Top 100 and Top 20 views, filters, sorting, pagination and CSV export.
+- Searchable Screener with Top 100 and Top 20 dataset views, filters, sorting, pagination, and CSV or
+  Excel export of the full matching result set.
 - Stock Analysis with price history, momentum metrics and month-end rank history.
 - Model portfolios with 100 or exactly 20 holdings, float-adjusted weights, stock and sector
-  constraints, and CSV export.
+  constraints, and CSV or multi-sheet Excel export.
 - Backtesting with configurable dates, capital, cashflows, dividends, inflation, rebalancing,
-  chart window and log scale.
+  chart window, log scale, and CSV or multi-sheet Excel results.
 - Freshness, browser-cache and fallback states, including a Data & Cache status panel.
 - Responsive desktop, tablet and mobile layouts.
 
@@ -88,6 +89,31 @@ The static exporter:
 If a provider or validation step fails, the previous static publication is retained. The UI shows its
 actual market date, collection timestamp, provider and cache origin. A browser copy is also kept for
 an immediate next visit and for offline-style fallback after a failed request.
+
+### Universe datasets
+
+The publication carries two self-contained datasets, `datasets.top100` and `datasets.top20`. Each one
+holds the universe's selected tickers in rank order, its model portfolio and its own Overview block
+(holding count, Top Momentum, sector allocation and strategy performance). A dataset also carries its
+provenance: universe, target holdings, calculation date, data timestamp, run identifier and success
+status.
+
+The app keeps three states apart:
+
+| State | Storage | Meaning |
+| --- | --- | --- |
+| Selected universe | `umt:universe:v1` | The universe configured for the next Backtest run |
+| Completed backtest universe | component state | The universe of the most recent successful run |
+| Active dataset universe | `umt:active-universe:v1` | The dataset Overview, Screener and Portfolio display |
+
+Editing the Backtesting Universe control changes only the selection: it never relabels results that were
+already computed. A successful run promotes its own universe to the active dataset, so all three
+dependent pages switch together. Choosing a dataset from the Screener toolbar activates it app-wide and
+keeps the selection in step.
+
+Every page reads one dataset, so a Top 20 view can never pair 20 holdings with Top 100 momentum rows,
+sector weights or export rows. Holding counts, target-holding constraints, pagination totals and
+exports all derive from the active dataset.
 
 ### Sources and freshness
 
@@ -209,15 +235,21 @@ Momentum uses adjusted closes and a 12–1 window. Scoring combines risk-adjuste
 cross-sectional Z-score. The model portfolio uses float-adjusted market capitalization multiplied by
 Momentum Score, then applies a 9% stock cap and a 35% sector-group cap.
 
-Backtesting's Universe control is the single selection used by Portfolio. Top 100 and Top 20 mean
-exactly 100 and exactly 20 ranked eligible stocks. The selection persists in browser storage and both
-pages read it from one shared app-level state. Portfolio holdings, KPIs, sector allocation, weight
-distribution, constraint labels and CSV export all resolve from the selected published book.
+Backtesting's Universe control is the selection for the next run; Overview, Screener and Portfolio read
+the active dataset described above. Top 100 and Top 20 mean exactly 100 and exactly 20 ranked eligible
+stocks. The model portfolio is rebuilt from the selected candidate universe for each count, with the
+same raw weight (`float-adjusted market cap × Momentum Score`), the same 9% stock and 35% sector caps
+and the same redistribution solver, so a Top 20 book is never a filtered copy of the Top 100 one.
+
+Temporary state — a universe mismatch, an outdated backtest, a missing price history, an export result —
+is reported through the single black notification card in the bottom-right corner. Important errors
+stay until dismissed and offer Retry. The persistent data-freshness pill in the page header is not a
+notification and is unaffected.
 
 The backtest is a research proxy:
 
 - Top 100 and Top 20 use exact-ranked counts on every signal date;
-- changing Universe marks existing results as outdated until Backtesting is rerun;
+- changing Universe and not rerunning marks existing results as belonging to the other universe;
 - current constituents introduce survivorship and selection bias;
 - historical point-in-time float capitalisation is unavailable;
 - current fundamentals are applied to historical portfolio construction;

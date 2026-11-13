@@ -89,6 +89,27 @@ removed by one request.
 The update pill opens a Data & Cache dialog with the actual collection timestamp, market date,
 provider, coverage and browser-cache time.
 
+The Screener, Portfolio and Backtesting export controls share one `ExportMenu`. It offers exactly two
+formats — `Excel Workbook (.xlsx)` and `CSV (.csv)` — in a compact two-row popover. CSV output includes
+the complete selected result set. Excel output is generated client-side as a real `.xlsx` workbook
+with formatted numeric columns, filters and frozen headers; spreadsheet dependencies are loaded
+lazily only after the user chooses Excel. In the Screener toolbar the trigger is the same `AppButton`
+as the Filters control, so both pills share one height, padding, radius, icon size and hover state.
+
+### Universe and dataset state
+
+`UniverseProvider` keeps two values: the universe selected for the next Backtesting run and the active
+dataset universe. Overview, Screener and Portfolio resolve `datasetForUniverse(data, activeUniverse)`
+and read every value — selected tickers, portfolio, holding count, sector split, Top Momentum,
+performance and export rows — from that single dataset. A successful backtest activates its own
+universe; choosing a dataset from the Screener toolbar activates it app-wide. Editing the Backtesting
+selector alone never relabels completed results.
+
+Temporary state (universe mismatch, outdated results, export outcome, missing history, invalid
+settings) is reported through one black notification card in the bottom-right corner. Pages do not
+render inline warning banners, and a page-level notification suppresses the data-state toast so only
+one card is visible. Errors that block work stay until dismissed and expose Retry.
+
 ## Data sources
 
 Yahoo Finance via `yfinance` is the default provider. It supplies daily OHLCV, adjusted closes,
