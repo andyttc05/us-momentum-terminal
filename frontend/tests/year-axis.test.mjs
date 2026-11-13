@@ -9,6 +9,18 @@ const page = readFileSync(
   "utf8",
 );
 
+/**
+ * Slice out one top-level function so an assertion can target the chart it
+ * names. The cumulative-return chart still uses the legacy collision filter, so
+ * a file-wide match would test the wrong component.
+ */
+function functionSource(source, name) {
+  const start = source.indexOf(`function ${name}`);
+  assert.notEqual(start, -1, `${name} should exist in BacktestingPage.jsx`);
+  const next = source.indexOf("\nfunction ", start + 1);
+  return source.slice(start, next === -1 ? source.length : next);
+}
+
 test("keeps 2019 visible when the backtest starts near the end of 2018", () => {
   const dates = [
     "2018-12-03",
@@ -50,8 +62,28 @@ test("returns no year labels for empty or malformed date input", () => {
   assert.deepEqual(resolveYearLabelPositions(["invalid"], 54, 1100), []);
 });
 
+test("a backtest starting in December keeps 2019 between 2018 and 2020", () => {
+  const labels = resolveYearLabelPositions(
+    ["2018-12-03", "2019-01-02", "2020-01-02", "2021-01-04"],
+    54,
+    1100,
+    48,
+  );
+
+  assert.deepEqual(labels.map(({ year }) => year), ["2018", "2019", "2020", "2021"]);
+  // Only the label glyphs move; the years stay in calendar order.
+  assert.ok(labels[1].x > labels[0].x);
+  assert.ok(labels[1].x - labels[0].x >= 48);
+});
+
 test("the Drawdown chart uses collision-safe labels rather than hiding close year ticks", () => {
-  assert.match(page, /resolveYearLabelPositions\(\s*window\.dates,\s*left,\s*plotWidth,\s*compact \? 64 : 48/);
-  assert.doesNotMatch(page, /yearLabelPositions\(window\.dates[\s\S]{0,220}?\.filter/);
-  assert.match(page, /key=\{year\}\s+x=\{x\}/);
+  const drawdown = functionSource(page, "DrawdownChart");
+
+  assert.match(drawdown, /resolveYearLabelPositions\(\s*window\.dates,\s*left,\s*plotWidth,\s*compact \? 64 : 48/);
+  assert.match(drawdown, /yearPositions\.map\(\(\{ year, x \}\) => \(/);
+  // The legacy collision filter dropped the label instead of moving it.
+  assert.doesNotMatch(drawdown, /item\.x - list\[index - 1\]\.x >=/);
+  assert.doesNotMatch(drawdown, /index === list\.length - 1/);
+  // A bare call would mean the chart fell back to the dropping helper.
+  assert.doesNotMatch(drawdown, /(?<!resolve)yearLabelPositions\(/);
 });
