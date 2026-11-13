@@ -264,6 +264,21 @@ def main() -> int:
         "annual_years": [row["year"] for row in bt["annual"]],
     }
     checks["backtest_top20"] = snapshot["backtest"]["top20"]["metrics"]
+    price_strategy = bt.get("priceStrategy", [])
+    dividend_coverage = bt.get("dividendCoverage") or {}
+    cpi = (snapshot.get("macro") or {}).get("cpi") or {}
+    checks["backtest_return_modes"] = {
+        "price_points": len(price_strategy),
+        "price_dates_match": len(price_strategy) == len(bt["dates"]),
+        "price_benchmarks_present": bool(bt.get("priceSpy")) and bool(bt.get("priceSpmo")),
+        "modes_are_distinct": bool(price_strategy) and price_strategy[-1] != strategy[-1],
+        "dividend_securities_checked": dividend_coverage.get("securities_checked", 0),
+        "dividend_coverage_complete": dividend_coverage.get("incomplete_securities") == 0,
+        "cpi_available": bool(cpi.get("available")),
+        "cpi_observations": len(cpi.get("observations") or []),
+        "cpi_missing_months": cpi.get("missing_months") or [],
+        "cpi_source": cpi.get("source"),
+    }
 
     # 6b. Every backtest chart reconciles with the published NAV series ------ #
     nav = bt["strategy"]
@@ -336,8 +351,15 @@ def main() -> int:
             float(series_by_id["strategy"]["end"].rstrip("%").replace("+", ""))
             - bt["metrics"]["cumulative_return"]
         ) < 0.2,
-        "labels_match_points": all(
-            len(block.get("labels", [])) == block.get("points", 0) for block in performance.values()
+        "dates_match_points": all(
+            len(block.get("dates", [])) == block.get("points", 0) for block in performance.values()
+        ),
+        "month_ticks_are_dated_and_inside_the_window": all(
+            all(
+                tick.get("date", "") and block["dates"][0] <= tick["date"] <= block["dates"][-1]
+                for tick in block.get("ticks", [])
+            )
+            for block in performance.values()
         ),
         "series_match_points": all(
             all(len(item["values"]) == block.get("points", 0) for item in block.get("series", []))
@@ -509,6 +531,11 @@ def main() -> int:
             checks["momentum_chart_consistency"]["all_endpoints_match"],
             checks["momentum_chart_consistency"]["all_bases_are_one_hundred"],
             checks["backtest_chart_reconciliation"]["all_reconcile"],
+            checks["backtest_return_modes"]["price_dates_match"],
+            checks["backtest_return_modes"]["price_benchmarks_present"],
+            checks["backtest_return_modes"]["modes_are_distinct"],
+            checks["backtest_return_modes"]["dividend_coverage_complete"],
+            checks["backtest_return_modes"]["cpi_available"],
             checks["overview_performance"]["strategy_end_matches_backtest"],
             checks["portfolio_charts"]["all_consistent"],
             checks["overview_top_momentum"]["all_consistent"],

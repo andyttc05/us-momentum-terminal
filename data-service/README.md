@@ -110,9 +110,27 @@ adjusted close, holdings are marked daily, and the historical book is equal-weig
 - Slippage: 0.00%.
 - Benchmarks: SPY and SPMO.
 - Sharpe risk-free rate: 0%.
+- Total return: provider adjusted closes, including dividend reinvestment.
+- Cash-dividend return: split-normalized provider closes with dividends retained as cash on the
+  ex-date. Split actions are audited for completeness but are not applied a second time because the
+  provider closes already use the current split basis.
+
+The first dividend convention is used for the adjusted-close path. The second drives the
+dividend-exclusive selector and its matching SPY/SPMO series. The publication includes a
+corporate-action coverage report so the UI can disable an unsupported mode instead of silently
+substituting total return.
 
 The historical core has no point-in-time constituents, delisting-return model, or historical float
 capitalization. The result is an exploratory research proxy.
+
+## CPI
+
+Inflation adjustment uses the official monthly CPI-U All Items series (`CPIAUCNS`) distributed by
+FRED. Observations are validated as dates and positive numbers, cached atomically for seven days,
+and retained as a stale fallback if FRED is unavailable. A conservative publication timestamp of the
+15th day in the following month prevents daily portfolio values from using a CPI print before it was
+available. Missing months remain visible in the coverage metadata and use the latest previously
+available observation rather than interpolation.
 
 ## Providers and Cache
 
@@ -130,6 +148,7 @@ Caches are atomic JSON files under `data-service/cache/`. Default TTLs:
 | Bars while market closed | 6 hours |
 | Quote metadata | 24 hours |
 | Publication and stock detail | 15 minutes |
+| CPI-U (`CPIAUCNS`) | 7 days, with stale fallback |
 
 The service returns a verified seed or cached publication while a background refresh runs, or a
 warming/error payload when no verified snapshot exists.

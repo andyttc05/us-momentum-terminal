@@ -1,72 +1,90 @@
-# Direction-Aware Price Tooltip — Design QA
+# Backtesting and Chart Interactions — Design QA
 
 **Final result: passed**
 
-## Comparison target
+## Comparison targets
 
-- Source visual: `/Users/andyttc/Downloads/US Momentum Terminal Tooltip View.png`
-- Source pixels: `1559 × 1009`; browser chrome removed at `y=132`, leaving a `1559 × 877` app viewport.
-- Desktop implementation: `/Users/andyttc/Developer/US_Momentum_Terminal/qa-output/tooltip-desktop-matched.png`
-- Desktop implementation pixels: `1559 × 877`, CSS viewport `1559 × 877`, device scale factor `1`.
-- Mobile implementation: `/Users/andyttc/Developer/US_Momentum_Terminal/qa-output/tooltip-mobile-final.png`
-- Mobile implementation pixels: `390 × 844`, CSS viewport `390 × 844`, device scale factor `1`.
-- State: Stock Analysis, MPC, `12M`, selected observation and visible tooltip/readout.
+- Cumulative-return source: `/Users/andyttc/Downloads/Unknown-6.png`, `1920 × 819`.
+- Performance-summary source: `/Users/andyttc/Downloads/Unknown-7.png`, `2172 × 724`.
+- Desktop implementation: `/Users/andyttc/Developer/US_Momentum_Terminal/qa-output/backtesting-final-desktop-top.jpg` and `qa-output/backtesting-final-desktop-lower2.jpg`, `1440 × 1009`, density `1`.
+- Mobile implementation: `/Users/andyttc/Developer/US_Momentum_Terminal/qa-output/backtesting-final-mobile-top.jpg`, `qa-output/backtesting-final-mobile-chart.jpg`, and `qa-output/backtesting-final-mobile-bottom.jpg`, `390 × 844`, density `1`.
+- State: defaults with Top 100, full available history, `$10,000` initial capital, `$1,000` monthly contributions, total-return mode, nominal prices, Include YTD on, Linear scale, and Advanced Settings collapsed. Additional expanded, focus, hover, CPI, dividend and responsive states were exercised.
 
-The reference and implementation use live observations from different market-data snapshots, so dates and plotted prices are not expected to be numerically identical. Tooltip structure, placement language, chart treatment and surrounding design system are the fidelity target.
+## Combined comparison evidence
 
-## Comparison evidence
+- Cumulative card comparison: `qa-output/backtesting-comparison-cumulative-v7.jpg` places the supplied reference above the rendered chart at a shared `1200px` width.
+- Performance Summary comparison: `qa-output/backtesting-comparison-summary-v7.jpg` places the supplied reference above the rendered summary at a shared `1200px` width.
+- Tooltip evidence: `qa-output/backtesting-v7-tooltip-left.jpg`, `backtesting-v7-tooltip-center.jpg`, and `backtesting-v7-tooltip-right.jpg`.
+- Settings and focus evidence: `qa-output/backtesting-v7-advanced.jpg`, `backtesting-v7-info-tooltip.jpg`, and `backtesting-final-money-focus.jpg`.
+- Cross-page chart evidence: `qa-output/overview-performance-tooltip-v7.jpg`, `overview-performance-tooltip-mobile-v7.jpg`, and `stock-ranking-tooltip-v7.jpg`.
 
-- Full-view comparison: `/Users/andyttc/Developer/US_Momentum_Terminal/qa-output/design-comparison-full.png`
-- Focused chart comparison: `/Users/andyttc/Developer/US_Momentum_Terminal/qa-output/design-comparison-chart.png`
-- Focus crop: `820 × 520` from each app viewport, normalized to `780 × 494` per side.
-
-The source and implementation were opened together in the combined comparison images before judging the result. Full-view inspection confirmed that the tooltip belongs only to the main price chart and that the surrounding page composition remains intact. Focused inspection confirmed tooltip hierarchy, card shape, marker, crosshair and percentage treatment.
+The source and implementation are shown in the same comparison image before judging fidelity. Their displayed portfolio values are not expected to match because the reference values are illustrative while the implementation is bound to the live publication.
 
 ## Findings
 
-No actionable P0, P1 or P2 findings.
+No actionable P0, P1 or P2 findings remain.
 
-The tooltip contains exactly the three requested content items. Its white surface, soft shadow, compact radius, date hierarchy, prominent price and positive/negative percentage chips match the source design language. The selected marker is yellow with a light centre, and the dashed crosshair sits on the nearest actual plotted observation.
-
-## Required fidelity surfaces
-
-- Fonts and typography: Nunito Sans is preserved. The tooltip uses the existing black weight for the price, muted uppercase date text and a smaller black-weight percentage. No fallback-font or hierarchy drift was visible.
-- Spacing and layout rhythm: The tooltip is `176 × 112` CSS px with a `14px` pointer gap and `8px` chart margin. The source is approximately `174 × 119`; the implementation is intentionally slightly more compact per the brief. No clipping or overflow was observed.
-- Colors and visual tokens: The tooltip uses the existing surface, ink, muted text, soft positive and negative backgrounds, and yellow accent. Positive text resolves to `#078C47`; negative text resolves to `#D74B5B`.
-- Image quality and assets: No new raster or decorative imagery was needed. Existing mascot assets and chart rendering are unchanged; the tooltip uses none of the prohibited placeholder-art techniques.
-- Copy and content: Exactly three values render: date, price and daily percentage. No OHLC, volume, dollar change or “Daily Change” label is present.
+- Fonts and typography: Nunito Sans, weight hierarchy, card-title scale and tabular numerals are preserved. The reference's larger presentation scale was matched by increasing the cumulative chart and summary-card proportions rather than altering type families.
+- Spacing and layout rhythm: Advanced Settings is one continuous card with enclosed warm-neutral mini-cards. Its expansion leaves Start Date, End Date, Universe and Run Backtest at identical x/y coordinates and dimensions.
+- Colors and visual tokens: The cumulative chart preserves yellow Strategy, blue SPY and purple SPMO. Annual Return now uses subtle matching column tints while positive/negative values remain green/red. Monetary focus uses the shared restrained pastel-yellow border, with no blue browser glow or added halo.
+- Image quality and assets: Existing mascot assets and Phosphor icons are reused. No placeholder imagery or decorative approximation was introduced. SVG content is limited to data visualization.
+- Copy and content: Log Scale, chart dates and percentages, CPI/dividend methodology text, partial-year/YTD labels, real/nominal SPY comparison wording and concise information tooltips are explicit.
 
 ## Interaction verification
 
-- Continuous left-to-right movement placed the tooltip to the left of the selected point.
-- Continuous right-to-left movement placed it to the right.
-- The `4px` movement dead zone is covered by unit tests; small reversals do not switch sides until the accumulated movement crosses the threshold.
-- At the left boundary the preferred side flipped right. At the right boundary it flipped left.
-- Measured results: in a `617.72 × 293.63` chart, the left-boundary tooltip occupied `x=322.99–498.99, y=487.27–599.27`; the right-boundary tooltip occupied `x=557.04–733.04, y=333.24–445.24`. Both stayed completely within the chart container.
-- The crosshair `x1` and highlighted marker `cx` matched exactly (`81.96` and `520` in the two boundary checks).
-- The tooltip retained its position after movement stopped and disappeared with the crosshair and marker after leaving the chart.
-- Positive and negative states were both exercised against actual observations; the negative sample rendered `DEC 12, 2025 / $183.64 / −0.72%` with the negative style.
-- Tooltip layers resolve to `pointer-events: none`, so they do not intercept chart movement.
-- Range switching clears selection. The tooltip then selects and displays observations from the newly visible range.
-- At `390px`, the fixed mobile readout updates between tapped observations and does not follow the pointer.
-- Browser console error log was empty after the interaction pass.
+- Linear is the default. Log Scale transforms the wealth index `1 + cumulative return`, keeps axis labels as actual cumulative percentages, and does not rerun the backtest.
+- Cumulative hover uses a real observation, a vertical crosshair and highlighted points for all three series. Left, centre and right positions kept the tooltip and all three final-value pills inside the chart card.
+- Tooltip placement follows pointer direction and flips at boundaries. Touching or clicking the mobile chart selects an observation.
+- Final-value pills remain visible while hovering on desktop and are also retained in the compact mobile chart gutter.
+- Advanced Settings default-collapsed and expands downward. Pre/post measurements for Start Date, End Date, Universe and Run Backtest were identical.
+- Cashflows reveal Contribution Amount and Frequency only when enabled. Monthly, quarterly and annual timing remain available.
+- Information buttons open black tooltips on hover/click/focus, do not shift layout, and close when tapping outside. Desktop and mobile viewport containment passed.
+- Performance chart hover exposes the actual date and Strategy, SPY and SPMO returns with crosshair and highlighted points.
+- Ranking History hover exposes the actual date, rank and Momentum Score with crosshair and both selected points. Left rank and right score axes remain separately labelled.
+- Annual Return headers are sticky, the scroll region uses `overflow-y: auto` with a thin scrollbar, and highlights remain attached to their data columns. The nine current rows fit without a redundant scrollbar.
+- Transient feedback uses the shared black notification card. On mobile it sits above the bottom navigation; the persistent freshness indicator remains visible below the page subtitle.
+- Document overflow was `0px` at `375`, `390`, `430`, `768`, `1100` and `1440` CSS pixels.
+- Browser console errors after the final interaction pass: none.
+
+## Data verification
+
+- Corporate-action coverage: `108` securities checked, `108` verified, `0` incomplete; source `yahoo`.
+- The published total-return strategy ends at `464.57` wealth units; the dividend-cash path ends at `463.35`. SPY is `334.45` versus `309.13`, and SPMO is `431.95` versus `404.50`, confirming that benchmark conventions respond to the toggle.
+- All four Reinvest Dividends / Inflation Adjusted combinations were run in the browser. KPIs, Profit/Loss, final value, Total Contributions, TWR, XIRR, relative SPY performance and Annual Return updated. Each toggle retained its independent state.
+- CPI source is official CPI-U All Items (`CPIAUCNS`, BLS via FRED). The live payload contains `117` observations from `2017-01-01` through `2026-10-01`; the source's missing `2025-10` value is reported rather than interpolated.
+- CPI observations become available on the 15th of the following month. A November 12 valuation therefore uses the latest previously published observation rather than the October print before its availability date.
+- Real mode deflates the starting capital, historical contributions and terminal value with the same aligned CPI series before TWR/XIRR and summary reporting.
+
+## Tests and checks
+
+- Python quantitative suite: `51` tests passed.
+- Frontend unit suite: `92` tests passed.
+- Production Vite build completed.
+- Sites packaging test completed.
+- Live desktop and mobile browser interaction pass completed against the refreshed FastAPI publication.
 
 ## Comparison history
 
-1. Initial desktop capture showed text selection highlighting on axis labels after a pointer drag.
-   - Fix: added `user-select: none` and the WebKit equivalent to the chart canvas.
-   - Post-fix evidence: `/Users/andyttc/Developer/US_Momentum_Terminal/qa-output/tooltip-desktop-matched.png`.
-2. The selected marker was initially filled rather than matching the source’s yellow ring with a light centre.
-   - Fix: changed the selected point to a white surface with a yellow stroke.
-   - Post-fix evidence: `/Users/andyttc/Developer/US_Momentum_Terminal/qa-output/design-comparison-chart.png`.
+1. The first pass omitted Log Scale and retained a divider-heavy Performance Summary.
+   - Fix: added the wealth-index log transform, integrated chart controls and the rounded card-based summary from the approved concept.
+2. The first price-only path applied Yahoo split actions to closes that were already split-normalized.
+   - Fix: stopped the second split adjustment and added a regression test. Dividend-cash wealth now stays close to total return instead of multiplying historical splits into the result.
+3. Mobile initially omitted final-value pills, and Drawdown year labels could crowd together.
+   - Fix: reserved a compact right gutter for all three pills and applied collision filtering to Drawdown year labels.
+4. KPI values initially reused backend total-return metrics after Dividend Reinvestment was switched off.
+   - Fix: reuse authoritative backend metrics only for the unchanged total-return/nominal path; all alternate modes derive from the selected series.
+5. The first hover implementation depended on pointer position rather than movement direction.
+   - Fix: added the existing movement-aware side flipping and boundary containment to the Backtesting, Overview and Ranking History charts.
 
 ## Follow-up polish
 
-- The implementation tooltip is about 7px shorter than the reference card. This remains a P3 refinement because the compact height was explicitly requested and all content remains legible.
-- Physical touch hardware was not available for QA. Touch paths are implemented with pointer down/up tracking and an `8px` tap slop; the mobile viewport interaction was exercised through coordinate activation.
+- The live reference values differ from the implementation because the screenshots are illustrative and the app renders current provider data.
+- Yahoo Finance remains an unofficial provider. The published corporate-action coverage report makes incomplete provider data visible but cannot eliminate provider-side historical revisions.
+- The historical core still has the existing survivorship and current-constituent limitations documented in the README.
 
 ## Implementation checklist
 
-- Keep the tooltip limited to the main Stock Analysis price chart.
-- Preserve boundary-first placement when adjusting the card dimensions.
-- Re-run the frontend unit tests, Sites test, backend tests, and production build after any tooltip sizing change.
+- Preserve the single Advanced Settings parent card and stable top-row grid.
+- Preserve the Linear/Log Scale distinction and actual percentage labels.
+- Keep total return, dividend cash and CPI deflation as separate, explicit conventions.
+- Re-run browser comparison evidence after changes to chart height, annual-table density or summary proportions.

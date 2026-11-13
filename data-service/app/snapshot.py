@@ -26,6 +26,7 @@ from .backtest import (
 )
 from .clock import market_state
 from .config import SEED_PATH, settings
+from .macro import load_cpi
 from .models import (
     ProviderAuthError,
     ProviderBlocked,
@@ -62,7 +63,7 @@ PERFORMANCE_PERIODS = ("1Y", "3Y", "5Y", "All")
 SERIES_COLORS = {"strategy": "#FFC83D", "spy": "#69A5F5", "spmo": "#AA8BF2"}
 SUPPORTED_EXCHANGES = {"NYSE", "NASDAQ", "NYSE American"}
 UNIVERSE_VERSION = "2026-11-12-live200-v2"
-PUBLICATION_VERSION = "2026-11-13-portfolio-fundamentals-v5"
+PUBLICATION_VERSION = "2026-11-13-dividend-cpi-v7"
 
 
 def publication_is_current(payload: dict | None) -> bool:
@@ -329,6 +330,44 @@ def _weekly_price_history(series: SymbolSeries, weeks: int = 52) -> dict:
 # Payload builders                                                             #
 # --------------------------------------------------------------------------- #
 
+def _observed_session_dates(window: pd.Series, stamps: pd.DatetimeIndex) -> list[str]:
+    """The real session behind each resampled bucket label."""
+    sessions = window.index
+    dates: list[str] = []
+    for stamp in stamps:
+        position = int(sessions.searchsorted(stamp, side="right")) - 1
+        dates.append(sessions[max(position, 0)].strftime("%Y-%m-%d"))
+    return dates
+
+
+def _month_ticks(first: pd.Timestamp, last: pd.Timestamp, period: str) -> list[dict]:
+    """Calendar month-end markers between ``first`` and ``last``.
+
+    Each tick carries the date it stands for so the client can place it with the
+    same date-to-pixel mapping it uses for the series. Nothing is pinned to the
+    window edge: a window that opens on the 13th simply has no tick until the
+    first month end, instead of squeezing a half month into a full slot.
+    """
+    ticks: list[dict] = []
+    if first >= last:
+        return ticks
+    for stamp in pd.date_range(start=first, end=last, freq="ME"):
+        if period == "1Y":
+            label = stamp.strftime("%b")
+        elif period == "3Y":
+            label = stamp.strftime("%b '%y")
+        else:
+            label = stamp.strftime("%Y") if stamp.month == 12 else stamp.strftime("%b '%y")
+        ticks.append({"date": stamp.strftime("%Y-%m-%d"), "label": label})
+    if period == "1Y" and len(ticks) > 12:
+        # A window that opens mid-month and closes on a month end spans thirteen
+        # month ends, so the first and last tick would both read e.g. "Mar". The
+        # leading tick carries its year to keep the axis unambiguous; the rest
+        # stay short.
+        ticks[0]["label"] = pd.Timestamp(ticks[0]["date"]).strftime("%b '%y")
+    return ticks
+
+
 def _performance_payload(backtest: dict) -> dict:
     """Monthly-sampled cumulative return series per period."""
     if not backtest.get("available"):
@@ -351,6 +390,10 @@ def _performance_payload(backtest: dict) -> dict:
         if monthly.empty or monthly.index[0] != window.index[0]:
             monthly = pd.concat([pd.Series([window.iloc[0]], index=[window.index[0]]), monthly])
         monthly = monthly[~monthly.index.duplicated(keep="last")].sort_index()
+        # ``resample`` stamps each bucket with the calendar month end, but the
+        # value is the last session inside that month. Plot the session that was
+        # actually observed so the time scale matches the data it draws.
+        dates = _observed_session_dates(window, monthly.index)
 
         series = []
         values_by_id = {"strategy": monthly}
@@ -384,35 +427,21 @@ def _performance_payload(backtest: dict) -> dict:
         if not series:
             continue
 
-        if period == "1Y":
-            labels = [stamp.strftime("%b") for stamp in monthly.index]
-        elif period == "3Y":
-            labels = [stamp.strftime("%b '%y") for stamp in monthly.index]
-        else:
-            labels = [stamp.strftime("%Y") if stamp.month == 12 or i == 0 else stamp.strftime("%b '%y") for i, stamp in enumerate(monthly.index)]
-        # Blank repeated month labels (a 1Y window can span 13 month-ends) and
-        # thin longer windows so the axis never collides.
-        seen: set[str] = set()
-        deduped = []
-        for label in labels:
-            if label in seen:
-                deduped.append("")
-            else:
-                seen.add(label)
-                deduped.append(label)
-        labels = deduped
-        max_labels = 12
-        if sum(1 for label in labels if label) > max_labels:
-            keep = max_labels
-            step = max(1, math.ceil(len(labels) / keep))
-            labels = [label if index % step == 0 else "" for index, label in enumerate(labels)]
-        if labels and not labels[-1]:
-            labels[-1] = monthly.index[-1].strftime("%b")
-
         low = min(min(item["values"]) for item in series)
         high = max(max(item["values"]) for item in series)
         axis = _nice_axis(low, high)
-        out[period] = {"axis": axis, "labels": labels, "series": series, "points": len(monthly)}
+        out[period] = {
+            "axis": axis,
+            # Every plotted point keeps the session it was sampled on. The window
+            # can open mid-month, so the first sample is not a month end.
+            "dates": dates,
+            # Ticks are calendar month ends with their own dates, not slot
+            # numbers: the axis is a time axis, so a month that only contributes
+            # half a window must not be stretched onto a whole month's width.
+            "ticks": _month_ticks(pd.Timestamp(dates[0]), pd.Timestamp(dates[-1]), period),
+            "series": series,
+            "points": len(monthly),
+        }
 
     return out
 
@@ -646,6 +675,7 @@ def _backtest_block(backtest: dict) -> dict:
     strategy: pd.Series = backtest["strategy"]
     dates = [stamp.strftime("%Y-%m-%d") for stamp in strategy.index]
     benchmarks = backtest["benchmarks"]
+    price_benchmarks = backtest.get("price_benchmarks", {})
 
     def normalized(values: pd.Series) -> list[float]:
         aligned = values.reindex(strategy.index).ffill().bfill()
@@ -659,14 +689,34 @@ def _backtest_block(backtest: dict) -> dict:
         "end": backtest["end"],
         "dates": dates,
         "strategy": [round(float(value), 2) for value in strategy.values],
+        "priceStrategy": (
+            [round(float(value), 2) for value in backtest["price_strategy"].reindex(strategy.index).values]
+            if "price_strategy" in backtest
+            else []
+        ),
         "spy": normalized(benchmarks["SPY"]) if "SPY" in benchmarks else [],
         "spmo": normalized(benchmarks["SPMO"]) if "SPMO" in benchmarks else [],
+        "priceSpy": (
+            [round(float(value), 2) for value in price_benchmarks["SPY"].reindex(strategy.index).ffill().values]
+            if "SPY" in price_benchmarks
+            else []
+        ),
+        "priceSpmo": (
+            [round(float(value), 2) for value in price_benchmarks["SPMO"].reindex(strategy.index).ffill().values]
+            if "SPMO" in price_benchmarks
+            else []
+        ),
+        "returnConventions": {
+            "totalReturn": "Adjusted closes, dividends reinvested at the adjustment basis",
+            "priceReturn": "Split-adjusted closes with cash dividends retained and no reinvestment",
+        },
         "drawdown": [round(float(value), 2) for value in drawdown.values],
         "annual": backtest["annual"],
         "metrics": backtest["metrics"],
         "rebalances": len(backtest["holdings_log"]),
         "rebalance_log": backtest["holdings_log"],
         "methodology": backtest.get("methodology"),
+        "dividendCoverage": backtest.get("dividend_coverage"),
     }
 
 
@@ -857,6 +907,12 @@ def build_publication(force: bool = False, progress=None) -> dict:
                 f"{len(missing_current_fundamentals)} current float-share request(s) unavailable"
             )
 
+        macro = load_cpi(start=datetime(2017, 1, 1).date())
+        if not macro.get("available"):
+            warnings.append(
+                "Official CPI-U data unavailable; inflation-adjusted backtests are disabled"
+            )
+
         payload = {
             "meta": {
                 "generated_at": started,
@@ -945,6 +1001,7 @@ def build_publication(force: bool = False, progress=None) -> dict:
                 "top100": _backtest_block(top100),
                 "top20": _backtest_block(top20),
             },
+            "macro": {"cpi": macro},
             "providers": {
                 "status": registry.status(),
                 "configured_keys": settings.keys_present(),

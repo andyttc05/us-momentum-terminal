@@ -1,248 +1,966 @@
-/* Backtesting — a fit-to-screen dashboard. Rows use the shared header height
-   and section gap tokens, so its rhythm matches the scrolling pages. */
+/* Backtesting — a vertically scrollable research report. */
 
 .backtest-page {
-  display: grid;
-  height: 100vh;
-  min-height: 660px;
-  grid-template-rows: var(--page-header-height) auto auto minmax(0, 1fr);
-  gap: var(--section-gap);
-  overflow: hidden;
+  --backtest-section-gap: 15px;
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+  gap: var(--backtest-section-gap);
+  overflow: visible;
 }
+.backtest-page > .page-header { margin-bottom: 0; }
+.app-shell:has(.backtest-page) .backtest-page {
+  padding-top: 14px;
+}
+.app-shell:has(.backtest-page) .backtest-page > .page-header { min-height: 91px; }
+.app-shell:has(.backtest-page) .page-header__title { font-size: 2.15rem; }
 
-/* The card holds only the controls; the validation message lives in the strip
-   below it, so the card keeps one size in both states. Both boxes read their
-   geometry from the same custom properties, so the message can never drift
-   away from the input it describes. */
-.backtest-controls-stack {
-  display: grid;
-  min-width: 0;
-  max-width: 100%;
-  row-gap: 0;
-  --bt-columns: minmax(212px, 1.1fr) minmax(212px, 1.1fr) 1px minmax(190px, 0.95fr) minmax(185px, 0.9fr);
-  --bt-gap: var(--card-gap);
-  --bt-pad-inline: 19px; /* 1px card border plus 18px card padding */
-  --bt-label-gap: 10px;
-}
-.backtest-controls {
-  position: relative;
-  display: grid;
-  grid-template-columns: var(--bt-columns);
-  align-items: center;
-  gap: var(--bt-gap);
-  min-width: 0;
-  max-width: 100%;
-  box-sizing: border-box;
-  padding: 7px 18px;
+/* Configuration ----------------------------------------------------------- */
+
+.backtest-control-card {
+  overflow: hidden;
   border: 1px solid rgb(234 228 220 / 78%);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
   box-shadow: var(--shadow-card);
 }
-/* A date is one field group: the label and its control wrapper share row 1, so
-   the input's left edge follows from the label's own width. On phones the
-   validation message takes row 3 of the same column. */
+.backtest-config {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(330px, 1.64fr) 1px minmax(200px, 0.86fr) minmax(175px, 0.7fr);
+  align-items: start;
+  gap: clamp(14px, 1.6vw, 22px);
+  padding: 17px 19px 4px;
+}
+.backtest-config__period,
+.backtest-config__universe { min-width: 0; }
+.backtest-config__heading {
+  display: flex;
+  min-height: 28px;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 8px;
+  color: var(--color-ink);
+}
+.backtest-config__heading svg { flex: 0 0 auto; }
+.backtest-config__heading h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: var(--font-weight-black);
+  letter-spacing: -0.018em;
+  line-height: 1.2;
+}
+.backtest-date-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 13px;
+}
 .backtest-date-group {
   display: grid;
   min-width: 0;
-  max-width: 100%;
-  grid-template-columns: max-content minmax(0, 1fr);
-  align-items: center;
-  column-gap: var(--bt-label-gap);
+  grid-template-columns: minmax(0, 1fr);
+  row-gap: 5px;
 }
-.backtest-date-label { grid-column: 1; grid-row: 1; color: var(--color-ink); font-size: var(--font-size-sm); font-weight: var(--font-weight-bold); white-space: nowrap; }
-/* The wrapper owns the available track width. Keeping the native input inside a
-   bounded, zero-minimum box prevents its intrinsic date chrome from sizing the
-   grid item independently. The wrapper is visually transparent on desktop, so
-   the established input appearance and dimensions are unchanged there. */
+.backtest-date-label {
+  color: var(--color-ink);
+  font-size: 0.75rem;
+  font-weight: var(--font-weight-bold);
+  white-space: nowrap;
+}
 .backtest-date-control {
   display: block;
   box-sizing: border-box;
-  grid-column: 2;
-  grid-row: 1;
   width: 100%;
   min-width: 0;
   max-width: 100%;
 }
-/* A date input is a replaced element: flex on the input would re-flow WebKit's
-   internal date text and calendar indicator, so the box stays block-level and
-   the indicator keeps its native position at the trailing edge. */
-.backtest-date-input { display: block; box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; min-inline-size: 0; max-inline-size: 100%; height: 42px; margin: 0; padding: 0 12px; border: 1px solid var(--color-line); border-radius: var(--radius-pill); background: var(--color-surface-soft); color: var(--color-ink); font-size: 0.82rem; font-weight: 700; line-height: normal; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; overflow: hidden; }
-.backtest-date-input::-webkit-datetime-edit,
-.backtest-date-input::-webkit-date-and-time-value { min-width: 0; max-width: 100%; overflow: hidden; }
-.backtest-date-input:hover { border-color: #D8D0C6; }
-.backtest-date-group.is-invalid .backtest-date-input { border-color: #D8848B; }
-/* Reserved strip below the card. It is rendered in both states, so the KPI row
-   below never moves when the message appears or clears. */
-.backtest-validation {
-  display: grid;
+.backtest-date-input {
+  display: block;
   box-sizing: border-box;
-  grid-template-columns: var(--bt-columns);
-  column-gap: var(--bt-gap);
-  align-items: start;
-  padding: 4px var(--bt-pad-inline) 0;
-  min-height: 22px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-inline-size: 0;
+  height: 36px;
+  margin: 0;
+  padding: 0 10px;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-soft);
+  color: var(--color-ink);
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: normal;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
-/* The slot spans the End Date column and everything to its right, so a message
-   is never forced to wrap inside one narrow column. */
-.backtest-validation__slot {
-  grid-column: 2 / -1;
+.backtest-date-input::-webkit-datetime-edit,
+.backtest-date-input::-webkit-date-and-time-value {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+.backtest-date-group.is-invalid .backtest-date-input { border-color: #D8848B; }
+.backtest-config__divider {
+  width: 1px;
+  height: 84px;
+  align-self: center;
+  background: var(--color-line);
+}
+.backtest-segmented {
+  display: inline-flex;
+  width: 100%;
+  min-width: 0;
+  gap: 3px;
+  padding: 4px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-soft);
+}
+.backtest-segmented button {
+  min-width: 0;
+  min-height: 36px;
+  flex: 1 1 0;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-ink);
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: var(--font-weight-bold);
+  white-space: nowrap;
+  transition: background-color 180ms ease, color 180ms ease;
+}
+.backtest-segmented button:hover:not([aria-pressed="true"]) { background: var(--color-nav-hover); }
+.backtest-segmented button[aria-pressed="true"] { background: var(--color-yellow); }
+.backtest-run-group {
   display: grid;
   min-width: 0;
-  grid-template-columns: max-content minmax(0, 1fr);
-  column-gap: var(--bt-label-gap);
-  align-items: start;
+  justify-items: stretch;
+  padding-top: 39px;
 }
-/* Invisible twin of the End Date label. It holds the label column to exactly
-   the label's width, so the message lines up with the input without a
-   hand-measured offset and without moving the input itself. */
-.backtest-validation__spacer { visibility: hidden; }
-.backtest-validation__slot .backtest-date-error { grid-column: 2; grid-row: 1; margin: 0; }
-.backtest-date-error { display: flex; min-width: 0; align-items: flex-start; gap: 6px; color: #A84D57; font-size: 0.72rem; font-weight: 700; line-height: 1.3; }
-.backtest-date-error svg { flex: 0 0 auto; margin-top: 1px; }
-.backtest-date-error span { min-width: 0; overflow-wrap: anywhere; }
-.backtest-control-separator { width: 1px; height: 32px; align-self: center; background: var(--color-line); }
-.backtest-segmented { display: inline-flex; min-width: 0; gap: 3px; padding: 4px; border: 1px solid var(--color-line); border-radius: var(--radius-pill); background: var(--color-surface-soft); }
-.backtest-segmented button { min-width: 0; min-height: 38px; flex: 1 1 0; padding: 0 10px; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--color-ink); cursor: pointer; font-size: 0.88rem; font-weight: var(--font-weight-bold); white-space: nowrap; transition: background-color 180ms ease, color 180ms ease; }
-.backtest-segmented button:hover:not([aria-pressed="true"]) { background: #F3EFE9; }
-.backtest-segmented button[aria-pressed="true"] { background: var(--color-yellow); }
-.backtest-run-button { min-height: 44px; gap: 12px; font-size: 0.9rem; white-space: nowrap; }
+.backtest-run-button {
+  min-height: 38px;
+  gap: 12px;
+  font-size: 0.92rem;
+  white-space: nowrap;
+}
 .backtest-run-button svg { fill: currentColor; }
 
-.backtest-kpis { display: grid; min-width: 0; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--card-gap); }
-.backtest-kpis .kpi-card:nth-child(1) .kpi-card__value,
-.backtest-kpis .kpi-card:nth-child(2) .kpi-card__value { color: var(--color-positive); }
-.backtest-kpis .kpi-card:nth-child(3) .kpi-card__value { color: var(--color-ink); }
-.backtest-kpis .kpi-card:nth-child(4) .kpi-card__value { color: #EB3B44; }
+/* Advanced settings ------------------------------------------------------- */
 
-.backtest-main-grid { display: grid; min-height: 0; min-width: 0; grid-template-columns: minmax(0, 1.72fr) minmax(340px, 1fr); gap: var(--card-gap); }
-.backtest-cumulative-card, .backtest-side-grid > .dashboard-card { min-height: 0; }
-.backtest-cumulative-card { display: flex; flex-direction: column; }
-.backtest-cumulative-card > .dashboard-card__body { display: flex; min-height: 0; flex: 1 1 auto; flex-direction: column; --card-body-padding-start: 6px; --card-body-padding-end: 12px; }
-.backtest-chart-toolbar { display: flex; min-height: 38px; align-items: center; justify-content: space-between; gap: 10px; }
-.backtest-chart-toolbar .performance-legend { gap: 16px; }
-.backtest-chart-toolbar .performance-legend__item { font-size: 0.83rem; }
-.backtest-chart-toolbar .performance-legend__item i { width: 11px; height: 11px; }
-.backtest-chart-toolbar .performance-legend__item--strategy { --legend-color: #FFC83D; }
-.backtest-chart-toolbar .performance-legend__item--spy { --legend-color: #69A5F5; }
-.backtest-chart-toolbar .performance-legend__item--spmo { --legend-color: #AA8BF2; }
-.backtest-range-control { padding: 3px; }
-.backtest-range-control button { min-width: 38px; min-height: 29px; padding-inline: 9px; font-size: 0.78rem; }
-.backtest-cumulative-chart { display: flex; min-height: 0; flex: 1 1 auto; align-items: stretch; }
-.backtest-chart-canvas { flex: 1 1 auto; min-width: 0; min-height: 0; }
-.backtest-chart-svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.backtest-advanced { background: var(--color-surface); }
+.backtest-advanced__toggle {
+  display: grid;
+  width: 100%;
+  min-height: 43px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 16px;
+  padding: 0 19px;
+  border: 0;
+  border-top: 1px solid var(--color-line);
+  background: transparent;
+  color: var(--color-ink);
+  cursor: pointer;
+  text-align: left;
+}
+.backtest-advanced__title {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.08rem;
+  font-weight: var(--font-weight-black);
+}
+.backtest-advanced__title svg { flex: 0 0 auto; }
+.backtest-advanced__summary {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.backtest-advanced__toggle > svg { transition: transform 220ms ease; }
+.backtest-advanced[data-open] .backtest-advanced__toggle > svg { transform: rotate(180deg); }
+.backtest-advanced__reveal {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 240ms ease, opacity 180ms ease;
+}
+.backtest-advanced[data-open] .backtest-advanced__reveal {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+.backtest-advanced__inner {
+  min-height: 0;
+  overflow: hidden;
+}
+.backtest-advanced__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  padding: 8px 19px 24px;
+  border-top: 0;
+}
+.backtest-advanced__column { display: grid; align-content: start; gap: 14px; }
+.backtest-advanced__column:first-child { gap: 12px; overflow: visible; }
+.backtest-advanced__column:last-child {
+  gap: 10px;
+  padding-left: 18px;
+}
+.backtest-advanced-panel {
+  padding: 12px 14px;
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+  background: var(--color-surface-soft);
+}
+.backtest-advanced-panel + .backtest-advanced-panel { border-top: 1px solid var(--color-line); }
+.backtest-advanced-panel__title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 2px;
+  color: var(--color-ink);
+  font-size: 0.95rem;
+  font-weight: var(--font-weight-black);
+  line-height: 1.1;
+}
+.backtest-amount-control {
+  display: grid;
+  min-height: 31px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.backtest-amount-control input {
+  width: 100%;
+  min-width: 0;
+  height: 29px;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--color-ink);
+  font-size: 0.92rem;
+  font-weight: 800;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+.backtest-setting-toggle,
+.backtest-fixed-setting {
+  display: grid;
+  width: 100%;
+  min-height: 52px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 9px 12px;
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+  background: var(--color-surface-soft);
+  color: var(--color-ink);
+  text-align: left;
+}
+.backtest-setting-label {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+  font-size: 0.93rem;
+  font-weight: var(--font-weight-black);
+}
+.backtest-setting-label > svg { flex: 0 0 auto; }
+.backtest-info {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-ink);
+}
+.backtest-info__trigger {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-ink);
+  cursor: help;
+}
+.backtest-info__trigger:hover,
+.backtest-info__trigger:focus-visible {
+  background: var(--color-yellow-soft);
+  outline: none;
+  box-shadow: 0 0 0 2px rgb(255 229 154 / 45%);
+}
+.backtest-info-tooltip {
+  position: fixed;
+  z-index: 120;
+  display: block;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #111;
+  box-shadow: 0 8px 24px rgb(17 17 17 / 18%);
+  color: #fff;
+  font-size: 0.73rem;
+  font-weight: 650;
+  line-height: 1.42;
+  pointer-events: none;
+}
+.backtest-switch-button {
+  display: inline-flex;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  cursor: pointer;
+}
+.backtest-switch-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgb(255 229 154 / 58%);
+}
+.backtest-switch {
+  position: relative;
+  display: block;
+  width: 45px;
+  height: 25px;
+  border-radius: var(--radius-pill);
+  background: #DDD9D3;
+  transition: background-color 180ms ease;
+}
+.backtest-switch i {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 21px;
+  height: 21px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  box-shadow: 0 2px 5px rgb(34 27 19 / 12%);
+  transition: transform 180ms ease;
+}
+.backtest-switch-button[aria-checked="true"] .backtest-switch { background: #EDB900; }
+.backtest-switch-button[aria-checked="true"] .backtest-switch i { transform: translateX(20px); }
+.backtest-cashflow-panel > .backtest-setting-toggle {
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  margin-bottom: 2px;
+}
+.backtest-cashflow-fields {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 220ms ease, opacity 180ms ease;
+}
+.backtest-cashflow-fields[data-open] { grid-template-rows: 1fr; opacity: 1; }
+.backtest-cashflow-fields > div {
+  display: grid;
+  min-height: 0;
+  grid-template-columns: minmax(0, 1fr) minmax(120px, 0.8fr);
+  align-items: center;
+  gap: 3px 12px;
+  overflow: hidden;
+}
+.backtest-cashflow-fields label {
+  color: var(--color-ink);
+  font-size: 0.8rem;
+  font-weight: var(--font-weight-bold);
+  line-height: 1.2;
+}
+.backtest-cashflow-fields .backtest-amount-control { grid-column: 2; grid-row: 1; }
+.backtest-cashflow-fields .backtest-amount-control--small { grid-column: 2; grid-row: 1; }
+.backtest-cashflow-fields label[for="backtest-contribution-frequency"] { grid-column: 1; grid-row: 2; }
+.backtest-cashflow-fields select {
+  grid-column: 2;
+  grid-row: 2;
+}
+.backtest-cashflow-fields select,
+.backtest-fixed-setting select {
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  padding: 0 32px 0 12px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.backtest-fixed-setting { grid-template-columns: minmax(0, 1fr) minmax(160px, 0.72fr); }
+.backtest-fixed-setting select:disabled { opacity: 1; }
+/* KPIs -------------------------------------------------------------------- */
+
+.backtest-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--card-gap);
+}
+.backtest-kpis .kpi-card { min-height: 94px; }
+.backtest-kpis .kpi-card__value { margin-top: 5px; font-size: 2rem; }
+.kpi-card__value.is-positive { color: #178D4A; }
+.kpi-card__value.is-negative { color: #EB3B44; }
+
+.backtest-results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--backtest-section-gap);
+  transition: opacity 160ms ease;
+}
+.backtest-results[data-loading] {
+  opacity: 0.42;
+  pointer-events: none;
+}
+
+/* Shared charts ----------------------------------------------------------- */
+
+.backtest-chart-frame {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  height: 360px;
+  min-height: 360px;
+  flex: 0 0 360px;
+  cursor: crosshair;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.backtest-chart-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.backtest-axis-caption {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  left: 54px;
+  color: var(--color-text-muted);
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  pointer-events: none;
+  text-transform: uppercase;
+}
 .backtest-gridline { stroke: var(--color-line); stroke-width: 1; }
-.backtest-axis-label { fill: var(--color-text-secondary); font-family: var(--font-family); font-size: 12px; font-weight: 700; }
-.backtest-series-line { fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
-.backtest-series-line--strategy, .backtest-endpoint--strategy, .backtest-leader--strategy { stroke: #FFC83D; }
-.backtest-series-line--spy, .backtest-endpoint--spy, .backtest-leader--spy { stroke: #69A5F5; }
-.backtest-series-line--spmo, .backtest-endpoint--spmo, .backtest-leader--spmo { stroke: #AA8BF2; }
+.backtest-zero-line { stroke: #CFC8BF; stroke-width: 1.2; vector-effect: non-scaling-stroke; }
+.backtest-axis-label {
+  fill: var(--color-text-secondary);
+  font-family: var(--font-family);
+  font-size: 12px;
+  font-weight: 700;
+}
+.backtest-crosshair {
+  stroke: #AAA49C;
+  stroke-width: 1.2;
+  stroke-dasharray: 4 5;
+  vector-effect: non-scaling-stroke;
+}
+.backtest-series-line {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.backtest-series-line--strategy,
+.backtest-endpoint--strategy,
+.backtest-leader--strategy,
+.backtest-hover-point--strategy { stroke: #FFC83D; }
+.backtest-series-line--spy,
+.backtest-endpoint--spy,
+.backtest-leader--spy,
+.backtest-hover-point--spy { stroke: #69A5F5; }
+.backtest-series-line--spmo,
+.backtest-endpoint--spmo,
+.backtest-leader--spmo,
+.backtest-hover-point--spmo { stroke: #AA8BF2; }
 .backtest-endpoint { fill: var(--color-surface); stroke-width: 2; }
+.backtest-hover-point {
+  fill: var(--color-surface);
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+}
+.backtest-hover-point--drawdown { stroke: #F46E7D; }
 .backtest-leader { fill: none; stroke-width: 1.4; }
 .backtest-value-pill--strategy { fill: var(--color-yellow-soft); }
 .backtest-value-pill--spy { fill: var(--color-blue-soft); }
 .backtest-value-pill--spmo { fill: var(--color-lavender-soft); }
-.backtest-value-label { fill: var(--color-ink); font-family: var(--font-family); font-size: 12px; font-weight: var(--font-weight-bold); letter-spacing: 0.01em; font-variant-numeric: tabular-nums; }
-
-/* The Annual Return card now lists five years, so it gets a slightly larger
-   share of the column than the drawdown chart. */
-.backtest-side-grid { display: grid; min-height: 0; grid-template-rows: minmax(0, 0.85fr) minmax(0, 1.15fr); gap: var(--card-gap); }
-.backtest-drawdown-card, .backtest-annual-card { display: flex; flex-direction: column; }
-.backtest-drawdown-card > .dashboard-card__body { display: flex; min-height: 0; flex: 1 1 auto; --card-body-padding-start: 3px; --card-body-padding-end: 10px; padding-inline: 14px; }
-.backtest-drawdown-chart { position: relative; display: flex; width: 100%; min-height: 0; flex: 1 1 auto; }
-.backtest-drawdown-canvas { flex: 1 1 auto; min-width: 0; min-height: 0; }
-.backtest-drawdown-svg { display: block; width: 100%; height: 100%; overflow: visible; }
-.backtest-drawdown-line { fill: none; stroke: #F46E7D; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
-.backtest-drawdown-point { fill: #F46E7D; stroke: var(--color-surface); stroke-width: 2; }
-.backtest-drawdown-connector { position: absolute; width: 1px; transform: translateX(-50%); border-left: 1px solid rgb(244 110 125 / 45%); pointer-events: none; }
-.backtest-drawdown-callout {
-  position: absolute;
-  left: clamp(52px, var(--callout-x, 50%), calc(100% - 52px));
-  top: var(--callout-y, 50%);
-  display: flex;
-  width: 104px;
-  height: 24px;
-  align-items: center;
-  justify-content: center;
-  transform: translateX(-50%);
-  border-radius: var(--radius-pill);
-  background: var(--color-pink);
-  color: var(--color-ink);
+.backtest-value-label {
+  fill: var(--color-ink);
   font-family: var(--font-family);
   font-size: 12px;
-  font-weight: var(--font-weight-bold);
-  font-variant-numeric: tabular-nums;
+  font-weight: 800;
   letter-spacing: 0.01em;
-  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.backtest-value-label--compact { font-size: 9px; font-weight: 800; }
+.backtest-floating-tooltip {
+  position: absolute;
+  z-index: 5;
   pointer-events: none;
 }
-.backtest-annual-card > .dashboard-card__body { display: flex; min-height: 0; flex: 1 1 auto; --card-body-padding-start: 2px; --card-body-padding-end: 12px; }
-.backtest-annual-table { width: 100%; height: auto; flex: 0 0 auto; align-self: flex-start; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-.backtest-annual-table thead tr { height: 30px; border-bottom: 1px solid var(--color-line); }
-.backtest-annual-table th { color: var(--color-text-secondary); font-size: var(--font-size-table-heading); font-weight: var(--font-weight-black); letter-spacing: var(--letter-spacing-table-heading); text-align: right; text-transform: uppercase; }
-.backtest-annual-table thead th:first-child { text-align: left; }
-.backtest-annual-table tbody tr { height: 34px; border-bottom: 1px solid var(--color-line); }
-.backtest-annual-table tbody tr:last-child { border-bottom: 0; }
-.backtest-annual-ytd { color: var(--color-text-secondary); font-size: 0.62rem; font-weight: var(--font-weight-bold); letter-spacing: 0.06em; }
-.backtest-annual-table td.is-missing { color: var(--color-text-muted); font-weight: var(--font-weight-bold); }
-.backtest-annual-table tbody th { color: var(--color-ink); font-size: 0.86rem; font-weight: 900; text-align: left; }
-.backtest-annual-table td { font-size: var(--font-size-table-cell); font-weight: 900; text-align: right; }
-.backtest-annual-table td.is-positive { color: #178D4A; }
-.backtest-annual-table td.is-negative { color: #EB3B44; }
+.backtest-chart-tooltip {
+  display: grid;
+  box-sizing: border-box;
+  width: 222px;
+  min-height: 128px;
+  align-content: center;
+  gap: 6px;
+  padding: 13px 15px;
+  border-radius: 17px;
+  background: rgb(255 254 252 / 98%);
+  box-shadow: var(--shadow-float);
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+.backtest-chart-tooltip__date {
+  margin-bottom: 2px;
+  color: var(--color-text-muted);
+  font-size: 0.71rem;
+  font-weight: var(--font-weight-black);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.backtest-chart-tooltip__row {
+  display: grid;
+  grid-template-columns: 9px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.backtest-chart-tooltip__row i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--series-color);
+}
+.backtest-chart-tooltip__row strong { font-size: 0.78rem; font-weight: 900; }
+.backtest-chart-tooltip .is-positive { color: #078C47; }
+.backtest-chart-tooltip .is-negative { color: #D74B5B; }
+.backtest-chart-tooltip .is-neutral { color: var(--color-text-secondary); }
+.backtest-chart-tooltip--compact {
+  width: 196px;
+  min-height: 82px;
+  gap: 7px;
+}
+.backtest-chart-tooltip__drawdown { font-size: 1.35rem; font-weight: 900; letter-spacing: -0.035em; }
 
-@media (max-height: 830px) and (min-width: 1101px) {
-  .backtest-controls-stack { --bt-gap: 10px; --bt-pad-inline: 15px; --bt-label-gap: 7px; }
-  .backtest-controls { gap: 10px; padding: 5px 14px; }
-  .backtest-date-label { font-size: 0.8rem; }
-  .backtest-date-input { height: 38px; padding-inline: 9px; font-size: 0.75rem; }
-  .backtest-segmented button { min-height: 34px; padding-inline: 7px; font-size: 0.78rem; }
-  .backtest-run-button { min-height: 40px; font-size: 0.82rem; }
-  .backtest-main-grid { grid-template-columns: minmax(0, 1.72fr) minmax(315px, 1fr); }
-  .backtest-chart-toolbar .performance-legend { gap: 10px; }
-  .backtest-chart-toolbar .performance-legend__item { font-size: 0.74rem; gap: 5px; }
-  .backtest-range-control button { min-width: 34px; min-height: 27px; font-size: 0.73rem; }
-  .backtest-annual-table thead tr { height: 26px; }
-  .backtest-annual-table tbody tr { height: 29px; }
-  .backtest-annual-table thead th,
-  .backtest-annual-table td,
-  .backtest-annual-table tbody th { font-size: 0.74rem; }
+/* Cumulative return ------------------------------------------------------- */
+
+.backtest-cumulative-card { min-height: 476px; }
+.backtest-cumulative-card > .dashboard-card__header { align-items: center; }
+.backtest-cumulative-card > .dashboard-card__body {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  --card-body-padding-start: 7px;
+  --card-body-padding-end: 12px;
+}
+.backtest-cumulative-legend { min-height: 31px; flex-wrap: wrap; gap: 22px; }
+.backtest-cumulative-legend .performance-legend__item { font-size: 0.78rem; }
+.backtest-chart-controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.backtest-log-toggle {
+  display: inline-flex;
+  min-height: 39px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px 0 14px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.backtest-log-toggle .backtest-switch {
+  width: 38px;
+  height: 22px;
+}
+.backtest-log-toggle .backtest-switch i {
+  width: 18px;
+  height: 18px;
+}
+.backtest-log-toggle[aria-checked="true"] .backtest-switch { background: #EDB900; }
+.backtest-log-toggle[aria-checked="true"] .backtest-switch i { transform: translateX(16px); }
+.backtest-log-toggle:focus-visible {
+  outline: none;
+  border-color: #E4C35A;
+  box-shadow: 0 0 0 2px rgb(255 229 154 / 42%);
+}
+.backtest-range-control { padding: 3px; }
+.backtest-range-control button { min-width: 41px; min-height: 31px; padding-inline: 10px; font-size: 0.78rem; }
+
+/* Drawdown ---------------------------------------------------------------- */
+
+.backtest-analytics-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: var(--card-gap);
+}
+.backtest-drawdown-card { min-height: 248px; }
+.backtest-drawdown-card > .dashboard-card__body {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  --card-body-padding-start: 5px;
+  --card-body-padding-end: 12px;
+  padding-inline: 14px;
+}
+.backtest-drawdown-frame { height: 186px; min-height: 186px; flex-basis: 186px; }
+.backtest-max-drawdown {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 13px;
+  border-radius: var(--radius-pill);
+  background: #FFC8D0;
+  color: #C53643;
+  font-size: 0.76rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.backtest-drawdown-line {
+  fill: none;
+  stroke: #F46E7D;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.backtest-drawdown-point { fill: #F46E7D; stroke: var(--color-surface); stroke-width: 2; }
+/* Annual return ----------------------------------------------------------- */
+
+.backtest-analytics-grid > .backtest-annual-card { min-height: 248px; }
+.backtest-annual-card > .dashboard-card__body {
+  --card-body-padding-start: 3px;
+  --card-body-padding-end: 16px;
+}
+.backtest-table-scroll {
+  width: 100%;
+  max-height: 200px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: #D8D1C8 transparent;
+  scrollbar-width: thin;
+}
+.backtest-table-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+.backtest-table-scroll::-webkit-scrollbar-thumb {
+  border-radius: var(--radius-pill);
+  background: #D8D1C8;
+}
+.backtest-annual-table {
+  width: 100%;
+  min-width: 0;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+  font-variant-numeric: tabular-nums;
+}
+.backtest-annual-table thead tr { height: 30px; }
+.backtest-annual-table th {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-table-heading);
+  font-weight: var(--font-weight-black);
+  letter-spacing: var(--letter-spacing-table-heading);
+  text-align: right;
+  text-transform: uppercase;
+}
+.backtest-annual-table th > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+}
+.backtest-annual-table th:first-child { width: 22%; text-align: left; }
+.backtest-annual-table th:nth-child(2) { width: 31%; }
+.backtest-annual-table th:nth-child(3),
+.backtest-annual-table th:nth-child(4) { width: 22%; }
+.backtest-annual-table tbody tr { height: 18px; border-bottom: 1px solid var(--color-line); }
+.backtest-annual-table tbody tr:last-child { border-bottom: 0; }
+.backtest-annual-table tbody th {
+  padding-left: 8px;
+  color: var(--color-ink);
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 16px;
+  text-align: left;
+  white-space: nowrap;
+}
+.backtest-annual-table td {
+  padding: 0 8px;
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 16px;
+  text-align: right;
+}
+.backtest-annual-table td.positive { color: #178D4A; }
+.backtest-annual-table td.negative { color: #EB3B44; }
+.backtest-annual-table td.neutral { color: var(--color-text-secondary); }
+.backtest-annual-series--strategy {
+  border-radius: 7px 7px 0 0;
+  background: #FFF7D8;
+}
+.backtest-annual-series--spy { background: #EDF6FD; }
+.backtest-annual-series--spmo { background: #F4EFFC; }
+.backtest-annual-table thead .backtest-annual-series { color: var(--color-ink); }
+.backtest-annual-series > span > i {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--annual-series-dot);
+}
+.backtest-annual-series--strategy { --annual-series-dot: #FFC83D; }
+.backtest-annual-series--spy { --annual-series-dot: #69A5F5; }
+.backtest-annual-series--spmo { --annual-series-dot: #AA8BF2; }
+.backtest-annual-table tbody tr:last-child .backtest-annual-series { border-radius: 0 0 7px 7px; }
+.backtest-year-tag {
+  display: inline-flex;
+  min-height: 18px;
+  align-items: center;
+  margin-left: 4px;
+  padding: 0 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-soft);
+  color: var(--color-text-secondary);
+  font-size: 0.5rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  vertical-align: 1px;
+}
+.backtest-table-empty { height: 90px; color: var(--color-text-muted); text-align: center !important; }
+
+/* Performance summary ----------------------------------------------------- */
+
+.backtest-summary-card > .dashboard-card__body {
+  --card-body-padding-start: 9px;
+  --card-body-padding-end: 18px;
+}
+.backtest-summary-top {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) minmax(320px, 1.42fr);
+  gap: 18px;
+}
+.backtest-summary-primary { display: contents; }
+.backtest-summary-tile {
+  display: grid;
+  min-height: 154px;
+  align-content: center;
+  gap: 8px;
+  padding: 20px;
+  border: 1px solid var(--color-line);
+  border-radius: 18px;
+  background: var(--color-surface-soft);
+}
+.backtest-summary-tile__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-ink);
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+.backtest-summary-tile > strong { font-size: clamp(2.15rem, 3vw, 3rem); font-weight: 900; letter-spacing: -0.045em; line-height: 1.1; }
+.backtest-summary-tile > strong.is-positive { color: #178D4A; }
+.backtest-summary-tile > strong.is-negative { color: #EB3B44; }
+.backtest-summary-settings {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  padding: 3px;
+  border: 1px solid var(--color-line);
+  border-radius: 18px;
+  background: var(--color-surface-soft);
+}
+.backtest-summary-setting {
+  display: flex;
+  min-height: 30px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 12px;
+  border-radius: 11px;
+  background: var(--color-surface);
+}
+.backtest-summary-setting > span {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  color: var(--color-text-secondary);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+.backtest-summary-setting strong {
+  color: var(--color-ink);
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-align: right;
+  white-space: nowrap;
+}
+.backtest-return-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: center;
+  gap: 14px;
+  margin-top: 14px;
+}
+.backtest-return-metrics > span {
+  display: grid;
+  min-height: 90px;
+  align-content: center;
+  gap: 5px;
+  padding: 13px 16px;
+  border: 1px solid var(--color-line);
+  border-radius: 16px;
+  background: var(--color-surface-soft);
+}
+.backtest-return-metrics small {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--color-text-muted);
+  font-size: 0.69rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.backtest-return-metrics strong { font-size: clamp(1.35rem, 1.9vw, 1.7rem); font-weight: 900; font-variant-numeric: tabular-nums; }
+.backtest-return-metrics strong.is-positive { color: #178D4A; }
+.backtest-return-metrics strong.is-negative { color: #EB3B44; }
+
+@media (prefers-reduced-motion: reduce) {
+  .backtest-advanced__reveal,
+  .backtest-advanced__toggle > svg,
+  .backtest-cashflow-fields,
+  .backtest-switch,
+  .backtest-switch i,
+  .backtest-results { transition: none; }
 }
 
-@media (max-width: 1100px) {
-  .backtest-page { height: auto; min-height: 100vh; overflow: visible; grid-template-rows: auto auto auto auto; }
-  .backtest-controls-stack { --bt-columns: repeat(2, minmax(0, 1fr)); --bt-pad-inline: 14px; }
-  .backtest-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 13px; }
-  .backtest-control-separator { display: none; }
-  .backtest-portfolio-choice, .backtest-run-button { width: 100%; }
-  .backtest-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .backtest-main-grid { min-height: 710px; grid-template-columns: 1fr; }
-  .backtest-cumulative-card { min-height: 430px; }
-  .backtest-side-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: 260px; }
-  .backtest-drawdown-card, .backtest-annual-card { min-height: 250px; }
+@media (min-width: 768px) and (max-width: 1100px) {
+  .app-shell:has(.backtest-page) { --sidebar-width: 136px; }
+  .app-shell:has(.backtest-page) .backtest-page { padding-inline: 30px; }
+  .app-shell:has(.backtest-page) .sidebar {
+    align-items: stretch;
+    padding-top: 18px;
+  }
+  .app-shell:has(.backtest-page) .brand-lockup {
+    align-items: flex-start;
+    margin: 0 8px 0 18px;
+    padding: 0;
+    text-align: left;
+  }
+  .app-shell:has(.backtest-page) .brand-lockup__text {
+    font-size: 1rem;
+    letter-spacing: -0.02em;
+    line-height: 1.18;
+  }
+  .app-shell:has(.backtest-page) .sidebar__rule {
+    width: auto;
+    margin: 13px 12px 11px 16px;
+  }
+  .app-shell:has(.backtest-page) .sidebar-nav {
+    width: 100%;
+    padding: 0 8px;
+  }
+  .app-shell:has(.backtest-page) .sidebar-nav__item {
+    justify-content: flex-start;
+    gap: 10px;
+    padding: 0 11px;
+  }
+  .app-shell:has(.backtest-page) .sidebar-nav__label { display: inline; }
+  .app-shell:has(.backtest-page) .sidebar__mascot { display: block; }
+}
+
+@media (min-width: 901px) and (max-width: 1100px) {
+  .app-shell:has(.backtest-page) .page-header {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    column-gap: 16px;
+  }
+  .app-shell:has(.backtest-page) .page-header__art {
+    display: block;
+    width: 150px;
+    height: 110px;
+  }
+}
+
+@media (max-width: 900px) {
+  .backtest-config {
+    grid-template-columns: minmax(0, 1fr) minmax(195px, 0.52fr);
+  }
+  .backtest-config__period { grid-column: 1 / -1; }
+  .backtest-config__divider { display: none; }
+  .backtest-config__universe { grid-column: 1; }
+  .backtest-run-group { grid-column: 2; align-self: end; padding-top: 0; }
+  .backtest-advanced__grid { grid-template-columns: 1fr; }
+  .backtest-advanced__summary { display: none; }
+  .backtest-advanced__toggle { grid-template-columns: minmax(0, 1fr) auto; }
+  .backtest-advanced__column:last-child {
+    padding-top: 14px;
+    padding-left: 0;
+  }
+  .backtest-analytics-grid { grid-template-columns: 1fr; }
+  .backtest-summary-top { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .backtest-summary-settings { grid-column: 1 / -1; }
 }
 
 @media (max-width: 680px) {
-  /* iOS Safari sizes a date input from its native content, so two fields can
-     never share one row with a fixed label column without fighting: the box
-     ends up wider than its track, the text sits off centre, and the second
-     field no longer lines up with the first. Stacking the label above a
-     full-width field removes that competition entirely — both fields are then
-     identical boxes, whatever date format the device locale renders. */
-  .backtest-controls {
+  .app-shell:has(.backtest-page) .backtest-page { padding-top: 18px; }
+  .app-shell:has(.backtest-page) .page-header__controls .update-bar { display: inline-flex; }
+  .app-shell:has(.backtest-page) .page-header__controls { display: flex; }
+  .app-shell:has(.backtest-page) .page-header__title { font-size: var(--font-size-page-title); }
+  .backtest-page { --backtest-section-gap: 14px; gap: var(--backtest-section-gap); }
+  .backtest-config {
     grid-template-columns: minmax(0, 1fr);
-    gap: 14px;
-    padding: 16px;
+    gap: 17px;
+    padding: 17px 16px 13px;
   }
-  /* Stacked field group: the label takes row 1, the control row 2, and the
-     message row 3 — all in the same single column, so nothing can drift out of
-     the card and the message wraps inside the control's width. */
+  .backtest-config__period,
+  .backtest-config__universe,
+  .backtest-run-group { grid-column: 1; }
+  .backtest-config__heading { margin-bottom: 9px; }
+  .backtest-date-fields { grid-template-columns: minmax(0, 1fr); gap: 14px; }
   .backtest-date-group {
     width: 100%;
     grid-template-columns: minmax(0, 1fr);
     row-gap: 7px;
   }
-  .backtest-date-label, .backtest-date-control, .backtest-date-error { grid-column: 1; }
-  .backtest-date-label { grid-row: 1; font-size: 0.8rem; letter-spacing: 0.01em; }
+  .backtest-date-label,
+  .backtest-date-control { grid-column: 1; }
+  .backtest-date-label { grid-row: 1; font-size: 0.8rem; }
   .backtest-date-control {
     display: flex;
     grid-row: 2;
@@ -257,7 +975,6 @@
     border-radius: var(--radius-pill);
     background: var(--color-surface-soft);
   }
-  .backtest-date-error { grid-row: 3; }
   .backtest-date-input {
     flex: 1 1 0;
     box-sizing: border-box;
@@ -272,26 +989,13 @@
     border: 0;
     border-radius: 0;
     background: transparent;
-    /* 16px is the floor that stops iOS Safari from zooming the page when a
-       field is focused; anything smaller shifts the whole layout on tap. */
     font-size: 16px;
-    /* Match Safari's internal date line box to the 46px input box. Setting
-       this only on the pseudo-elements leaves the native text anchored at the
-       top in WebKit; the host line-height is what places it between the
-       field's top and bottom borders. */
     line-height: 46px;
     text-align: center;
-    /* iOS gives the native date control an intrinsic width that can win over
-       width: 100%. Resetting only this control's appearance makes it size like
-       a normal bounded form element while retaining its native date picker. */
     -webkit-appearance: none;
     appearance: none;
   }
-  .backtest-date-control:hover { border-color: #D8D0C6; }
   .backtest-date-group.is-invalid .backtest-date-control { border-color: #D8848B; }
-  /* Let WebKit's internal boxes inherit the host line box. The host declaration
-     is the Safari fallback because Safari does not consistently lay out these
-     pseudo-elements as normal flex containers. */
   .backtest-date-input::-webkit-datetime-edit {
     height: 100%;
     min-height: 0;
@@ -305,19 +1009,55 @@
     line-height: inherit;
     text-align: center;
   }
-  .backtest-date-error { margin: 0; font-size: 0.8rem; }
-  /* The two portfolio choices keep their even split, and every control gets a
-     full-width, thumb-sized box. */
-  .backtest-controls .backtest-segmented { display: flex; width: 100%; }
-  .backtest-controls .backtest-segmented button { min-height: 44px; font-size: 0.9rem; }
+  .backtest-segmented button { min-height: 44px; font-size: 0.9rem; }
   .backtest-run-button { width: 100%; min-height: 50px; }
+  .backtest-advanced__toggle { min-height: 57px; padding-inline: 16px; }
+  .backtest-advanced__grid { gap: 14px; padding: 2px 14px 16px; }
+  .backtest-advanced-panel { padding: 13px; }
+  .backtest-cashflow-fields > div { grid-template-columns: minmax(0, 1fr); }
+  .backtest-cashflow-fields .backtest-amount-control,
+  .backtest-cashflow-fields label[for="backtest-contribution-frequency"],
+  .backtest-cashflow-fields select { grid-column: 1; }
+  .backtest-cashflow-fields .backtest-amount-control { grid-row: 2; }
+  .backtest-cashflow-fields label[for="backtest-contribution-frequency"] { grid-row: 3; margin-top: 5px; }
+  .backtest-cashflow-fields select { grid-row: 4; }
+  .backtest-fixed-setting { grid-template-columns: minmax(0, 1fr); gap: 8px; padding-block: 9px; }
   .backtest-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .backtest-main-grid { min-height: 0; }
-  .backtest-cumulative-card { min-height: 365px; }
-  .backtest-chart-toolbar { align-items: flex-start; flex-direction: column; padding-inline: 4px; }
-  .backtest-chart-toolbar .performance-legend { gap: 9px; }
-  .backtest-chart-toolbar .performance-legend__item { font-size: 0.72rem; gap: 5px; }
+  .backtest-kpis .kpi-card { min-height: 96px; }
+  .backtest-cumulative-card { min-height: 408px; }
+  .backtest-cumulative-card > .dashboard-card__header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .backtest-chart-controls {
+    width: 100%;
+    align-items: stretch;
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+  .backtest-log-toggle { align-self: flex-start; min-height: 34px; }
+  .backtest-cumulative-legend { gap: 11px; padding-inline: 2px; }
+  .backtest-cumulative-legend .performance-legend__item { font-size: 0.7rem; }
+  .backtest-range-control button { min-width: 36px; min-height: 29px; padding-inline: 8px; }
+  .backtest-chart-frame { height: 292px; min-height: 292px; flex-basis: 292px; }
   .backtest-axis-label { font-size: 10px; }
-  .backtest-chart-svg { height: 290px; }
-  .backtest-side-grid { grid-template-columns: 1fr; grid-template-rows: 240px 245px; gap: 10px; }
+  .backtest-chart-tooltip { width: 196px; min-height: 120px; padding: 11px 12px; }
+  .backtest-chart-tooltip__row { grid-template-columns: 8px minmax(0, 1fr) auto; gap: 6px; font-size: 0.68rem; }
+  .backtest-chart-tooltip__row strong { font-size: 0.72rem; }
+  .backtest-chart-tooltip--compact { width: 182px; min-height: 82px; }
+  .backtest-drawdown-card { min-height: 305px; }
+  .backtest-drawdown-frame { height: 225px; min-height: 225px; flex-basis: 225px; }
+  .backtest-annual-card > .dashboard-card__body { --card-body-padding-end: 12px; }
+  .backtest-annual-table { min-width: 100%; }
+  .backtest-annual-table th:first-child { width: 27%; }
+  .backtest-annual-table th:nth-child(2) { width: 29%; }
+  .backtest-annual-table th { font-size: 0.62rem; letter-spacing: 0.04em; }
+  .backtest-annual-table tbody th { padding-left: 6px; font-size: 0.82rem; }
+  .backtest-annual-table td { padding: 0 5px; font-size: 0.82rem; }
+  .backtest-summary-top { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .backtest-summary-settings { grid-column: auto; }
+  .backtest-summary-tile { min-height: 112px; padding: 17px; }
+  .backtest-return-metrics { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .backtest-return-metrics > span:last-child { grid-column: auto; }
 }

@@ -218,12 +218,41 @@
 .stock-ranking-legend i { width: 14px; height: 14px; border-radius: 50%; }
 .stock-ranking-legend__rank { background: var(--color-yellow); }
 .stock-ranking-legend__score { background: var(--color-lavender); }
-.ranking-chart-canvas { flex: 1 1 auto; min-width: 0; min-height: 0; }
+.ranking-chart-canvas {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  cursor: crosshair;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+}
 .ranking-history-svg { display: block; width: 100%; height: 100%; min-height: 0; overflow: visible; }
 .ranking-rank-line { fill: none; stroke: #F2B600; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
 .ranking-score-line { fill: none; stroke: #AA8BF2; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
 .ranking-rank-endpoint { fill: #F2B600; stroke: var(--color-yellow); stroke-width: 1.5; }
 .ranking-score-endpoint { fill: #AA8BF2; stroke: #D7C8F6; stroke-width: 1.5; }
+.stock-ranking-tooltip__row {
+  display: grid;
+  grid-template-columns: 9px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  color: var(--color-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.stock-ranking-tooltip__row > i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+.stock-ranking-tooltip__row strong {
+  color: var(--color-ink);
+  font-size: 0.78rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
 
 @media (max-height: 830px) and (min-width: 1101px) {
   .stock-analysis-left,

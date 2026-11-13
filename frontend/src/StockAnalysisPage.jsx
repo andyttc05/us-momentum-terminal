@@ -314,6 +314,10 @@ function PriceChart({ stock, range }) {
 
 function RankingHistoryChart({ stock }) {
   const [boxRef, box] = useElementSize();
+  const [selectedIndex, setSelectedIndex] = useState(null);
+  const [tooltipSide, setTooltipSide] = useState(null);
+  const movementOriginX = useRef(Number.NaN);
+  const tooltipSideRef = useRef(null);
   const width = Math.round(box.width);
   const height = Math.round(box.height);
   const ready = width > 0 && height > 0;
@@ -351,9 +355,60 @@ function RankingHistoryChart({ stock }) {
     ? `${scorePath} L ${scorePoints.at(-1).x} ${top + plotHeight} L ${scorePoints[0].x} ${top + plotHeight} Z`
     : "";
   const xIndexes = history.map((_, index) => index).filter((index) => index % 2 === 1 || index === history.length - 1);
+  const xPoints = history.map((_, index) => ({
+    x: left + index / Math.max(1, history.length - 1) * plotWidth,
+  }));
+  const selectedPoint = selectedIndex == null ? null : xPoints[selectedIndex];
+  const tooltipPlacement = selectedPoint
+    ? placePriceTooltip({
+      anchorX: selectedPoint.x,
+      anchorY: top + plotHeight / 2,
+      preferredSide: tooltipSide,
+      containerWidth: width,
+      containerHeight: height,
+      tooltipWidth: 210,
+      tooltipHeight: 102,
+    })
+    : null;
+
+  useEffect(() => {
+    setSelectedIndex(null);
+    setTooltipSide(null);
+    movementOriginX.current = Number.NaN;
+    tooltipSideRef.current = null;
+  }, [stock.ticker, history.length]);
+
+  function selectAt(clientX) {
+    const rect = boxRef.current?.getBoundingClientRect();
+    if (!rect || !xPoints.length) return;
+    const pointerX = Math.min(Math.max(clientX - rect.left, left), left + plotWidth);
+    const nextSide = sideForMovement({
+      pointerX,
+      movementOriginX: movementOriginX.current,
+      currentSide: tooltipSideRef.current,
+    });
+    movementOriginX.current = nextSide.movementOriginX;
+    tooltipSideRef.current = nextSide.side;
+    setTooltipSide(nextSide.side);
+    setSelectedIndex(nearestObservationIndex(xPoints, pointerX));
+  }
 
   return (
-    <div className="ranking-chart-canvas" ref={boxRef}>
+    <div
+      className="ranking-chart-canvas"
+      ref={boxRef}
+      onPointerMove={(event) => {
+        if (event.pointerType !== "touch" && event.pointerType !== "pen") selectAt(event.clientX);
+      }}
+      onPointerLeave={(event) => {
+        if (event.pointerType === "touch" || event.pointerType === "pen") return;
+        setSelectedIndex(null);
+        movementOriginX.current = Number.NaN;
+        tooltipSideRef.current = null;
+        setTooltipSide(null);
+      }}
+      onPointerDown={(event) => selectAt(event.clientX)}
+    >
       {ready && (
         <svg
           className="ranking-history-svg"
@@ -384,7 +439,31 @@ function RankingHistoryChart({ stock }) {
           {rankPath && <path d={rankPath} className="ranking-rank-line" />}
           {rankPoints.length > 0 && <circle cx={rankPoints.at(-1).x} cy={rankPoints.at(-1).y} r="5" className="ranking-rank-endpoint" />}
           {scorePoints.length > 0 && <circle cx={scorePoints.at(-1).x} cy={scorePoints.at(-1).y} r="5" className="ranking-score-endpoint" />}
+          {selectedPoint && (
+            <g data-testid="ranking-history-selection">
+              <line x1={selectedPoint.x} x2={selectedPoint.x} y1={top} y2={top + plotHeight} className="backtest-crosshair" />
+              {history[selectedIndex]?.rank != null && (
+                <circle cx={selectedPoint.x} cy={top + ((history[selectedIndex].rank - 1) / (rankMax - 1)) * plotHeight} r="4.5" className="backtest-hover-point backtest-hover-point--strategy" />
+              )}
+              {history[selectedIndex]?.score != null && (
+                <circle cx={selectedPoint.x} cy={top + ((scoreMax - history[selectedIndex].score) / scoreSpan) * plotHeight} r="4.5" className="backtest-hover-point backtest-hover-point--spmo" />
+              )}
+            </g>
+          )}
         </svg>
+      )}
+      {ready && selectedPoint && (
+        <div
+          className="backtest-floating-tooltip"
+          style={{ left: tooltipPlacement.x, top: tooltipPlacement.y }}
+          data-testid="ranking-history-tooltip"
+        >
+          <div className="backtest-chart-tooltip backtest-chart-tooltip--compact" role="tooltip">
+            <span className="backtest-chart-tooltip__date">{formatTooltipDate(history[selectedIndex]?.date)}</span>
+            <span className="stock-ranking-tooltip__row"><i className="stock-ranking-legend__rank" aria-hidden="true" /><span>Rank</span><strong>{history[selectedIndex]?.rank ?? "—"}</strong></span>
+            <span className="stock-ranking-tooltip__row"><i className="stock-ranking-legend__score" aria-hidden="true" /><span>Momentum Score</span><strong>{history[selectedIndex]?.score == null ? "—" : history[selectedIndex].score.toFixed(2)}</strong></span>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-12T18:58:19+00:00",
+  "generated_at": "2026-11-13T12:48:28+00:00",
   "checks": {
     "universe": {
       "requested": 200,
@@ -13,7 +13,7 @@
       "no_null_prices": true,
       "no_nan_scores": true,
       "score_range": [
-        0.3085,
+        0.309,
         4.0
       ]
     },
@@ -36,17 +36,17 @@
         [
           3,
           "HPE",
-          3.9909
+          3.9926
         ],
         [
           4,
           "ARW",
-          3.492
+          3.4936
         ],
         [
           5,
           "DAR",
-          3.3915
+          3.3914
         ]
       ]
     },
@@ -58,19 +58,19 @@
           "momentum_12_1_recomputed": 24.94,
           "momentum_12_1_app": 24.9,
           "delta": 0.039,
-          "momentum_6m_recomputed": 19.53,
-          "momentum_6m_app": 19.5,
+          "momentum_6m_recomputed": 19.2,
+          "momentum_6m_app": 19.2,
           "volatility_recomputed": 24.9,
           "volatility_app": 24.9,
           "risk_adjusted_recomputed": 15.9,
           "risk_adjusted_app": 15.9,
           "score_from_displayed_z": 1.73,
-          "score_app": 1.7325,
-          "score_delta_from_displayed_z": 0.0025,
+          "score_app": 1.7332,
+          "score_delta_from_displayed_z": 0.0032,
           "sparkline_start_date": "2025-11-11",
           "sparkline_end_date": "2026-10-14",
-          "sparkline_start_adjusted_close": 274.5028,
-          "sparkline_end_adjusted_close": 342.96,
+          "sparkline_start_adjusted_close": 274.2944,
+          "sparkline_end_adjusted_close": 342.6996,
           "sparkline_first_point": 100.0,
           "sparkline_last_point": 124.9386,
           "sparkline_return_pct": 24.9386,
@@ -83,15 +83,15 @@
           "momentum_12_1_recomputed": 5.78,
           "momentum_12_1_app": 5.8,
           "delta": 0.02,
-          "momentum_6m_recomputed": 28.57,
-          "momentum_6m_app": 29.1,
-          "volatility_recomputed": 34.0,
-          "volatility_app": 34.0,
+          "momentum_6m_recomputed": 28.26,
+          "momentum_6m_app": 28.3,
+          "volatility_recomputed": 33.9,
+          "volatility_app": 33.9,
           "risk_adjusted_recomputed": 2.7,
           "risk_adjusted_app": 2.7,
           "score_from_displayed_z": 0.813,
-          "score_app": 0.8138,
-          "score_delta_from_displayed_z": 0.0008,
+          "score_app": 0.814,
+          "score_delta_from_displayed_z": 0.001,
           "sparkline_start_date": "2025-11-11",
           "sparkline_end_date": "2026-10-14",
           "sparkline_start_adjusted_close": 504.5289,
@@ -108,15 +108,15 @@
           "momentum_12_1_recomputed": 14.84,
           "momentum_12_1_app": 14.8,
           "delta": 0.043,
-          "momentum_6m_recomputed": -29.92,
-          "momentum_6m_app": -29.6,
-          "volatility_recomputed": 38.8,
+          "momentum_6m_recomputed": -29.34,
+          "momentum_6m_app": -29.3,
+          "volatility_recomputed": 38.7,
           "volatility_app": 38.7,
-          "risk_adjusted_recomputed": 6.07,
-          "risk_adjusted_app": 6.08,
+          "risk_adjusted_recomputed": 6.09,
+          "risk_adjusted_app": 6.09,
           "score_from_displayed_z": 1.02,
-          "score_app": 1.0173,
-          "score_delta_from_displayed_z": 0.0027,
+          "score_app": 1.0182,
+          "score_delta_from_displayed_z": 0.0018,
           "sparkline_start_date": "2025-11-11",
           "sparkline_end_date": "2026-10-14",
           "sparkline_start_adjusted_close": 192.6983,
@@ -133,15 +133,15 @@
           "momentum_12_1_recomputed": 18.01,
           "momentum_12_1_app": 18.0,
           "delta": 0.014,
-          "momentum_6m_recomputed": 1.12,
-          "momentum_6m_app": 1.4,
+          "momentum_6m_recomputed": 1.01,
+          "momentum_6m_app": 1.0,
           "volatility_recomputed": 41.6,
           "volatility_app": 41.6,
           "risk_adjusted_recomputed": 6.88,
           "risk_adjusted_app": 6.88,
           "score_from_displayed_z": 1.08,
-          "score_app": 1.0754,
-          "score_delta_from_displayed_z": 0.0046,
+          "score_app": 1.0758,
+          "score_delta_from_displayed_z": 0.0042,
           "sparkline_start_date": "2025-11-11",
           "sparkline_end_date": "2026-10-14",
           "sparkline_start_adjusted_close": 624.9601,
@@ -158,15 +158,15 @@
           "momentum_12_1_recomputed": 8.27,
           "momentum_12_1_app": 8.3,
           "delta": 0.025,
-          "momentum_6m_recomputed": 15.66,
-          "momentum_6m_app": 15.8,
+          "momentum_6m_recomputed": 15.4,
+          "momentum_6m_app": 15.4,
           "volatility_recomputed": 23.0,
           "volatility_app": 23.0,
           "risk_adjusted_recomputed": 5.72,
           "risk_adjusted_app": 5.72,
           "score_from_displayed_z": 0.9901,
-          "score_app": 0.9911,
-          "score_delta_from_displayed_z": 0.001,
+          "score_app": 0.9915,
+          "score_delta_from_displayed_z": 0.0014,
           "sparkline_start_date": "2025-11-11",
           "sparkline_end_date": "2026-10-14",
           "sparkline_start_adjusted_close": 309.6561,
@@ -296,7 +296,7 @@
       "total_weight": 100.0,
       "max_single_weight": 9.0,
       "max_sector_weight": 35.0,
-      "raw_formula_max_error": 4.8e-05,
+      "raw_formula_max_error": 5e-05,
       "float_caps_available": true,
       "sector_totals": {
         "Energy": 12.5,
@@ -315,8 +315,8 @@
       "excluded_without_market_cap": [
         "ALLY",
         "ALV",
-        "BURL",
         "AAL",
+        "BURL",
         "CNX",
         "RPM",
         "EEFT",
@@ -353,13 +353,14 @@
       "starts_below_100_by_initial_cost": true,
       "drawdown_non_positive": true,
       "metrics": {
-        "cumulative_return": 366.9,
-        "cagr": 19.6,
+        "cumulative_return": 364.6,
+        "cagr": 19.5,
         "annualized_volatility": 18.8,
         "max_drawdown": -34.7,
-        "sharpe": 1.05,
+        "sharpe": 1.04,
         "risk_free_rate": 0.0,
         "transaction_cost_pct": 0.9497,
+        "price_only_transaction_cost_pct": 0.9871,
         "total_one_way_turnover_pct": 265.3,
         "annualized_one_way_turnover_pct": 30.8
       },
@@ -383,25 +384,40 @@
       ]
     },
     "backtest_top20": {
-      "cumulative_return": 501.1,
+      "cumulative_return": 497.7,
       "cagr": 23.1,
       "annualized_volatility": 22.2,
       "max_drawdown": -32.1,
       "sharpe": 1.05,
       "risk_free_rate": 0.0,
       "transaction_cost_pct": 5.389,
+      "price_only_transaction_cost_pct": 5.3844,
       "total_one_way_turnover_pct": 1113.0,
       "annualized_one_way_turnover_pct": 129.4
+    },
+    "backtest_return_modes": {
+      "price_points": 2168,
+      "price_dates_match": true,
+      "price_benchmarks_present": true,
+      "modes_are_distinct": true,
+      "dividend_securities_checked": 108,
+      "dividend_coverage_complete": true,
+      "cpi_available": true,
+      "cpi_observations": 117,
+      "cpi_missing_months": [
+        "2025-10"
+      ],
+      "cpi_source": "U.S. Bureau of Labor Statistics via FRED"
     },
     "backtest_chart_reconciliation": {
       "nav_points": 2168,
       "dates_match_points": true,
       "drawdown_matches_points": true,
-      "cumulative_return_series": 366.9,
-      "cumulative_return_published": 366.9,
+      "cumulative_return_series": 364.6,
+      "cumulative_return_published": 364.6,
       "cumulative_return_delta": 0.0,
-      "cagr_series": 19.6,
-      "cagr_published": 19.6,
+      "cagr_series": 19.5,
+      "cagr_published": 19.5,
       "max_drawdown_series": -34.7,
       "max_drawdown_published": -34.7,
       "benchmarks_rebased_to_100": {
@@ -448,8 +464,8 @@
         },
         {
           "year": 2026,
-          "published": 18.5,
-          "recomputed": 18.5
+          "published": 17.9,
+          "recomputed": 18.0
         }
       ],
       "all_reconcile": true
@@ -468,7 +484,8 @@
       ],
       "all_series_present": true,
       "strategy_end_matches_backtest": true,
-      "labels_match_points": true,
+      "dates_match_points": true,
+      "month_ticks_are_dated_and_inside_the_window": true,
       "series_match_points": true,
       "axis_contains_every_value": true
     },
@@ -480,9 +497,9 @@
       "max_sector_weight": 35.0,
       "donut_matches_holdings": {
         "Communication": {
-          "donut": 14.1,
+          "donut": 14.0,
           "holdings": 14.1,
-          "delta": 0.05
+          "delta": 0.06
         },
         "Consumer Discretionary": {
           "donut": 0.4,
@@ -492,27 +509,27 @@
         "Consumer Staples": {
           "donut": 11.1,
           "holdings": 11.1,
-          "delta": 0.04
+          "delta": 0.02
         },
         "Energy": {
           "donut": 12.5,
           "holdings": 12.5,
-          "delta": 0.03
+          "delta": 0.01
         },
         "Financials": {
           "donut": 8.1,
           "holdings": 8.1,
-          "delta": 0.01
+          "delta": 0.02
         },
         "Healthcare": {
           "donut": 12.4,
           "holdings": 12.4,
-          "delta": 0.03
+          "delta": 0.04
         },
         "Industrials": {
           "donut": 3.8,
           "holdings": 3.8,
-          "delta": 0.02
+          "delta": 0.01
         },
         "Materials": {
           "donut": 1.5,
@@ -520,9 +537,9 @@
           "delta": 0.03
         },
         "Real Estate": {
-          "donut": 1.0,
+          "donut": 0.9,
           "holdings": 1.0,
-          "delta": 0.04
+          "delta": 0.06
         },
         "Technology": {
           "donut": 35.0,
@@ -595,8 +612,8 @@
           "screener_ticker": "MPC",
           "score": "4.00",
           "screener_score": "4.00",
-          "price": "$416.29",
-          "screener_price": "$416.29",
+          "price": "$412.85",
+          "screener_price": "$412.85",
           "consistent": true
         },
         {
@@ -605,8 +622,8 @@
           "screener_ticker": "MU",
           "score": "4.00",
           "screener_score": "4.00",
-          "price": "$794.03",
-          "screener_price": "$794.03",
+          "price": "$798.44",
+          "screener_price": "$798.44",
           "consistent": true
         },
         {
@@ -615,8 +632,8 @@
           "screener_ticker": "HPE",
           "score": "3.99",
           "screener_score": "3.99",
-          "price": "$50.50",
-          "screener_price": "$50.50",
+          "price": "$50.16",
+          "screener_price": "$50.16",
           "consistent": true
         },
         {
@@ -625,8 +642,8 @@
           "screener_ticker": "ARW",
           "score": "3.49",
           "screener_score": "3.49",
-          "price": "$198.71",
-          "screener_price": "$198.71",
+          "price": "$198.20",
+          "screener_price": "$198.20",
           "consistent": true
         },
         {
@@ -635,8 +652,8 @@
           "screener_ticker": "DAR",
           "score": "3.39",
           "screener_score": "3.39",
-          "price": "$55.16",
-          "screener_price": "$55.16",
+          "price": "$55.36",
+          "screener_price": "$55.36",
           "consistent": true
         }
       ],
@@ -648,13 +665,13 @@
       "tickers": {
         "MPC": {
           "price": {
-            "screener": 416.29,
-            "stock": 416.29,
+            "screener": 412.85,
+            "stock": 412.85,
             "equal": true
           },
           "marketCap": {
-            "screener": 109686185984.0,
-            "stock": 109686185984.0,
+            "screener": 112411738112.0,
+            "stock": 112411738112.0,
             "equal": true
           },
           "momentum": {
@@ -681,13 +698,13 @@
         },
         "MU": {
           "price": {
-            "screener": 794.0275,
-            "stock": 794.0275,
+            "screener": 798.44,
+            "stock": 798.44,
             "equal": true
           },
           "marketCap": {
-            "screener": 917923627008.0,
-            "stock": 917923627008.0,
+            "screener": 903373586432.0,
+            "stock": 903373586432.0,
             "equal": true
           },
           "momentum": {
@@ -714,13 +731,13 @@
         },
         "HPE": {
           "price": {
-            "screener": 50.5,
-            "stock": 50.5,
+            "screener": 50.16,
+            "stock": 50.16,
             "equal": true
           },
           "marketCap": {
-            "screener": 66705108992.0,
-            "stock": 66705108992.0,
+            "screener": 66585636864.0,
+            "stock": 66585636864.0,
             "equal": true
           },
           "momentum": {
@@ -729,8 +746,8 @@
             "equal": true
           },
           "score": {
-            "screener": 3.9909,
-            "stock": 3.9909,
+            "screener": 3.9926,
+            "stock": 3.9926,
             "equal": true
           },
           "rank": {
@@ -747,13 +764,13 @@
         },
         "NVDA": {
           "price": {
-            "screener": 165.56,
-            "stock": 165.56,
+            "screener": 166.19,
+            "stock": 166.19,
             "equal": true
           },
           "marketCap": {
-            "screener": 4195058188288.0,
-            "stock": 4195058188288.0,
+            "screener": 4012989743104.0,
+            "stock": 4012989743104.0,
             "equal": true
           },
           "momentum": {
@@ -762,13 +779,13 @@
             "equal": true
           },
           "score": {
-            "screener": 1.0173,
-            "stock": 1.0173,
+            "screener": 1.0182,
+            "stock": 1.0182,
             "equal": true
           },
           "rank": {
-            "screener": 85,
-            "stock": 85,
+            "screener": 84,
+            "stock": 84,
             "equal": true
           },
           "sector": {
@@ -780,13 +797,13 @@
         },
         "JPM": {
           "price": {
-            "screener": 344.16,
-            "stock": 344.16,
+            "screener": 342.82,
+            "stock": 342.82,
             "equal": true
           },
           "marketCap": {
-            "screener": 911909847040.0,
-            "stock": 911909847040.0,
+            "screener": 910396096512.0,
+            "stock": 910396096512.0,
             "equal": true
           },
           "momentum": {
@@ -795,8 +812,8 @@
             "equal": true
           },
           "score": {
-            "screener": 0.9911,
-            "stock": 0.9911,
+            "screener": 0.9915,
+            "stock": 0.9915,
             "equal": true
           },
           "rank": {
@@ -819,18 +836,18 @@
       "AAPL": {
         "twelve_data": {
           "date": "2026-11-12",
-          "close": 356.13
+          "close": 354.88
         },
         "yahoo_via_app": {
           "date": "2026-11-12",
-          "close": 356.125
+          "close": 354.88
         },
-        "difference_pct": -0.001
+        "difference_pct": 0.0
       },
       "QQQ": {
         "twelve_data": {
           "date": "2026-11-12",
-          "close": 689.18
+          "close": 688.16998
         },
         "yahoo_via_app": null
       }
@@ -843,7 +860,7 @@
       "is_backup": false,
       "backup_symbols": [],
       "timeliness": "delayed",
-      "generated_at": "2026-11-12T18:53:48+00:00",
+      "generated_at": "2026-11-13T12:35:15+00:00",
       "all_rows_carry_source": true
     },
     "passed": true

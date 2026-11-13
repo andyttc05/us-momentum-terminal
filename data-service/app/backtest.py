@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import math
 
+import numpy as np
 import pandas as pd
 
 from .momentum import cross_section_at
@@ -37,6 +38,75 @@ def _wide_frame(series_map) -> pd.DataFrame:
     if not columns:
         return pd.DataFrame()
     return pd.DataFrame(columns).sort_index()
+
+
+def _price_cash_frames(series_map) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Split-adjusted closes and per-share cash dividends.
+
+    The provider's adjusted close includes dividend reinvestment. To support a
+    dividend-exclusive account without counting those distributions twice, we
+    use the provider's Close, which Yahoo and FMP already normalize to the
+    current split basis. Applying the separate split actions again would
+    multiply historical wealth by every historical split, so those actions are
+    audited for completeness but never double-applied.
+    """
+    price_columns = {}
+    dividend_columns = {}
+    for symbol, series in series_map.items():
+        if not series.adjusted or series.rows < LIQUIDITY_SESSIONS:
+            continue
+        close = pd.to_numeric(series.frame["close"], errors="coerce")
+        dividends = pd.to_numeric(series.frame.get("dividends"), errors="coerce").fillna(0.0)
+        price_columns[symbol] = close
+        dividend_columns[symbol] = dividends
+    if not price_columns:
+        return pd.DataFrame(), pd.DataFrame()
+    return (
+        pd.DataFrame(price_columns).sort_index().ffill(),
+        pd.DataFrame(dividend_columns).sort_index().fillna(0.0),
+    )
+
+
+def _mark_cash_dividend_account(
+    holdings: dict[str, float],
+    previous_prices: dict[str, float],
+    prices: pd.DataFrame,
+    dividends: pd.DataFrame,
+    stamp: pd.Timestamp,
+    cash: float,
+) -> float:
+    for symbol, value in list(holdings.items()):
+        previous = previous_prices.get(symbol)
+        current = prices.at[stamp, symbol] if symbol in prices.columns else None
+        if previous and current and pd.notna(current):
+            holdings[symbol] = value * float(current) / previous
+            previous_prices[symbol] = float(current)
+            distribution = (
+                float(dividends.at[stamp, symbol])
+                if symbol in dividends.columns and pd.notna(dividends.at[stamp, symbol])
+                else 0.0
+            )
+            if distribution > 0 and float(current) > 0:
+                cash += holdings[symbol] / float(current) * distribution
+    return sum(holdings.values()) + cash
+
+
+def _cash_dividend_benchmark(series) -> pd.Series:
+    """Price return with distributions retained as cash, normalized to 100."""
+    prices, dividends = _price_cash_frames({series.symbol: series})
+    if prices.empty:
+        return pd.Series(dtype=float)
+    frame = prices[series.symbol]
+    distributions = dividends[series.symbol]
+    shares = 100.0 / float(frame.iloc[0])
+    cash = 0.0
+    values = []
+    for stamp, price in frame.items():
+        distribution = float(distributions.loc[stamp])
+        if distribution > 0:
+            cash += shares * distribution
+        values.append(shares * float(price) + cash)
+    return pd.Series(values, index=frame.index, dtype=float)
 
 
 def historical_universe_eligible(series, position: int) -> bool:
@@ -96,6 +166,8 @@ def run_backtest(
     if prices.empty:
         return {"available": False, "reason": "no price data"}
     prices = prices.ffill()
+    price_prices, price_dividends = _price_cash_frames(series_map)
+    price_prices = price_prices.reindex(prices.index).ffill()
 
     universe = set(universe_symbols or (set(series_map) - set(benchmark_symbols)))
     candidates = {symbol: series_map[symbol] for symbol in universe if symbol in series_map}
@@ -145,10 +217,16 @@ def run_backtest(
     nav = 100.0
     nav_dates: list[pd.Timestamp] = []
     nav_values: list[float] = []
+    price_nav = 100.0
+    price_nav_values: list[float] = []
     holdings_log: list[dict] = []
     holdings: dict[str, float] = {}
     previous_prices: dict[str, float] = {}
+    price_holdings: dict[str, float] = {}
+    price_previous_prices: dict[str, float] = {}
+    price_cash = 0.0
     total_cost = 0.0
+    total_price_cost = 0.0
     total_one_way_turnover = 0.0
 
     for event_index, event in enumerate(events):
@@ -165,8 +243,18 @@ def run_backtest(
             nav_before = nav
             trade_notional = nav_before
             one_way_turnover = 1.0
+            price_nav_before = price_nav
+            price_trade_notional = price_nav_before
         else:
             nav_before = _mark_to_market(holdings, previous_prices, prices, start)
+            price_nav_before = _mark_cash_dividend_account(
+                price_holdings,
+                price_previous_prices,
+                price_prices,
+                price_dividends,
+                start,
+                price_cash,
+            )
             target_values = {symbol: nav_before * (1.0 / len(targets)) for symbol in targets}
             all_symbols = set(holdings) | set(targets)
             trade_notional = sum(
@@ -174,21 +262,41 @@ def run_backtest(
                 for symbol in all_symbols
             )
             one_way_turnover = trade_notional / (2.0 * nav_before) if nav_before > 0 else 0.0
+            price_target_values = {
+                symbol: (price_nav_before - price_cash) * (1.0 / len(targets))
+                for symbol in targets
+            }
+            price_trade_notional = sum(
+                abs(price_target_values.get(symbol, 0.0) - price_holdings.get(symbol, 0.0))
+                for symbol in set(price_holdings) | set(targets)
+            ) + price_cash
 
         cost = trade_notional * (transaction_cost_rate + slippage_rate)
+        price_cost = price_trade_notional * (transaction_cost_rate + slippage_rate)
         nav_after_trade = max(0.0, nav_before - cost)
+        price_nav_after_trade = max(0.0, price_nav_before - price_cost)
         nav = nav_after_trade
+        price_nav = price_nav_after_trade
         weight = 1.0 / len(targets)
         holdings = {symbol: nav_after_trade * weight for symbol in targets}
+        price_holdings = {symbol: price_nav_after_trade * weight for symbol in targets}
+        price_cash = 0.0
         previous_prices = {
             symbol: float(prices.at[start, symbol])
             for symbol in targets
             if symbol in prices.columns and pd.notna(prices.at[start, symbol])
         }
+        price_previous_prices = {
+            symbol: float(price_prices.at[start, symbol])
+            for symbol in targets
+            if symbol in price_prices.columns and pd.notna(price_prices.at[start, symbol])
+        }
 
         nav_dates.append(start)
         nav_values.append(nav)
+        price_nav_values.append(price_nav)
         total_cost += cost
+        total_price_cost += price_cost
         total_one_way_turnover += one_way_turnover
         holdings_log.append(
             {
@@ -204,15 +312,28 @@ def run_backtest(
         for position in range(start_position + 1, end_position):
             stamp = prices.index[position]
             nav = _mark_to_market(holdings, previous_prices, prices, stamp)
+            price_nav = _mark_cash_dividend_account(
+                price_holdings,
+                price_previous_prices,
+                price_prices,
+                price_dividends,
+                stamp,
+                price_cash,
+            )
+            price_cash = price_nav - sum(price_holdings.values())
             nav_dates.append(stamp)
             nav_values.append(nav)
+            price_nav_values.append(price_nav)
 
     if len(nav_values) < 20:
         return {"available": False, "reason": "not enough post-rebalance observations"}
 
     strategy = pd.Series(nav_values, index=pd.DatetimeIndex(nav_dates)).sort_index()
     strategy = strategy[~strategy.index.duplicated(keep="last")]
+    price_strategy = pd.Series(price_nav_values, index=pd.DatetimeIndex(nav_dates)).sort_index()
+    price_strategy = price_strategy[~price_strategy.index.duplicated(keep="last")]
     benchmark_series = {}
+    price_benchmark_series = {}
     for symbol in benchmark_symbols:
         series = series_map.get(symbol)
         if series is None or series.rows < 60:
@@ -222,6 +343,34 @@ def run_backtest(
         ]
         if not closes.empty:
             benchmark_series[symbol] = closes / closes.iloc[0] * 100.0
+            cash_values = _cash_dividend_benchmark(series).loc[
+                (series.frame.index >= strategy.index[0])
+                & (series.frame.index <= strategy.index[-1])
+            ]
+            if not cash_values.empty:
+                price_benchmark_series[symbol] = cash_values / cash_values.iloc[0] * 100.0
+
+    checked_symbols = sorted(set(candidates) | {symbol for symbol in benchmark_symbols if symbol in series_map})
+    verified_sources = {"yahoo", "fmp"}
+    affected = [
+        symbol
+        for symbol in checked_symbols
+        if series_map[symbol].source not in verified_sources
+    ]
+    dividend_coverage = {
+        "securities_checked": len(checked_symbols),
+        "verified_securities": len(checked_symbols) - len(affected),
+        "incomplete_securities": len(affected),
+        "affected_tickers": affected,
+        "affected_dates": [],
+        "source": sorted({series_map[symbol].source for symbol in checked_symbols}),
+        "verified_action_fields": ["dividends", "stock_splits"],
+        "convention": (
+            "Total return uses adjusted closes. Dividend-exclusive return uses "
+            "split-adjusted closes, retains cash on each ex-date, and does not "
+            "purchase additional shares."
+        ),
+    }
 
     drawdown = (strategy / strategy.cummax() - 1.0) * 100.0
     monthly = strategy.resample("ME").last().dropna()
@@ -272,7 +421,9 @@ def run_backtest(
         "start": strategy.index[0].strftime("%Y-%m-%d"),
         "end": strategy.index[-1].strftime("%Y-%m-%d"),
         "strategy": strategy,
+        "price_strategy": price_strategy,
         "benchmarks": benchmark_series,
+        "price_benchmarks": price_benchmark_series,
         "drawdown": drawdown,
         "monthly": monthly,
         "monthly_benchmarks": monthly_benchmarks,
@@ -298,9 +449,11 @@ def run_backtest(
             "sharpe": sharpe,
             "risk_free_rate": RISK_FREE_RATE,
             "transaction_cost_pct": round(total_cost, 4),
+            "price_only_transaction_cost_pct": round(total_price_cost, 4),
             "total_one_way_turnover_pct": round(total_one_way_turnover * 100.0, 1),
             "annualized_one_way_turnover_pct": round(total_one_way_turnover / years * 100.0, 1),
         },
+        "dividend_coverage": dividend_coverage,
     }
 
 

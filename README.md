@@ -27,8 +27,10 @@ from that ranking have returned historically?
 | Portfolio | How is the model book allocated, by stock and by sector? |
 | Backtesting | How did the ranking behave across a chosen window, against SPY and SPMO? |
 
-Every number on screen comes from the Python service. The frontend formats, sorts and plots; it does
-not calculate financial values.
+The Python service builds the historical return paths, rankings and publication data. The frontend
+formats, sorts and plots those paths, and derives the user-configured account report (cashflows,
+XIRR, CPI deflation and chart-window metrics) from the published daily series without inventing
+prices or returns.
 
 ## 2. Live Demo
 
@@ -159,6 +161,18 @@ The historical test is a research proxy for the ranking method, not a tradable t
 - The Sharpe Ratio uses an explicitly documented 0% risk-free rate.
 - Maximum drawdown is measured from the running peak of the NAV series.
 - Annual returns use calendar years; the current partial year is labelled YTD.
+- Dividend-reinvested mode uses provider adjusted closes. The provider's `Close` is already normalized
+  to the current split basis; split actions are audited but never applied a second time.
+- Dividend-exclusive mode uses those split-normalized closes, records cash distributions on the
+  ex-date and does not purchase additional shares.
+- CPI adjustment uses official U.S. CPI-U All Items (`CPIAUCNS`, Bureau of Labor Statistics via FRED).
+  Monthly observations become available to reporting on the 15th of the following month, with a
+  persistent cache and stale-cache fallback. Missing CPI months are retained in the coverage metadata.
+
+External contributions are added at the first trading observation of a new period and excluded from
+time-weighted return. XIRR uses dated investor cashflows and the ending account value. Under CPI
+adjustment, historical contributions and the terminal value are deflated to the backtest start's
+purchasing power before XIRR is solved.
 
 The backtest runs on the audited 108-symbol historical core and does not apply today's 92 additions
 retrospectively. It is not a point-in-time reconstruction: current constituents and current

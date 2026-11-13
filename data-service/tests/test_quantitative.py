@@ -5,15 +5,16 @@ from __future__ import annotations
 import json
 import unittest
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-from app.backtest import run_backtest
+from app.backtest import _price_cash_frames, run_backtest
 from app.clock import NY, market_state
 from app.main import _loading_payload, _seed_payload
+from app.macro import parse_cpi_csv
 from app.models import NormalizedBar
 from app.momentum import (
     SymbolSeries,
@@ -392,6 +393,70 @@ class BacktestTests(unittest.TestCase):
             self.assertTrue(set(event["leaders"]).issubset({"AAA", "BBB", "CCC", "DDD", "EEE", "FFF"}))
         self.assertGreater(result["metrics"]["transaction_cost_pct"], 0.0)
 
+    def test_price_only_path_keeps_dividends_as_cash_without_reinvestment(self):
+        symbols = ["AAA", "BBB", "CCC", "DDD", "EEE", "FFF"]
+        series = {symbol: synthetic_series(symbol) for symbol in symbols}
+        for symbol in ("SPY", "SPMO"):
+            series[symbol] = synthetic_series(symbol)
+        for item in series.values():
+            item.frame.loc[item.frame.index[700], "dividends"] = 2.0
+            item.source = "yahoo"
+        result = run_backtest(series, top_n=3, universe_symbols=set(symbols))
+        self.assertTrue(result["available"])
+        self.assertEqual(len(result["strategy"]), len(result["price_strategy"]))
+        self.assertNotEqual(float(result["strategy"].iloc[-1]), float(result["price_strategy"].iloc[-1]))
+        self.assertEqual(result["dividend_coverage"]["incomplete_securities"], 0)
+
+    def test_split_adjusted_close_is_not_adjusted_a_second_time(self):
+        days = 70
+        data = np.full(days, 50.0)
+        dates = pd.bdate_range("2025-01-02", periods=days)
+        frame = pd.DataFrame(
+            {
+                "adj": data,
+                "close": data,
+                "volume": np.full(days, 2_000_000.0),
+                "open": data,
+                "high": data,
+                "low": data,
+                "dividends": np.zeros(days),
+                "splits": np.r_[np.ones(35), 2.0, np.ones(days - 36)],
+            },
+            index=dates,
+        )
+        series = SymbolSeries(
+            symbol="SPLIT",
+            frame=frame,
+            source="yahoo",
+            source_label="Yahoo Finance",
+            fetched_at="2026-01-01T00:00:00+00:00",
+            adjusted=True,
+            is_backup=False,
+        )
+        prices, _ = _price_cash_frames({"SPLIT": series})
+        self.assertAlmostEqual(float(prices["SPLIT"].iloc[34]), 50.0)
+        self.assertAlmostEqual(float(prices["SPLIT"].iloc[36]), 50.0)
+
+
+class MacroTests(unittest.TestCase):
+    def test_cpi_parser_validates_numbers_and_reports_gaps(self):
+        parsed = parse_cpi_csv(
+            "\n".join(
+                [
+                    "observation_date,CPIAUCNS",
+                    "2017-12-01,246.500",
+                    "2018-01-01,247.000",
+                    "2018-03-01,249.000",
+                    "2018-04-01,not-a-number",
+                ]
+            ),
+            start=date(2018, 1, 1),
+        )
+        self.assertEqual(parsed["observations"][0]["value"], 247.0)
+        self.assertEqual(parsed["observations"][0]["available_from"], "2018-02-15")
+        self.assertEqual(parsed["missing_months"], ["2018-02"])
+        self.assertEqual(parsed["rejected_row_count"], 1)
+
 
 class BacktestMetricsTests(unittest.TestCase):
     """Recompute every published metric from the returned NAV series.
@@ -717,18 +782,44 @@ class PerformancePayloadTests(unittest.TestCase):
         self.assertAlmostEqual(float(one_year["end"].rstrip("%").replace("+", "")), expected, places=0)
         self.assertNotEqual(one_year["values"][0], -0.1)
 
-    def test_every_period_has_matching_labels_and_series(self):
+    def test_every_period_dates_match_the_points_it_plots(self):
         nav = self._nav(99.9, 200.0)
         benchmark = self._nav(100.0, 150.0)
         payload = _performance_payload(
             {"available": True, "strategy": nav, "benchmarks": {"SPY": benchmark, "SPMO": benchmark}}
         )
         for period, block in payload.items():
-            self.assertEqual(len(block["labels"]), block["points"], period)
+            self.assertEqual(len(block["dates"]), block["points"], period)
+            self.assertEqual(block["dates"], sorted(block["dates"]), period)
             for item in block["series"]:
                 self.assertEqual(len(item["values"]), block["points"], f"{period}/{item['id']}")
                 self.assertGreaterEqual(min(item["values"]), block["axis"]["min"], period)
                 self.assertLessEqual(max(item["values"]), block["axis"]["max"], period)
+
+    def test_month_ticks_are_calendar_dates_not_sample_slots(self):
+        """A mid-month window must not gain an extra tick at its left edge."""
+        nav = pd.Series(
+            np.linspace(99.9, 200.0, 300),
+            index=pd.bdate_range("2024-01-15", periods=300),
+        )
+        one_year = _performance_payload({"available": True, "strategy": nav, "benchmarks": {}})["1Y"]
+
+        first = pd.Timestamp(one_year["dates"][0])
+        # The window opens mid-month: that sample is plotted but never a tick.
+        self.assertNotEqual(first, first + pd.offsets.MonthEnd(0))
+        self.assertNotIn(one_year["dates"][0], [tick["date"] for tick in one_year["ticks"]])
+
+        for tick in one_year["ticks"]:
+            stamp = pd.Timestamp(tick["date"])
+            self.assertEqual(stamp, stamp + pd.offsets.MonthEnd(0), tick)
+            self.assertGreaterEqual(tick["date"], one_year["dates"][0])
+            self.assertLessEqual(tick["date"], one_year["dates"][-1])
+
+        # One tick per completed calendar month, no repeated labels. A window
+        # that spans thirteen month ends keeps the leading tick's year.
+        labels = [tick["label"] for tick in one_year["ticks"]]
+        self.assertEqual(len(labels), len(set(labels)))
+        self.assertTrue(labels[0].startswith((first + pd.offsets.MonthEnd(0)).strftime("%b")))
 
 
 class UniverseTests(unittest.TestCase):

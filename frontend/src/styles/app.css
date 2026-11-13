@@ -65,7 +65,16 @@
 /* The minimum height keeps the chart visible in stacked (auto-height) layouts,
    where there is no definite box to measure against. */
 .performance-chart { display: flex; min-width: 0; width: 100%; min-height: 190px; flex: 1 1 auto; }
-.performance-chart__canvas { flex: 1 1 auto; min-width: 0; min-height: 0; }
+.performance-chart__canvas {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  cursor: crosshair;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+}
 .performance-chart__svg { display: block; width: 100%; height: 100%; overflow: visible; }
 .performance-chart__gridline { stroke: var(--color-line); stroke-width: 1; }
 .performance-chart__axis-label { fill: var(--color-text-secondary); font-family: var(--font-family); font-size: 12px; font-weight: 600; }
@@ -288,9 +297,7 @@
 .notification-toast__close:hover { background: rgb(255 255 255 / 11%); color: #fff; }
 .notification-toast__action:focus-visible,
 .notification-toast__close:focus-visible { outline: 2px solid #8CCAF7; outline-offset: 2px; }
-.app-shell:has(.page-toast) > .status-toast {
-  bottom: calc(var(--toast-edge-bottom) + 80px);
-}
+.app-shell:has(.page-toast) > .status-toast { display: none; }
 
 @keyframes notification-toast-in {
   from { opacity: 0; transform: translateY(10px) scale(0.985); }

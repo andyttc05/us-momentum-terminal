@@ -1,31 +1,62 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
+  Bank,
+  CalendarBlank,
+  CaretDown,
   ChartBar,
-  ChartLineDown,
+  Coins,
+  Info,
   Play,
   Scales,
+  SlidersHorizontal,
   Stack,
-  WarningCircle,
+  TrendUp,
 } from "@phosphor-icons/react";
 import { AppButton } from "./components/AppButton.jsx";
 import { DashboardCard } from "./components/DashboardCard.jsx";
-import { UpdateBar } from "./components/UpdateBar.jsx";
 import { KpiCard } from "./components/KpiCard.jsx";
-import { Mascot, MascotDuo } from "./components/Mascot.jsx";
+import { MascotDuo } from "./components/Mascot.jsx";
 import { PageHeader } from "./components/PageHeader.jsx";
 import { Toast } from "./components/Toast.jsx";
+import { UpdateBar } from "./components/UpdateBar.jsx";
 import { useElementSize } from "./components/useElementSize.js";
 import { useMarket } from "./api/MarketProvider.jsx";
-import { useMediaQuery } from "./components/useMediaQuery.js";
 import { computeWindowMetrics } from "./utils/backtestMetrics.js";
+import {
+  applyInflationAdjustment,
+  calculateBacktestReport,
+  getBacktestAvailability,
+} from "./utils/backtestReport.js";
 import { buildDrawdownScale } from "./utils/drawdownScale.js";
+import {
+  nearestObservationIndex,
+  placePriceTooltip,
+  sideForMovement,
+} from "./utils/priceTooltip.js";
 
-const ranges = ["1Y", "3Y", "5Y", "All"];
-const strategies = [
+const RANGES = ["1Y", "3Y", "5Y", "All"];
+const SERIES = [
   { id: "strategy", name: "US Momentum Strategy", shortName: "Strategy", color: "#FFC83D" },
   { id: "spy", name: "SPY", color: "#69A5F5" },
   { id: "spmo", name: "SPMO", color: "#AA8BF2" },
 ];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const CHART_TOOLTIP = { width: 222, height: 128 };
+const PERIOD_TOOLTIP = { width: 196, height: 82 };
+
+const DEFAULT_CONFIG = {
+  portfolio: "top100",
+  startDate: "",
+  endDate: "",
+  initialCapital: "10000",
+  cashflowEnabled: true,
+  contributionAmount: "1000",
+  contributionFrequency: "monthly",
+  reinvestDividends: true,
+  inflationAdjusted: false,
+  includeYtd: true,
+};
 
 function buildPath(points) {
   if (points.length < 2) return "";
@@ -37,11 +68,119 @@ function buildPath(points) {
     return `${path} C ${previous.x + (point.x - previous2.x) / 6} ${previous.y + (point.y - previous2.y) / 6}, ${point.x - (next.x - previous.x) / 6} ${point.y - (next.y - previous.y) / 6}, ${point.x} ${point.y}`;
   }, "");
 }
-
 function formatPercent(value, digits = 1) {
   if (typeof value !== "number" || !Number.isFinite(value)) return "—";
   const sign = value > 0 ? "+" : value < 0 ? "−" : "";
   return `${sign}${Math.abs(value).toFixed(digits)}%`;
+}
+
+function formatMoney(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "—";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function formatDate(isoDate) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(isoDate ?? "");
+  if (!match) return "—";
+  return `${MONTHS[Number(match[2]) - 1]} ${Number(match[3])}, ${match[1]}`;
+}
+
+function valueTone(value) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value === 0) return "neutral";
+  return value > 0 ? "positive" : "negative";
+}
+
+function InfoTooltip({ label, children }) {
+  const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState({ left: 12, top: 12 });
+  const triggerRef = useRef(null);
+  const tooltipRef = useRef(null);
+  const lastPointerType = useRef("mouse");
+  const tooltipId = useId();
+
+  function place() {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const tooltipWidth = Math.min(238, window.innerWidth - 24);
+    const estimatedHeight = 92;
+    const left = Math.min(
+      Math.max(12, rect.left + rect.width / 2 - tooltipWidth / 2),
+      window.innerWidth - tooltipWidth - 12,
+    );
+    const below = rect.bottom + 8;
+    const top = below + estimatedHeight <= window.innerHeight - 12
+      ? below
+      : Math.max(12, rect.top - estimatedHeight - 8);
+    setPosition({ left, top, width: tooltipWidth });
+  }
+
+  useEffect(() => {
+    if (!open) return undefined;
+    place();
+    const closeOutside = (event) => {
+      if (
+        !triggerRef.current?.contains(event.target)
+        && !tooltipRef.current?.contains(event.target)
+      ) {
+        setOpen(false);
+      }
+    };
+    const closeOnViewportChange = () => setOpen(false);
+    document.addEventListener("pointerdown", closeOutside);
+    window.addEventListener("resize", closeOnViewportChange);
+    window.addEventListener("scroll", closeOnViewportChange, true);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      window.removeEventListener("resize", closeOnViewportChange);
+      window.removeEventListener("scroll", closeOnViewportChange, true);
+    };
+  }, [open]);
+
+  return (
+    <span className="backtest-info">
+      <button
+        ref={triggerRef}
+        type="button"
+        className="backtest-info__trigger"
+        aria-label={`About ${label}`}
+        aria-describedby={open ? tooltipId : undefined}
+        onPointerDown={(event) => { lastPointerType.current = event.pointerType; }}
+        onPointerEnter={(event) => {
+          if (event.pointerType === "mouse") setOpen(true);
+        }}
+        onPointerLeave={(event) => {
+          if (event.pointerType === "mouse") setOpen(false);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        onClick={(event) => {
+          event.stopPropagation();
+          setOpen((current) => (
+            lastPointerType.current === "mouse" ? true : !current
+          ));
+        }}
+      >
+        <Info size={14} weight="fill" aria-hidden="true" />
+      </button>
+      {open && createPortal(
+        <span
+          ref={tooltipRef}
+          id={tooltipId}
+          role="tooltip"
+          className="backtest-info-tooltip"
+          style={position}
+        >
+          {children}
+        </span>,
+        document.body,
+      )}
+    </span>
+  );
 }
 
 function shiftMonths(dateString, months) {
@@ -50,303 +189,898 @@ function shiftMonths(dateString, months) {
   return date.toISOString().slice(0, 10);
 }
 
-/** Slice the daily backtest by an explicit window plus the range selector. */
-function sliceWindow(block, startDate, endDate, range) {
-  if (!block?.dates?.length) return null;
-  const lowerBound = range === "All" ? startDate : shiftMonths(endDate, -12 * Number.parseInt(range, 10));
+/**
+ * Slice an existing daily NAV and benchmark series. Rebasing affects only the
+ * visible chart window; the submitted backtest and its metrics stay unchanged.
+ */
+function buildWindow(block, startDate, endDate, range = "All", reinvestDividends = true) {
+  if (!block?.available || !block.dates?.length || !startDate || !endDate) return null;
+  const lowerBound = range === "All"
+    ? startDate
+    : shiftMonths(endDate, -12 * Number.parseInt(range, 10));
   const from = lowerBound > startDate ? lowerBound : startDate;
-
   const indexes = [];
   block.dates.forEach((date, index) => {
     if (date >= from && date <= endDate) indexes.push(index);
   });
   if (indexes.length < 2) return null;
 
-  const pick = (array) => indexes.map((index) => array[index]);
-  const strategy = pick(block.strategy);
-  const base = strategy[0];
-  const normalize = (array) => {
-    const values = pick(array);
-    const origin = values[0] || 1;
-    return values.map((value) => Number(((value / origin) * 100).toFixed(4)));
+  const sourceStrategy = reinvestDividends ? block.strategy : block.priceStrategy;
+  const sourceSpy = reinvestDividends ? block.spy : block.priceSpy;
+  const sourceSpmo = reinvestDividends ? block.spmo : block.priceSpmo;
+  if (!sourceStrategy?.length || !sourceSpy?.length || !sourceSpmo?.length) return null;
+  const pick = (values) => indexes.map((index) => values[index]);
+  const dates = pick(block.dates);
+  const startsAtBacktestOrigin = dates[0] === block.dates[0];
+  const pickedStrategy = pick(sourceStrategy);
+  const strategy = startsAtBacktestOrigin
+    ? pickedStrategy
+    : pickedStrategy.map((value) => value / pickedStrategy[0] * 100);
+  const normalizeBenchmark = (values) => {
+    if (!values?.length) return [];
+    const picked = pick(values);
+    return picked.map((value) => value / picked[0] * 100);
   };
-
-  const startsAtBacktestOrigin = from === block.dates[0];
-  const rebased = startsAtBacktestOrigin ? pick(block.strategy) : normalize(block.strategy);
+  const spy = normalizeBenchmark(sourceSpy);
+  const spmo = normalizeBenchmark(sourceSpmo);
   const drawdown = [];
-  let peak = rebased[0];
-  rebased.forEach((value) => {
+  let peak = strategy[0];
+  strategy.forEach((value) => {
     peak = Math.max(peak, value);
-    drawdown.push(Number(((value / peak - 1) * 100).toFixed(2)));
+    drawdown.push((value / peak - 1) * 100);
   });
 
   return {
-    dates: pick(block.dates),
-    strategy: rebased,
-    spy: block.spy?.length ? normalize(block.spy) : [],
-    spmo: block.spmo?.length ? normalize(block.spmo) : [],
+    dates,
+    strategy,
+    spy,
+    spmo,
     drawdown,
-    base: 100,
+    reinvestDividends,
     startsAtBacktestOrigin,
-    fullWindow: startsAtBacktestOrigin && endDate === block.dates.at(-1),
+    fullWindow: dates[0] === block.dates[0] && dates.at(-1) === block.dates.at(-1),
   };
 }
 
-function sampleIndexes(length, maxPoints) {
-  if (length <= maxPoints) return Array.from({ length }, (_, index) => index);
-  const step = (length - 1) / (maxPoints - 1);
-  const out = new Set();
-  for (let index = 0; index < maxPoints; index += 1) out.add(Math.round(index * step));
-  out.add(length - 1);
-  return [...out].sort((a, b) => a - b);
+function yearLabelPositions(dates, left, plotWidth) {
+  const positions = [];
+  let currentYear = "";
+  dates.forEach((date, index) => {
+    const year = date.slice(0, 4);
+    if (year === currentYear) return;
+    currentYear = year;
+    positions.push({
+      year,
+      x: left + index / Math.max(1, dates.length - 1) * plotWidth,
+    });
+  });
+  return positions;
 }
 
-function CumulativeChart({ window, range }) {
-  // Measured box: the chart draws itself at 1:1 CSS pixels so the endpoint
-  // markers stay circular and the value pills keep their rounded shape.
+function cumulativeScale(high, low) {
+  const span = Math.max(high - low, 10);
+  const magnitude = 10 ** Math.floor(Math.log10(span / 5));
+  const normalized = span / 5 / magnitude;
+  const step = (normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10) * magnitude;
+  const max = Math.ceil(Math.max(high, step) / step) * step;
+  const min = low < 0 ? Math.floor(low / 10) * 10 : 0;
+  const ticks = min < 0 ? [min] : [];
+  for (let value = 0; value <= max + step * 0.01; value += step) ticks.push(value);
+  return { min, max, ticks };
+}
+
+function wealthPosition(value, scale, top, plotHeight, logScale) {
+  if (!logScale) {
+    return top + (scale.max - value) / (scale.max - scale.min) * plotHeight;
+  }
+  const minimum = Math.log10(1 + scale.min / 100);
+  const maximum = Math.log10(1 + scale.max / 100);
+  return top + (maximum - Math.log10(1 + value / 100)) / (maximum - minimum) * plotHeight;
+}
+
+function CumulativeTooltip({ window, index }) {
+  return (
+    <div className="backtest-chart-tooltip" role="tooltip">
+      <span className="backtest-chart-tooltip__date">{formatDate(window.dates[index])}</span>
+      {SERIES.map((series) => {
+        const value = window[series.id]?.[index];
+        return (
+          <span className="backtest-chart-tooltip__row" key={series.id}>
+            <i style={{ "--series-color": series.color }} aria-hidden="true" />
+            <span>{series.name}</span>
+            <strong className={`is-${valueTone(value - 100)}`}>{formatPercent(value - 100)}</strong>
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+function LogScaleToggle({ checked, onChange }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      className="backtest-log-toggle"
+      onClick={() => onChange(!checked)}
+    >
+      <span>Log Scale</span>
+      <span className="backtest-switch" aria-hidden="true"><i /></span>
+    </button>
+  );
+}
+
+function CumulativeChart({ window, range, logScale, onLogUnavailable }) {
   const [boxRef, box] = useElementSize();
+  const [selectedIndex, setSelectedIndex] = useState(null);
+  const [tooltipSide, setTooltipSide] = useState(null);
+  const movementOriginX = useRef(Number.NaN);
+  const tooltipSideRef = useRef(null);
   const width = Math.round(box.width);
   const height = Math.round(box.height);
   const ready = width > 0 && height > 0;
+  const compact = width > 0 && width < 560;
+  const left = compact ? 42 : 54;
+  const top = 30;
+  const labelGutter = compact ? 82 : 126;
+  const plotWidth = Math.max(80, width - left - labelGutter);
+  const plotHeight = Math.max(80, height - top - (compact ? 30 : 34));
 
-  // Phones drop the endpoint callouts so the plot can use the full width.
-  const compact = width > 0 && width < 520;
-  const left = compact ? 42 : 50;
-  const top = compact ? 10 : 12;
-  const plotWidth = Math.max(80, width - left - (compact ? 10 : 118));
-  const plotHeight = Math.max(80, height - top - (compact ? 26 : 30));
-
-  const computedSeries = strategies
+  const computedSeries = SERIES
     .filter((series) => window[series.id]?.length)
-    .map((series) => {
-      const values = window[series.id].map((value) => (value - 100));
-      return { ...series, values, end: values.at(-1) };
-    });
+    .map((series) => ({
+      ...series,
+      values: window[series.id].map((value) => value - 100),
+    }));
 
-  const high = Math.max(10, ...computedSeries.flatMap(({ values }) => values));
-  const low = Math.min(0, ...computedSeries.flatMap(({ values }) => values));
-  // The axis is zero-based so returns read correctly; a small negative pad is
-  // added only when the curve actually dips below its starting value.
-  const min = low < 0 ? Math.floor(low / 10) * 10 : 0;
-  const span = Math.max(high - min, 10);
-  const step = Math.max(10, Math.ceil(span / 4 / 10) * 10);
-  const max = Math.ceil(high / step) * step;
-  const ticks = [];
-  for (let value = 0; value <= max; value += step) ticks.push(value);
-  if (min < 0) ticks.unshift(min);
-
+  useEffect(() => {
+    setSelectedIndex(null);
+    setTooltipSide(null);
+    movementOriginX.current = Number.NaN;
+    tooltipSideRef.current = null;
+  }, [range, window.dates.length]);
+  const allValues = computedSeries.flatMap((series) => series.values);
+  const high = Math.max(10, ...allValues);
+  const low = Math.min(0, ...allValues);
+  const scale = cumulativeScale(high, low);
+  const logAvailable = allValues.every((value) => value > -100);
+  const renderedLogScale = logScale && logAvailable;
+  const yForValue = (value) => wealthPosition(value, scale, top, plotHeight, renderedLogScale);
+  useEffect(() => {
+    if (logScale && !logAvailable) onLogUnavailable?.();
+  }, [logAvailable, logScale, onLogUnavailable]);
+  const negativeTickTooClose = scale.min < 0
+    && Math.abs(scale.min) / (scale.max - scale.min) * plotHeight < 18;
   const pointsFor = (values) => values.map((value, index) => ({
-    x: left + (index / Math.max(1, values.length - 1)) * plotWidth,
-    y: top + ((max - value) / (max - min)) * plotHeight,
+    x: left + index / Math.max(1, values.length - 1) * plotWidth,
+    y: yForValue(value),
   }));
 
-  const labelPositions = [];
-  const seenYears = new Set();
-  const minLabelGap = 58;
-  window.dates.forEach((date, position) => {
-    const year = date.slice(0, 4);
-    if (seenYears.has(year)) return;
-    const x = left + (position / Math.max(1, window.dates.length - 1)) * plotWidth;
-    if (labelPositions.length && x - labelPositions.at(-1).x < minLabelGap) return;
-    seenYears.add(year);
-    labelPositions.push({ position, label: year, x });
-  });
-
-  const placedLabels = computedSeries
+  const labelPositions = yearLabelPositions(window.dates, left, plotWidth)
+    .filter((item, index, list) => (
+      index === 0
+      || index === list.length - 1
+      || item.x - list[index - 1].x >= (compact ? 66 : 48)
+    ));
+  const endLabels = computedSeries
     .map((series) => ({ series, point: pointsFor(series.values).at(-1) }))
     .sort((a, b) => a.point.y - b.point.y);
-  placedLabels.forEach((item, index) => {
-    item.labelY = Math.max(item.point.y, index ? placedLabels[index - 1].labelY + 28 : top + 13);
+  endLabels.forEach((item, index) => {
+    item.labelY = Math.max(
+      item.point.y,
+      index ? endLabels[index - 1].labelY + (compact ? 24 : 28) : top + 12,
+    );
   });
-  const labelOverflow = (placedLabels.at(-1)?.labelY ?? 0) - (top + plotHeight - 10);
-  if (labelOverflow > 0) placedLabels.forEach((item) => { item.labelY -= labelOverflow; });
+  const lastLabel = endLabels.at(-1);
+  if (lastLabel?.labelY > top + plotHeight - 12) {
+    const overflow = lastLabel.labelY - (top + plotHeight - 12);
+    endLabels.forEach((item) => { item.labelY -= overflow; });
+  }
+
+  const selectedPoint = selectedIndex == null ? null : pointsFor(computedSeries[0].values)[selectedIndex];
+  const placement = selectedPoint
+    ? placePriceTooltip({
+      anchorX: selectedPoint.x,
+      anchorY: selectedPoint.y,
+      preferredSide: tooltipSide,
+      containerWidth: width,
+      containerHeight: height,
+      tooltipWidth: compact ? 196 : CHART_TOOLTIP.width,
+      tooltipHeight: compact ? 120 : CHART_TOOLTIP.height,
+    })
+    : null;
+
+  function selectAt(clientX) {
+    const rect = boxRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const x = Math.min(Math.max(clientX - rect.left, left), left + plotWidth);
+    const nextSide = sideForMovement({
+      pointerX: x,
+      movementOriginX: movementOriginX.current,
+      currentSide: tooltipSideRef.current,
+    });
+    movementOriginX.current = nextSide.movementOriginX;
+    tooltipSideRef.current = nextSide.side;
+    setTooltipSide(nextSide.side);
+    setSelectedIndex(nearestObservationIndex(pointsFor(window.strategy.map((value) => value - 100)), x));
+  }
+
+  function handleLeave(event) {
+    if (event.pointerType === "touch" || event.pointerType === "pen") return;
+    setSelectedIndex(null);
+    movementOriginX.current = Number.NaN;
+    tooltipSideRef.current = null;
+    setTooltipSide(null);
+  }
 
   return (
-    <div className="backtest-cumulative-chart">
-      <div className="backtest-chart-canvas" ref={boxRef}>
+    <div className="backtest-chart-frame" ref={boxRef}>
+      <span className="backtest-axis-caption">Cumulative return (%)</span>
       {ready && (
-      <svg className="backtest-chart-svg" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" role="img" aria-label={`${range} cumulative return comparison for strategy, SPY, and SPMO`}>
-        <defs>
-          {computedSeries.map((series) => (
-            <linearGradient id={`backtest-area-${series.id}`} key={series.id} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={series.color} stopOpacity="0.2" />
-              <stop offset="100%" stopColor={series.color} stopOpacity="0.015" />
-            </linearGradient>
+        <svg
+          className="backtest-chart-svg"
+          viewBox={`0 0 ${width} ${height}`}
+          preserveAspectRatio="xMidYMid meet"
+          role="img"
+          aria-label={`${range} cumulative return comparison for strategy, SPY and SPMO`}
+          onPointerMove={(event) => {
+            if (event.pointerType !== "touch" && event.pointerType !== "pen") selectAt(event.clientX);
+          }}
+          onPointerLeave={handleLeave}
+          onPointerDown={(event) => selectAt(event.clientX)}
+        >
+          <defs>
+            {computedSeries.map((series) => (
+              <linearGradient id={`backtest-area-${series.id}`} key={series.id} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={series.color} stopOpacity="0.2" />
+                <stop offset="100%" stopColor={series.color} stopOpacity="0.015" />
+              </linearGradient>
+            ))}
+          </defs>
+          {scale.ticks.filter((tick) => !(negativeTickTooClose && tick === scale.min)).map((tick) => {
+            const y = yForValue(tick);
+            return (
+              <g key={tick}>
+                <line x1={left} x2={left + plotWidth} y1={y} y2={y} className="backtest-gridline" />
+                <text x={left - 9} y={y + 4} textAnchor="end" className="backtest-axis-label">{tick}%</text>
+              </g>
+            );
+          })}
+          {labelPositions.map(({ year, x }) => (
+            <text
+              key={year}
+              x={Math.min(Math.max(x, left + 18), left + plotWidth - 18)}
+              y={top + plotHeight + 25}
+              textAnchor="middle"
+              className="backtest-axis-label"
+            >{year}</text>
           ))}
-        </defs>
-        {(compact ? ticks.filter((_, index) => index % 2 === 0 || index === ticks.length - 1) : ticks).map((tick) => {
-          const y = top + ((max - tick) / (max - min)) * plotHeight;
-          return <g key={tick}><line x1={left} x2={left + plotWidth} y1={y} y2={y} className="backtest-gridline" /><text x={left - 9} y={y + 4} textAnchor="end" className="backtest-axis-label">{tick}%</text></g>;
-        })}
-        {labelPositions.map(({ label, x }, index) => {
-          // Phones label every other year so the axis stays readable.
-          if (compact && index % 2 !== 0 && index !== labelPositions.length - 1) return null;
-          return <text key={`${label}-${index}`} x={x} y={top + plotHeight + (compact ? 18 : 25)} textAnchor="middle" className="backtest-axis-label">{label}</text>;
-        })}
-        {computedSeries.map((series) => {
-          const points = pointsFor(series.values);
-          if (!points.length) return null;
-          const line = buildPath(points);
-          const area = `${line} L ${points.at(-1).x} ${top + plotHeight} L ${points[0].x} ${top + plotHeight} Z`;
-          return <path key={`${series.id}-area`} d={area} fill={`url(#backtest-area-${series.id})`} />;
-        })}
-        {computedSeries.map((series) => <path key={series.id} d={buildPath(pointsFor(series.values))} className={`backtest-series-line backtest-series-line--${series.id}`} />)}
-        {!compact && placedLabels.map(({ series, point, labelY }) => (
-          <g key={`${series.id}-end`}><circle cx={point.x} cy={point.y} r="4.5" className={`backtest-endpoint backtest-endpoint--${series.id}`} /><path d={`M ${point.x + 7} ${point.y} L ${point.x + 14} ${labelY}`} className={`backtest-leader backtest-leader--${series.id}`} /><rect x={point.x + 14} y={labelY - 12} width="91" height="24" rx="12" className={`backtest-value-pill backtest-value-pill--${series.id}`} /><text x={point.x + 59.5} y={labelY} dominantBaseline="central" textAnchor="middle" className="backtest-value-label">{formatPercent(series.end)}</text></g>
-        ))}
-      </svg>
+          {computedSeries.map((series) => {
+            const points = pointsFor(series.values);
+            const line = buildPath(points);
+            const area = `${line} L ${points.at(-1).x} ${top + plotHeight} L ${points[0].x} ${top + plotHeight} Z`;
+            return <path key={`${series.id}-area`} d={area} fill={`url(#backtest-area-${series.id})`} />;
+          })}
+          {computedSeries.map((series) => (
+            <path key={series.id} d={buildPath(pointsFor(series.values))} className={`backtest-series-line backtest-series-line--${series.id}`} />
+          ))}
+          {selectedPoint && (
+            <g data-testid="backtest-cumulative-selection">
+              <line x1={selectedPoint.x} x2={selectedPoint.x} y1={top} y2={top + plotHeight} className="backtest-crosshair" />
+              {computedSeries.map((series) => {
+                const point = pointsFor(series.values)[selectedIndex];
+                return <circle key={series.id} cx={point.x} cy={point.y} r="4.5" className={`backtest-hover-point backtest-hover-point--${series.id}`} />;
+              })}
+            </g>
+          )}
+          {endLabels.map(({ series, point, labelY }) => (
+            <g key={`${series.id}-end`}>
+              <circle cx={point.x} cy={point.y} r="4.5" className={`backtest-endpoint backtest-endpoint--${series.id}`} />
+              <path d={`M ${point.x + 7} ${point.y} L ${point.x + (compact ? 9 : 14)} ${labelY}`} className={`backtest-leader backtest-leader--${series.id}`} />
+              <rect
+                x={point.x + (compact ? 9 : 14)}
+                y={labelY - (compact ? 10 : 12)}
+                width={compact ? 70 : 91}
+                height={compact ? 20 : 24}
+                rx={compact ? 10 : 12}
+                className={`backtest-value-pill backtest-value-pill--${series.id}`}
+              />
+              <text
+                x={point.x + (compact ? 44 : 59.5)}
+                y={labelY}
+                dominantBaseline="central"
+                textAnchor="middle"
+                className={`backtest-value-label${compact ? " backtest-value-label--compact" : ""}`}
+              >{formatPercent(series.values.at(-1))}</text>
+            </g>
+          ))}
+        </svg>
       )}
+      {ready && selectedPoint && (
+        <div
+          className="backtest-floating-tooltip"
+          style={{ left: placement.x, top: placement.y }}
+          data-testid="backtest-cumulative-tooltip"
+        >
+          <CumulativeTooltip window={window} index={selectedIndex} />
+        </div>
+      )}
+    </div>
+  );
+}
+function DrawdownChart({ window }) {
+  const [boxRef, box] = useElementSize();
+  const [selectedIndex, setSelectedIndex] = useState(null);
+  const width = Math.round(box.width);
+  const height = Math.round(box.height);
+  const ready = width > 0 && height > 0;
+  const compact = width > 0 && width < 560;
+  const left = compact ? 42 : 54;
+  const top = 30;
+  const plotWidth = Math.max(80, width - left - 18);
+  const plotHeight = Math.max(90, height - top - 34);
+  const scale = buildDrawdownScale(window.drawdown);
+  const low = Math.min(scale.min, -1);
+  const values = window.drawdown;
+  const points = values.map((value, index) => ({
+    x: left + index / Math.max(1, values.length - 1) * plotWidth,
+    y: top + Math.abs(value) / Math.abs(low) * plotHeight,
+  }));
+  const line = buildPath(points);
+  const area = `${line} L ${left + plotWidth} ${top} L ${left} ${top} Z`;
+  let maxIndex = 0;
+  values.forEach((value, index) => {
+    if (value < values[maxIndex]) maxIndex = index;
+  });
+  const maxPoint = points[maxIndex];
+  const selectedPoint = selectedIndex == null ? null : points[selectedIndex];
+  const placement = selectedPoint
+    ? placePriceTooltip({
+      anchorX: selectedPoint.x,
+      anchorY: selectedPoint.y,
+      preferredSide: selectedPoint.x > width / 2 ? "left" : "right",
+      containerWidth: width,
+      containerHeight: height,
+      tooltipWidth: PERIOD_TOOLTIP.width,
+      tooltipHeight: PERIOD_TOOLTIP.height,
+    })
+    : null;
+  const yearPositions = yearLabelPositions(window.dates, left, plotWidth)
+    .filter((item, index, list) => (
+      index === 0
+      || index === list.length - 1
+      || item.x - list[index - 1].x >= (compact ? 64 : 48)
+    ));
+
+  useEffect(() => {
+    setSelectedIndex(null);
+  }, [window.dates.length, window.dates[0]]);
+
+  function selectAt(clientX) {
+    const rect = boxRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const x = Math.min(Math.max(clientX - rect.left, left), left + plotWidth);
+    setSelectedIndex(nearestObservationIndex(points, x));
+  }
+
+  return (
+    <div className="backtest-chart-frame backtest-drawdown-frame" ref={boxRef}>
+      <span className="backtest-axis-caption">Drawdown (%)</span>
+      {ready && (
+        <svg
+          className="backtest-chart-svg"
+          viewBox={`0 0 ${width} ${height}`}
+          preserveAspectRatio="xMidYMid meet"
+          role="img"
+          aria-label={`Strategy drawdown, maximum ${formatPercent(values[maxIndex])} on ${formatDate(window.dates[maxIndex])}`}
+          onPointerMove={(event) => {
+            if (event.pointerType !== "touch" && event.pointerType !== "pen") selectAt(event.clientX);
+          }}
+          onPointerLeave={(event) => {
+            if (event.pointerType !== "touch" && event.pointerType !== "pen") setSelectedIndex(null);
+          }}
+          onPointerDown={(event) => selectAt(event.clientX)}
+        >
+          <defs>
+            <linearGradient id="drawdown-fill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#FF7081" stopOpacity="0.30" />
+              <stop offset="100%" stopColor="#FFB5C1" stopOpacity="0.06" />
+            </linearGradient>
+          </defs>
+          {scale.ticks.map((tick) => {
+            const y = top + Math.abs(tick) / Math.abs(low) * plotHeight;
+            return (
+              <g key={tick}>
+                <line x1={left} x2={left + plotWidth} y1={y} y2={y} className={tick === 0 ? "backtest-zero-line" : "backtest-gridline"} />
+                <text x={left - 9} y={y + 4} textAnchor="end" className="backtest-axis-label">{tick}%</text>
+              </g>
+            );
+          })}
+          {yearPositions.map(({ year, x }) => (
+            <text
+              key={year}
+              x={Math.min(Math.max(x, left + 18), left + plotWidth - 18)}
+              y={top + plotHeight + 25}
+              textAnchor="middle"
+              className="backtest-axis-label"
+            >{year}</text>
+          ))}
+          <path d={area} fill="url(#drawdown-fill)" />
+          <path d={line} className="backtest-drawdown-line" />
+          <circle cx={maxPoint.x} cy={maxPoint.y} r="5" className="backtest-drawdown-point" />
+          {selectedPoint && (
+            <g data-testid="backtest-drawdown-selection">
+              <line x1={selectedPoint.x} x2={selectedPoint.x} y1={top} y2={top + plotHeight} className="backtest-crosshair" />
+              <circle cx={selectedPoint.x} cy={selectedPoint.y} r="4.5" className="backtest-hover-point backtest-hover-point--drawdown" />
+            </g>
+          )}
+        </svg>
+      )}
+      {ready && selectedPoint && (
+        <div className="backtest-floating-tooltip" style={{ left: placement.x, top: placement.y }} data-testid="backtest-drawdown-tooltip">
+          <div className="backtest-chart-tooltip backtest-chart-tooltip--compact" role="tooltip">
+            <span className="backtest-chart-tooltip__date">{formatDate(window.dates[selectedIndex])}</span>
+            <strong className="backtest-chart-tooltip__drawdown">{formatPercent(values[selectedIndex], 2)}</strong>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+function AnnualReturnTable({ rows, includeYtd }) {
+  const visibleRows = rows.filter((row) => includeYtd || !row.ytd);
+  return (
+    <DashboardCard title="Annual Return" className="backtest-annual-card">
+      <div className="backtest-table-scroll">
+        <table className="backtest-annual-table">
+          <thead>
+            <tr>
+              <th>Year</th>
+              <th className="backtest-annual-series backtest-annual-series--strategy"><span><i aria-hidden="true" />Strategy</span></th>
+              <th className="backtest-annual-series backtest-annual-series--spy"><span><i aria-hidden="true" />SPY</span></th>
+              <th className="backtest-annual-series backtest-annual-series--spmo"><span><i aria-hidden="true" />SPMO</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {visibleRows.map((row) => (
+              <tr key={row.key}>
+                <th scope="row">
+                  {row.key}
+                  {row.partialStart && <span className="backtest-year-tag">Partial</span>}
+                  {row.ytd && <span className="backtest-year-tag">YTD</span>}
+                </th>
+                {SERIES.map((series) => {
+                  const value = row[series.id];
+                  return (
+                    <td key={series.id} className={`backtest-annual-series backtest-annual-series--${series.id} ${valueTone(value)}`}>
+                      {formatPercent(value)}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+            {!visibleRows.length && (
+              <tr><td colSpan="4" className="backtest-table-empty">No calendar-year returns in this window.</td></tr>
+            )}
+          </tbody>
+        </table>
       </div>
+    </DashboardCard>
+  );
+}
+
+function PerformanceSummary({ report, config }) {
+  const settings = [
+    { label: "Initial Capital", value: formatMoney(report.initialCapital), icon: Bank },
+    { label: "Reinvest Dividends", value: config.reinvestDividends ? "Yes" : "No", icon: TrendUp },
+    { label: "Inflation Adjusted", value: config.inflationAdjusted ? "Yes" : "No", icon: ChartBar },
+    { label: "Rebalancing", value: "Semiannual (Mar / Sep)", icon: Scales },
+  ];
+  return (
+    <DashboardCard title="Performance Summary" className="backtest-summary-card">
+      <div className="backtest-summary-top">
+        <div className="backtest-summary-primary">
+          <div className="backtest-summary-tile">
+            <span className="backtest-summary-tile__label"><Stack size={18} aria-hidden="true" />Final Portfolio Value</span>
+            <strong>{formatMoney(report.finalValue)}</strong>
+          </div>
+          <div className="backtest-summary-tile">
+            <span className="backtest-summary-tile__label"><Coins size={18} aria-hidden="true" />Total Contributions</span>
+            <strong>{formatMoney(report.totalContributions)}</strong>
+          </div>
+        </div>
+        <div className="backtest-summary-settings" aria-label="Investment settings">
+          {settings.map(({ label, value, icon: Icon }) => (
+            <div className="backtest-summary-setting" key={label}>
+              <span><Icon size={16} aria-hidden="true" />{label}</span>
+              <strong>{value}</strong>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="backtest-return-metrics">
+        <span>
+          <small>Time-Weighted Return <InfoTooltip label="Time-weighted return">Daily portfolio growth linked across external contributions. Cashflow timing does not change this return.</InfoTooltip></small>
+          <strong className={`is-${valueTone(report.timeWeightedReturnPct)}`}>{formatPercent(report.timeWeightedReturnPct, 2)}</strong>
+        </span>
+        <span>
+          <small>Money-Weighted Return / XIRR <InfoTooltip label="money-weighted return">The annualised rate that makes the dated initial investment, contributions and ending account value net to zero.</InfoTooltip></small>
+          <strong className={`is-${valueTone(report.moneyWeightedReturnPct)}`}>{formatPercent(report.moneyWeightedReturnPct, 2)}</strong>
+        </span>
+        <span>
+          <small>{config.inflationAdjusted ? "vs. SPY (Real Return)" : "vs. SPY (Total Return)"} <InfoTooltip label="relative performance">Strategy time-weighted return minus the matching SPY return over the submitted period, shown in percentage points.</InfoTooltip></small>
+          <strong className={`is-${valueTone(report.relativeToSpyPct)}`}>{formatPercent(report.relativeToSpyPct)} pp</strong>
+        </span>
+      </div>
+    </DashboardCard>
+  );
+}
+
+function SettingToggle({ label, description, checked, onChange, icon: Icon }) {
+  return (
+    <div
+      className="backtest-setting-toggle"
+    >
+      <span className="backtest-setting-label">
+        {Icon && <Icon size={21} weight="regular" aria-hidden="true" />}
+        <span>{label}</span>
+        <InfoTooltip label={label}>{description}</InfoTooltip>
+      </span>
+      <button
+        type="button"
+        className="backtest-switch-button"
+        role="switch"
+        aria-label={label}
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+      >
+        <span className="backtest-switch" aria-hidden="true"><i /></span>
+      </button>
     </div>
   );
 }
 
-function DrawdownChart({ window, exactMin, exactIndex }) {
-  const [boxRef, box] = useElementSize();
-  const width = Math.round(box.width);
-  const height = Math.round(box.height);
-  const ready = width > 0 && height > 0;
-
-  const values = window.drawdown;
-  const scale = buildDrawdownScale(values);
-  const low = scale.min;
-  const left = 40;
-  const top = 14;
-  const plotWidth = Math.max(60, width - left - 10);
-  const plotHeight = Math.max(50, height - top - 16);
-  const points = values.map((value, index) => ({
-    x: left + index / Math.max(1, values.length - 1) * plotWidth,
-    y: top + (-value / -low) * plotHeight,
-  }));
-  const line = buildPath(points);
-  const area = `${line} L ${left + plotWidth} ${top} L ${left} ${top} Z`;
-  const minValue = typeof exactMin === "number" ? exactMin : Math.min(...values);
-  const markerIndex = typeof exactIndex === "number"
-    ? Math.round((exactIndex / Math.max(1, window.fullLength - 1)) * (values.length - 1))
-    : values.indexOf(Math.min(...values));
-  const minPoint = points[Math.min(Math.max(markerIndex, 0), points.length - 1)];
-  const yMin = top + (-minValue / -low) * plotHeight;
-  const troughPoint = { x: minPoint.x, y: yMin };
-  const ticks = scale.ticks;
-
-  // The callout stays an HTML overlay, so its text is never scaled by the SVG.
-  const calloutGap = 11;
-  const calloutY = height ? (troughPoint.y + calloutGap) / height * 100 : 0;
-  const calloutX = width ? troughPoint.x / width * 100 : 0;
-  const pointY = height ? troughPoint.y / height * 100 : 0;
-  const connectorHeight = Math.max(0, calloutY - pointY);
-
+function MoneyField({ id, value, onChange, ariaLabel, invalid = false }) {
+  const rawValue = String(value ?? "");
+  const displayValue = (() => {
+    if (!/^\d+(\.\d*)?$/.test(rawValue)) return rawValue;
+    const [whole, decimal] = rawValue.split(".");
+    const grouped = Number(whole).toLocaleString("en-US");
+    return decimal === undefined ? grouped : `${grouped}.${decimal}`;
+  })();
   return (
-    <div className="backtest-drawdown-chart">
-      <div className="backtest-drawdown-canvas" ref={boxRef}>
-        {ready && (
-          <svg className="backtest-drawdown-svg" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" role="img" aria-label={`Strategy drawdown. Maximum drawdown ${formatPercent(minValue)}`}>
-            <defs><linearGradient id="drawdown-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#FF7081" stopOpacity="0.32" /><stop offset="100%" stopColor="#FFB5C1" stopOpacity="0.08" /></linearGradient></defs>
-            {ticks.map((tick) => {
-              const y = top + (Math.abs(tick) / Math.abs(low)) * plotHeight;
-              return <g key={tick}><line x1={left} x2={left + plotWidth} y1={y} y2={y} className="backtest-gridline" /><text x={left - 8} y={y + 4} textAnchor="end" className="backtest-axis-label">{tick}%</text></g>;
-            })}
-            <path d={area} fill="url(#drawdown-fill)" />
-            <path d={line} className="backtest-drawdown-line" />
-            <circle cx={troughPoint.x} cy={troughPoint.y} r="5" className="backtest-drawdown-point" />
-          </svg>
-        )}
-      </div>
-      <span className="backtest-drawdown-connector" style={{ left: `${calloutX}%`, top: `${pointY}%`, height: `${connectorHeight}%` }} aria-hidden="true" />
-      <span className="backtest-drawdown-callout" style={{ "--callout-x": `${calloutX}%`, "--callout-y": `${calloutY}%` }}>{formatPercent(minValue)}</span>
+    <div className="backtest-amount-control">
+      <span aria-hidden="true">$</span>
+      <input
+        id={id}
+        type="text"
+        inputMode="decimal"
+        aria-label={ariaLabel}
+        aria-invalid={invalid}
+        value={displayValue}
+        onChange={(event) => {
+          const next = event.target.value.replace(/[^\d.]/g, "");
+          const parts = next.split(".");
+          onChange(parts.length > 2 ? `${parts.shift()}.${parts.join("")}` : next);
+        }}
+      />
+      <span>USD</span>
     </div>
+  );
+}
+
+function AdvancedSettings({ open, onToggle, draft, updateDraft, amountErrors }) {
+  const summary = `${formatMoney(Number(draft.initialCapital))} initial${draft.cashflowEnabled ? ` · ${formatMoney(Number(draft.contributionAmount))} ${draft.contributionFrequency}` : " · No contributions"} · Reinvest: ${draft.reinvestDividends ? "On" : "Off"}`;
+  return (
+    <section className="backtest-advanced" data-open={open || undefined}>
+      <button className="backtest-advanced__toggle" type="button" aria-expanded={open} onClick={onToggle}>
+        <span className="backtest-advanced__title"><SlidersHorizontal size={22} weight="regular" aria-hidden="true" /><span>Advanced Settings</span></span>
+        <span className="backtest-advanced__summary">{summary}</span>
+        <CaretDown size={22} weight="bold" aria-hidden="true" />
+      </button>
+      <div className="backtest-advanced__reveal" aria-hidden={!open} inert={!open}>
+        <div className="backtest-advanced__inner">
+          <div className="backtest-advanced__grid">
+            <div className="backtest-advanced__column">
+              <div className="backtest-advanced-panel">
+                <div className="backtest-advanced-panel__title"><Coins size={21} aria-hidden="true" /><span>Initial Capital</span></div>
+                <MoneyField
+                  id="backtest-initial-capital"
+                  value={draft.initialCapital}
+                  onChange={(value) => updateDraft({ initialCapital: value })}
+                  ariaLabel="Initial capital in US dollars"
+                  invalid={Boolean(amountErrors.initialCapital)}
+                />
+              </div>
+
+              <div className="backtest-advanced-panel backtest-cashflow-panel">
+                <SettingToggle
+                  label="Cashflows"
+                  description="Add external contributions at the close of the first trading day in each period."
+                  checked={draft.cashflowEnabled}
+                  onChange={(checked) => updateDraft({ cashflowEnabled: checked })}
+                />
+                <div
+                  className="backtest-cashflow-fields"
+                  data-open={draft.cashflowEnabled || undefined}
+                  aria-hidden={!draft.cashflowEnabled}
+                  inert={!draft.cashflowEnabled}
+                >
+                  <div>
+                    <label htmlFor="backtest-contribution-amount">Contribution Amount</label>
+                    <MoneyField
+                      id="backtest-contribution-amount"
+                      value={draft.contributionAmount}
+                      onChange={(value) => updateDraft({ contributionAmount: value })}
+                      ariaLabel="Contribution amount in US dollars"
+                      invalid={Boolean(amountErrors.contributionAmount)}
+                    />
+                    <label htmlFor="backtest-contribution-frequency">Frequency</label>
+                    <select
+                      id="backtest-contribution-frequency"
+                      value={draft.contributionFrequency}
+                      onChange={(event) => updateDraft({ contributionFrequency: event.target.value })}
+                    >
+                      <option value="monthly">Monthly</option>
+                      <option value="quarterly">Quarterly</option>
+                      <option value="annually">Annually</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="backtest-advanced__column backtest-advanced__settings">
+              <SettingToggle
+                label="Reinvest Dividends"
+                description="Adjusted closes already include dividend reinvestment, so no dividend cash amount is added again."
+                icon={TrendUp}
+                checked={draft.reinvestDividends}
+                onChange={(checked) => updateDraft({ reinvestDividends: checked })}
+              />
+              <SettingToggle
+                label="Inflation Adjusted"
+                description="Convert nominal values and returns into real terms using dated US CPI-U observations."
+                icon={ChartBar}
+                checked={draft.inflationAdjusted}
+                onChange={(checked) => updateDraft({ inflationAdjusted: checked })}
+              />
+              <div className="backtest-fixed-setting">
+                <span className="backtest-setting-label"><Scales size={21} aria-hidden="true" /><span>Rebalancing</span><InfoTooltip label="rebalancing">Signals use the last March and September session; trades execute at the next available close.</InfoTooltip></span>
+                <select aria-label="Rebalancing schedule" value="semiannual" disabled><option value="semiannual">Semiannual (Mar / Sep)</option></select>
+              </div>
+              <SettingToggle
+                label="Include YTD"
+                description="Include the current partial calendar year as a clearly labelled YTD row."
+                icon={CalendarBlank}
+                checked={draft.includeYtd}
+                onChange={(checked) => updateDraft({ includeYtd: checked })}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
 export function BacktestingPage({ hidden = false }) {
   const { data, refresh } = useMarket();
-  const [portfolio, setPortfolio] = useState("top100");
+  const [draft, setDraft] = useState(DEFAULT_CONFIG);
+  const [submittedConfig, setSubmittedConfig] = useState(null);
   const [range, setRange] = useState("All");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [submittedWindow, setSubmittedWindow] = useState({ startDate: "", endDate: "" });
+  const [logScale, setLogScale] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
-  const [toast, setToast] = useState("");
-  // Matches the responsive breakpoint where the toolbar becomes a single
-  // stacked column; the message changes container there, not just its styling.
-  const isDesktop = useMediaQuery("(min-width: 681px)");
+  const [notification, setNotification] = useState(null);
+  const [validationTouched, setValidationTouched] = useState(false);
+  const notificationTimer = useRef(null);
+  const runTimer = useRef(null);
 
-  const block = data?.backtest?.[portfolio] ?? null;
-  const available = Boolean(block?.available);
+  const draftBlock = data?.backtest?.[draft.portfolio] ?? null;
+  const resultBlock = submittedConfig ? data?.backtest?.[submittedConfig.portfolio] ?? null : null;
+  const cpi = data?.macro?.cpi ?? null;
 
-  // Seed the date inputs from the verified backtest window once it arrives.
   useEffect(() => {
-    if (!block?.available) return;
-    setStartDate((current) => current || block.start);
-    setEndDate((current) => current || block.end);
-    setSubmittedWindow((current) => (current.startDate ? current : { startDate: block.start, endDate: block.end }));
-  }, [block]);
-
-  const dateError = available && startDate && endDate && startDate >= endDate ? "End date must be after start date." : "";
-  const backtestWindow = useMemo(
-    () => (available && submittedWindow.startDate ? sliceWindow(block, submittedWindow.startDate, submittedWindow.endDate, range) : null),
-    [available, block, range, submittedWindow],
-  );
-  // The backend's metrics are authoritative for the full published window; a
-  // narrowed window is the only case that has to be derived on the client.
-  const metrics = useMemo(
-    () => computeWindowMetrics(backtestWindow, block?.metrics ?? null),
-    [backtestWindow, block],
-  );
-
-  // Charts render at most ~320 points; metrics always use the full daily series.
-  const chartWindow = useMemo(() => {
-    if (!backtestWindow) return null;
-    const indexes = sampleIndexes(backtestWindow.dates.length, 320);
-    const pick = (array) => (array?.length ? indexes.map((index) => array[index]) : []);
-    return {
-      dates: pick(backtestWindow.dates),
-      strategy: pick(backtestWindow.strategy),
-      spy: pick(backtestWindow.spy),
-      spmo: pick(backtestWindow.spmo),
-      drawdown: pick(backtestWindow.drawdown),
-      fullLength: backtestWindow.dates.length,
-    };
-  }, [backtestWindow]);
-
-  const drawdownStats = useMemo(() => {
-    if (!backtestWindow) return { exactMin: null, exactIndex: null };
-    let minValue = Infinity;
-    let minIndex = 0;
-    backtestWindow.drawdown.forEach((value, index) => {
-      if (value < minValue) { minValue = value; minIndex = index; }
+    if (!draftBlock?.available) return;
+    setDraft((current) => ({
+      ...current,
+      startDate: current.startDate || draftBlock.start,
+      endDate: current.endDate || draftBlock.end,
+    }));
+    setSubmittedConfig((current) => current ?? {
+      ...DEFAULT_CONFIG,
+      startDate: draftBlock.start,
+      endDate: draftBlock.end,
+      initialCapital: Number(DEFAULT_CONFIG.initialCapital),
+      contributionAmount: Number(DEFAULT_CONFIG.contributionAmount),
     });
-    return { exactMin: minValue, exactIndex: minIndex };
-  }, [backtestWindow]);
+  }, [draftBlock?.available, draftBlock?.start, draftBlock?.end]);
 
-  // The five most recent calendar years inside the selected window. The last
-  // year is still running when the window ends mid-year, so it is flagged YTD
-  // instead of being presented as a completed year.
-  const annualRows = useMemo(() => {
-    if (!available || !backtestWindow) return [];
-    const firstYear = Number(backtestWindow.dates[0].slice(0, 4));
-    const lastDate = backtestWindow.dates.at(-1) ?? "";
-    const lastYear = Number(lastDate.slice(0, 4));
-    const partialYear = lastDate.endsWith("-12-31") ? null : lastYear;
-    return (block.annual ?? [])
-      .filter((row) => row.year >= firstYear && row.year <= lastYear)
-      .slice(-5)
-      .map((row) => ({ ...row, ytd: row.year === partialYear }));
-  }, [available, block, backtestWindow]);
+  useEffect(() => () => {
+    window.clearTimeout(notificationTimer.current);
+    window.clearTimeout(runTimer.current);
+  }, []);
+
+  function updateDraft(patch) {
+    setDraft((current) => ({ ...current, ...patch }));
+    if ("startDate" in patch || "endDate" in patch) setValidationTouched(true);
+    if ("initialCapital" in patch || "contributionAmount" in patch) setValidationTouched(true);
+  }
+
+  function showNotification(message, kind = "updated", durationMs = 3200, id = message, retry = false) {
+    window.clearTimeout(notificationTimer.current);
+    setNotification({
+      id,
+      message,
+      kind,
+      durationMs,
+      retry,
+      onDismiss: durationMs == null ? () => setNotification(null) : undefined,
+    });
+    if (Number.isFinite(durationMs)) {
+      notificationTimer.current = window.setTimeout(() => setNotification(null), durationMs);
+    }
+  }
+
+  const amountErrors = useMemo(() => {
+    const errors = {};
+    const initial = Number(draft.initialCapital);
+    const contribution = Number(draft.contributionAmount);
+    if (!Number.isFinite(initial) || initial <= 0) errors.initialCapital = "Initial capital must be greater than $0.";
+    if (draft.cashflowEnabled && (!Number.isFinite(contribution) || contribution <= 0)) {
+      errors.contributionAmount = "Contribution amount must be greater than $0.";
+    }
+    return errors;
+  }, [draft.cashflowEnabled, draft.contributionAmount, draft.initialCapital]);
+
+  const dateError = useMemo(() => {
+    if (!draftBlock?.available) return "";
+    if (!draft.startDate || !draft.endDate) return "Choose both a start and end date.";
+    if (draft.startDate < draftBlock.start || draft.endDate > draftBlock.end) {
+      return `Choose dates between ${formatDate(draftBlock.start)} and ${formatDate(draftBlock.end)}.`;
+    }
+    if (draft.startDate >= draft.endDate) return "End date must be after start date.";
+    return "";
+  }, [draft.endDate, draft.startDate, draftBlock]);
+
+  const availability = getBacktestAvailability({
+    reinvestDividends: draft.reinvestDividends,
+    inflationAdjusted: draft.inflationAdjusted,
+    block: draftBlock,
+    cpi,
+  });
+  const canRun = Boolean(draftBlock?.available) && !dateError && !Object.keys(amountErrors).length && availability.available;
+  const normalizedDraft = {
+    ...draft,
+    initialCapital: Number(draft.initialCapital),
+    contributionAmount: Number(draft.contributionAmount),
+  };
+
+  useEffect(() => {
+    if (availability.available) {
+      setNotification((current) => (current?.id === "unavailable-mode" ? null : current));
+      return;
+    }
+    window.clearTimeout(notificationTimer.current);
+    setNotification({
+      id: "unavailable-mode",
+      message: availability.title,
+      detail: availability.detail,
+      kind: "error",
+      durationMs: undefined,
+      onDismiss: () => setNotification((current) => (current?.id === "unavailable-mode" ? null : current)),
+    });
+  }, [availability.available, availability.detail, availability.title]);
+
+  useEffect(() => {
+    if (!validationTouched) return;
+    const message = dateError
+      ? "Invalid date range"
+      : amountErrors.initialCapital
+        ? "Invalid initial capital"
+        : amountErrors.contributionAmount
+          ? "Invalid contribution amount"
+          : "";
+    if (message) {
+      window.clearTimeout(notificationTimer.current);
+      setNotification((current) => ({
+        id: "validation",
+        message,
+        kind: "error",
+        durationMs: undefined,
+        onDismiss: () => setNotification((active) => (active?.id === "validation" ? null : active)),
+      }));
+    } else {
+      setNotification((current) => (current?.id === "validation" ? null : current));
+    }
+  }, [amountErrors, dateError, validationTouched]);
+
+  const nominalReportWindow = useMemo(
+    () => submittedConfig
+      ? buildWindow(
+        resultBlock,
+        submittedConfig.startDate,
+        submittedConfig.endDate,
+        "All",
+        submittedConfig.reinvestDividends,
+      )
+      : null,
+    [resultBlock, submittedConfig],
+  );
+  const reportWindow = useMemo(
+    () => {
+      if (!nominalReportWindow) return null;
+      if (!submittedConfig?.inflationAdjusted) return nominalReportWindow;
+      const adjusted = applyInflationAdjustment(nominalReportWindow, cpi);
+      return adjusted.available === false ? null : adjusted;
+    },
+    [cpi, nominalReportWindow, submittedConfig?.inflationAdjusted],
+  );
+  const nominalChartWindow = useMemo(
+    () => submittedConfig
+      ? buildWindow(
+        resultBlock,
+        submittedConfig.startDate,
+        submittedConfig.endDate,
+        range,
+        submittedConfig.reinvestDividends,
+      )
+      : null,
+    [range, resultBlock, submittedConfig],
+  );
+  const chartWindow = useMemo(
+    () => {
+      if (!nominalChartWindow) return null;
+      if (!submittedConfig?.inflationAdjusted) return nominalChartWindow;
+      const adjusted = applyInflationAdjustment(nominalChartWindow, cpi);
+      return adjusted.available === false ? null : adjusted;
+    },
+    [cpi, nominalChartWindow, submittedConfig?.inflationAdjusted],
+  );
+  const metrics = useMemo(
+    () => computeWindowMetrics(
+      reportWindow,
+      submittedConfig?.reinvestDividends && !submittedConfig?.inflationAdjusted
+        ? resultBlock?.metrics ?? null
+        : null,
+    ),
+    [reportWindow, resultBlock, submittedConfig?.inflationAdjusted, submittedConfig?.reinvestDividends],
+  );
+  const report = useMemo(
+    () => reportWindow && submittedConfig
+      ? calculateBacktestReport(reportWindow, submittedConfig)
+      : null,
+    [reportWindow, submittedConfig],
+  );
+
+  useEffect(() => {
+    if (!data || !submittedConfig || resultBlock?.available) {
+      setNotification((current) => (current?.id === "missing-data" ? null : current));
+      return;
+    }
+    showNotification("Missing price history", "error", undefined, "missing-data", true);
+  }, [data, resultBlock?.available, submittedConfig]);
 
   function runBacktest() {
-    if (dateError || isRunning) return;
+    if (!canRun || isRunning) return;
     setIsRunning(true);
-    window.setTimeout(() => {
-      setSubmittedWindow({ startDate, endDate });
+    showNotification("Backtest started", "loading", 550, "backtest-running");
+    window.clearTimeout(runTimer.current);
+    runTimer.current = window.setTimeout(() => {
+      setSubmittedConfig(normalizedDraft);
       setIsRunning(false);
-      setToast("Backtest window updated");
-      window.setTimeout(() => setToast(""), 2200);
-    }, 650);
+      showNotification("Backtest completed", "updated", 3200, "backtest-complete");
+    }, 550);
   }
 
   async function refreshPreview() {
-    await refresh();
+    const updated = await refresh();
+    if (!updated) {
+      showNotification("Data update failed", "error", undefined, "refresh-error", true);
+    } else {
+      setNotification((current) => (current?.id === "refresh-error" ? null : current));
+    }
   }
 
   return (
@@ -359,7 +1093,7 @@ export function BacktestingPage({ hidden = false }) {
           art={<MascotDuo creamColor="var(--color-surface)" />}
           controls={(
             <UpdateBar
-              dateTime={block?.end ?? ""}
+              dateTime={resultBlock?.end ?? draftBlock?.end ?? ""}
               ariaLabel="Refresh backtest data"
               busy={isRunning}
               onRefresh={refreshPreview}
@@ -367,113 +1101,188 @@ export function BacktestingPage({ hidden = false }) {
           )}
         />
 
-        {/* On desktop the validation message sits outside the white card, in a
-            strip that is always reserved so the KPI row never shifts. On phones
-            it stays inside the field group, directly under its input. */}
-        <div className="backtest-controls-stack">
-          <section className="backtest-controls" aria-label="Backtest controls">
-            {/* Each date is one field group: a label and a bounded control share
-                a row, so the input's left edge is derived from the label rather
-                than a measured offset. */}
-            <div className="backtest-date-group">
-              <label className="backtest-date-label" htmlFor="backtest-start-date">Start Date</label>
-              <div className="backtest-date-control">
-                <input
-                  className="backtest-date-input"
-                  id="backtest-start-date"
-                  type="date"
-                  min={block?.start ?? ""}
-                  max={block?.end ?? ""}
-                  value={startDate}
-                  onInput={(event) => setStartDate(event.target.value)}
-                  onChange={(event) => setStartDate(event.target.value)}
-                />
+        <div className="backtest-control-card">
+          <section className="backtest-config" aria-label="Backtest configuration" aria-busy={isRunning}>
+            <div className="backtest-config__period">
+              <div className="backtest-config__heading">
+                <CalendarBlank size={21} weight="regular" aria-hidden="true" />
+                <h2>Backtest Period</h2>
+              </div>
+              <div className="backtest-date-fields">
+                <div className={`backtest-date-group${dateError ? " is-invalid" : ""}`}>
+                  <label className="backtest-date-label" htmlFor="backtest-start-date">Start Date</label>
+                  <div className="backtest-date-control">
+                    <input
+                      className="backtest-date-input"
+                      id="backtest-start-date"
+                      type="date"
+                      min={draftBlock?.start ?? ""}
+                      max={draftBlock?.end ?? ""}
+                      value={draft.startDate}
+                      aria-invalid={Boolean(dateError)}
+                      onInput={(event) => updateDraft({ startDate: event.target.value })}
+                      onChange={(event) => updateDraft({ startDate: event.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className={`backtest-date-group${dateError ? " is-invalid" : ""}`}>
+                  <label className="backtest-date-label" htmlFor="backtest-end-date">End Date</label>
+                  <div className="backtest-date-control">
+                    <input
+                      className="backtest-date-input"
+                      id="backtest-end-date"
+                      type="date"
+                      min={draftBlock?.start ?? ""}
+                      max={draftBlock?.end ?? ""}
+                      value={draft.endDate}
+                      aria-invalid={Boolean(dateError)}
+                      onInput={(event) => updateDraft({ endDate: event.target.value })}
+                      onChange={(event) => updateDraft({ endDate: event.target.value })}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
-            <div className={`backtest-date-group${dateError ? " is-invalid" : ""}`}>
-              <label className="backtest-date-label" htmlFor="backtest-end-date">End Date</label>
-              <div className="backtest-date-control">
-                <input
-                  className="backtest-date-input"
-                  id="backtest-end-date"
-                  type="date"
-                  min={block?.start ?? ""}
-                  max={block?.end ?? ""}
-                  value={endDate}
-                  aria-invalid={Boolean(dateError)}
-                  aria-describedby={dateError ? "backtest-date-error" : undefined}
-                  onInput={(event) => setEndDate(event.target.value)}
-                  onChange={(event) => setEndDate(event.target.value)}
-                />
+
+            <span className="backtest-config__divider" aria-hidden="true" />
+
+            <div className="backtest-config__universe">
+              <div className="backtest-config__heading">
+                <Stack size={21} weight="regular" aria-hidden="true" />
+                <h2>Universe</h2>
               </div>
-              {!isDesktop && dateError && (
-                <p className="backtest-date-error" id="backtest-date-error" role="alert">
-                  <WarningCircle size={15} weight="fill" aria-hidden="true" />
-                  <span>{dateError}</span>
-                </p>
-              )}
+              <div className="backtest-segmented" role="group" aria-label="Portfolio selection">
+                {[["top100", "Top 100"], ["top20", "Top 20%"]].map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={draft.portfolio === value}
+                    onClick={() => updateDraft({ portfolio: value })}
+                  >{label}</button>
+                ))}
+              </div>
             </div>
-            <div className="backtest-control-separator" aria-hidden="true" />
-            <div className="backtest-segmented backtest-portfolio-choice" role="group" aria-label="Portfolio selection">
-              {[["top100", "Top 100"], ["top20", "Top 20%"]].map(([value, label]) => <button key={value} type="button" aria-pressed={portfolio === value} onClick={() => setPortfolio(value)}>{label}</button>)}
+
+            <div className="backtest-run-group">
+              <AppButton
+                variant="primary"
+                icon={Play}
+                className="backtest-run-button"
+                disabled={!canRun || isRunning}
+                onClick={runBacktest}
+              >{isRunning ? "Running…" : "Run Backtest"}</AppButton>
             </div>
-            <AppButton variant="primary" icon={Play} className="backtest-run-button" disabled={Boolean(dateError) || isRunning || !available} onClick={runBacktest}>{isRunning ? "Running…" : "Run Backtest"}</AppButton>
           </section>
-          {isDesktop && (
-            <div className="backtest-validation">
-              <div className="backtest-validation__slot">
-                {/* Same label, same font, hidden: it holds the label column open
-                    so the message starts exactly at the End Date input's left
-                    edge without displacing the input. */}
-                <span className="backtest-date-label backtest-validation__spacer" aria-hidden="true">End Date</span>
-                {dateError && (
-                  <p className="backtest-date-error" id="backtest-date-error" role="alert">
-                    <WarningCircle size={15} weight="fill" aria-hidden="true" />
-                    <span>{dateError}</span>
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
+
+          <AdvancedSettings
+            open={advancedOpen}
+            onToggle={() => setAdvancedOpen((current) => !current)}
+            draft={draft}
+            updateDraft={updateDraft}
+            amountErrors={amountErrors}
+          />
         </div>
 
-        <section className="backtest-kpis" aria-label="Backtest summary">
-          <KpiCard label="CAGR" value={formatPercent(metrics.cagr)} icon={ChartBar} tint="cream" mascotVariant="cream" mascotColor="var(--color-cream)" />
-          <KpiCard label="Total Return" value={formatPercent(metrics.totalReturn)} icon={Stack} tint="mint" mascotVariant="mint" mascotColor="var(--color-mint)" />
-          <KpiCard label="Sharpe Ratio" shortLabel="Sharpe" value={metrics.sharpe == null ? "—" : metrics.sharpe.toFixed(2)} icon={Scales} tint="pink" mascotVariant="pink" mascotColor="var(--color-pink)" />
-          <KpiCard label="Maximum Drawdown" shortLabel="Max Drawdown" value={formatPercent(metrics.maxDrawdown)} icon={ChartLineDown} tint="blue" mascotVariant="blue" mascotColor="var(--color-blue)" />
-        </section>
+        {report && reportWindow && chartWindow ? (
+          <div className="backtest-results" data-loading={isRunning || undefined} aria-busy={isRunning}>
+            <section className="backtest-kpis" aria-label="Backtest summary">
+              <KpiCard
+                label="CAGR"
+                value={formatPercent(metrics.cagr)}
+                valueTone={valueTone(metrics.cagr)}
+                icon={ChartBar}
+                tint="cream"
+                mascotVariant="cream"
+                mascotColor="var(--color-cream)"
+              />
+              <KpiCard
+                label="Total Return"
+                value={formatPercent(metrics.totalReturn)}
+                valueTone={valueTone(metrics.totalReturn)}
+                icon={Stack}
+                tint="mint"
+                mascotVariant="mint"
+                mascotColor="var(--color-mint)"
+              />
+              <KpiCard
+                label="Profit / Loss"
+                value={formatMoney(report.netProfitLoss)}
+                valueTone={valueTone(report.netProfitLoss)}
+                icon={Coins}
+                tint="pink"
+                mascotVariant="pink"
+                mascotColor="var(--color-pink)"
+              />
+              <KpiCard
+                label="Sharpe Ratio"
+                shortLabel="Sharpe"
+                value={metrics.sharpe == null ? "—" : metrics.sharpe.toFixed(2)}
+                icon={Scales}
+                tint="blue"
+                mascotVariant="blue"
+                mascotColor="var(--color-blue)"
+              />
+            </section>
 
-        <section className="backtest-main-grid" aria-label="Backtest results">
-          <DashboardCard title="Cumulative Return" className="backtest-cumulative-card">
-            <div className="backtest-chart-toolbar">
-              <div className="performance-legend" aria-label="Return series">
-                {strategies.map((series) => <span className={`performance-legend__item performance-legend__item--${series.id}`} key={series.id}><i aria-hidden="true" />{series.shortName ? <><span className="legend-name-full">{series.name}</span><span className="legend-name-short">{series.shortName}</span></> : series.name}</span>)}
+            <DashboardCard
+              title="Cumulative Return"
+              className="backtest-cumulative-card"
+              action={(
+                <div className="backtest-chart-controls">
+                  <LogScaleToggle checked={logScale} onChange={setLogScale} />
+                  <div className="period-control backtest-range-control" role="group" aria-label="Chart time range">
+                    {RANGES.map((item) => (
+                      <button key={item} type="button" aria-pressed={range === item} onClick={() => setRange(item)}>{item}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            >
+              <div className="performance-legend backtest-cumulative-legend" aria-label="Return series">
+                {SERIES.map((series) => (
+                  <span className={`performance-legend__item performance-legend__item--${series.id}`} key={series.id}>
+                    <i aria-hidden="true" />{series.name}
+                  </span>
+                ))}
               </div>
-              <div className="period-control backtest-range-control" role="group" aria-label="Chart time range">
-                {ranges.map((item) => <button key={item} type="button" aria-pressed={range === item} onClick={() => setRange(item)}>{item}</button>)}
-              </div>
-            </div>
-            {chartWindow
-              ? <CumulativeChart window={chartWindow} range={range} />
-              : <div className="backtest-chart-pending" role="status">{available ? "Select a window inside the verified history." : "Waiting for verified price history…"}</div>}
-          </DashboardCard>
-          <div className="backtest-side-grid">
-            <DashboardCard title="Drawdown" className="backtest-drawdown-card">
-              {chartWindow
-                ? <DrawdownChart window={chartWindow} exactMin={drawdownStats.exactMin} exactIndex={drawdownStats.exactIndex} />
-                : <div className="backtest-chart-pending" role="status">—</div>}
+              <CumulativeChart
+                window={chartWindow}
+                range={range}
+                logScale={logScale}
+                onLogUnavailable={() => {
+                  setLogScale(false);
+                  showNotification("Log scale unavailable for this return window", "error", 4200, "log-scale");
+                }}
+              />
             </DashboardCard>
-            <DashboardCard title="Annual Return" className="backtest-annual-card">
-              <table className="backtest-annual-table"><thead><tr><th>Year</th><th>Strategy</th><th>SPY</th><th>SPMO</th></tr></thead><tbody>
-                {annualRows.map((row) => <tr key={row.year}><th scope="row">{row.year}{row.ytd && <span className="backtest-annual-ytd"> YTD</span>}</th>{["strategy", "spy", "spmo"].map((key) => { const value = row[key]; if (value === null || value === undefined) return <td className="is-missing" key={key}>—</td>; return <td className={value < 0 ? "is-negative" : "is-positive"} key={key}>{formatPercent(value)}</td>; })}</tr>)}
-                {!annualRows.length && <tr><td colSpan="4" className="backtest-annual-empty">No completed calendar year in this window.</td></tr>}
-              </tbody></table>
-            </DashboardCard>
+
+            <section className="backtest-analytics-grid" aria-label="Drawdown and annual returns">
+              <DashboardCard
+                title="Drawdown"
+                className="backtest-drawdown-card"
+                action={<span className="backtest-max-drawdown">Max {formatPercent(metrics.maxDrawdown)}</span>}
+              >
+                <DrawdownChart window={reportWindow} />
+              </DashboardCard>
+
+              <AnnualReturnTable rows={report.annualRows} includeYtd={submittedConfig.includeYtd} />
+            </section>
+            <PerformanceSummary report={report} config={submittedConfig} />
           </div>
-        </section>
+        ) : null}
       </div>
-      {toast && <Toast kind="updated" message={toast} className="page-toast" durationMs={2200} />}
+      {notification && (
+        <Toast
+          kind={notification.kind}
+          message={notification.message}
+          className="page-toast"
+          durationMs={notification.durationMs}
+          onDismiss={notification.onDismiss}
+          action={notification.retry ? (
+            <button type="button" className="notification-toast__action" onClick={refreshPreview}>Retry</button>
+          ) : null}
+        />
+      )}
     </main>
   );
 }
