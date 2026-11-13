@@ -89,6 +89,9 @@ test("the date fields centre through the host input, which is what WebKit reads"
   assert.match(block, /::-webkit-date-and-time-value\s*\{[^}]*text-align:\s*center/s, "Chromium still needs the pseudo-element");
   // Both visible controls must stay identical boxes.
   assert.match(block, /\.backtest-date-control\s*\{[^}]*height:\s*48px/s);
+  // WebKit anchors the native value at the top without a host line box equal to
+  // the 46px input interior. This must stay on the input, not only its pseudos.
+  assert.match(block, /\.backtest-date-input\s*\{[^}]*line-height:\s*46px/s);
 });
 
 test("the phone date controls are bounded wrappers with iOS intrinsic sizing reset", () => {
@@ -105,5 +108,5 @@ test("the phone date controls are bounded wrappers with iOS intrinsic sizing res
   assert.match(block, /\.backtest-date-input\s*\{[^}]*appearance:\s*none/s);
   assert.match(block, /\.backtest-date-input\s*\{[^}]*padding:\s*0/s, "padding must live on the bounded wrapper");
   assert.match(block, /\.backtest-date-input\s*\{[^}]*text-align:\s*center/s);
-  assert.match(block, /\.backtest-date-input::-webkit-date-and-time-value\s*\{[^}]*line-height:\s*1\.5em[^}]*text-align:\s*center/s);
+  assert.match(block, /\.backtest-date-input::-webkit-date-and-time-value\s*\{[^}]*line-height:\s*inherit[^}]*text-align:\s*center/s);
 });

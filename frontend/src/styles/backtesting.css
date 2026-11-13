@@ -275,7 +275,11 @@
     /* 16px is the floor that stops iOS Safari from zooming the page when a
        field is focused; anything smaller shifts the whole layout on tap. */
     font-size: 16px;
-    line-height: normal;
+    /* Match Safari's internal date line box to the 46px input box. Setting
+       this only on the pseudo-elements leaves the native text anchored at the
+       top in WebKit; the host line-height is what places it between the
+       field's top and bottom borders. */
+    line-height: 46px;
     text-align: center;
     /* iOS gives the native date control an intrinsic width that can win over
        width: 100%. Resetting only this control's appearance makes it size like
@@ -285,17 +289,20 @@
   }
   .backtest-date-control:hover { border-color: #D8D0C6; }
   .backtest-date-group.is-invalid .backtest-date-control { border-color: #D8848B; }
-  /* Centre both the host value and WebKit's internal date box. A fixed line box
-     keeps the date text on the control's vertical centre in Chromium and WebKit. */
+  /* Let WebKit's internal boxes inherit the host line box. The host declaration
+     is the Safari fallback because Safari does not consistently lay out these
+     pseudo-elements as normal flex containers. */
   .backtest-date-input::-webkit-datetime-edit {
     height: 100%;
+    min-height: 0;
     padding: 0;
+    line-height: inherit;
     text-align: center;
   }
   .backtest-date-input::-webkit-date-and-time-value {
-    min-height: 1.5em;
-    height: 1.5em;
-    line-height: 1.5em;
+    min-height: 0;
+    height: 100%;
+    line-height: inherit;
     text-align: center;
   }
   .backtest-date-error { margin: 0; font-size: 0.8rem; }
