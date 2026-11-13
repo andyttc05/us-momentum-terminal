@@ -196,7 +196,7 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
           )}
         />
 
-        {portfolioState.kind !== "ready" && (
+        {(portfolioState.kind === "loading" || portfolioState.kind === "unavailable") && (
           <div
             className={`portfolio-data-notice portfolio-data-notice--${portfolioState.kind}`}
             role={portfolioState.kind === "unavailable" ? "alert" : "status"}
