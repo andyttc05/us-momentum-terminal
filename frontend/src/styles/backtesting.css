@@ -8,11 +8,12 @@
   gap: var(--backtest-section-gap);
   overflow: visible;
 }
-.backtest-page > .page-header { margin-bottom: 0; }
-.app-shell:has(.backtest-page) .backtest-page {
-  padding-top: 14px;
+.backtest-page > .page-header {
+  /* The page keeps the shared page-header gap. The flex gap above only tops it
+     up, so the first card lands on the same rhythm as every other page without
+     touching the 15px gap between the sections themselves. */
+  margin-bottom: max(0px, calc(var(--page-header-gap) - var(--backtest-section-gap)));
 }
-.app-shell:has(.backtest-page) .backtest-page > .page-header { min-height: 91px; }
 .app-shell:has(.backtest-page) .page-header__title { font-size: 2.15rem; }
 
 /* Configuration ----------------------------------------------------------- */
@@ -938,7 +939,6 @@
 }
 
 @media (max-width: 680px) {
-  .app-shell:has(.backtest-page) .backtest-page { padding-top: 18px; }
   .app-shell:has(.backtest-page) .page-header__controls .update-bar { display: inline-flex; }
   .app-shell:has(.backtest-page) .page-header__controls { display: flex; }
   .app-shell:has(.backtest-page) .page-header__title { font-size: var(--font-size-page-title); }
