@@ -287,6 +287,44 @@ def to_symbol_series(result: SeriesResult) -> SymbolSeries | None:
     )
 
 
+def _weekly_price_history(series: SymbolSeries, weeks: int = 52) -> dict:
+    """Weekly chart observations plus the exact prior-session daily move.
+
+    The plotted values remain the trailing weekly adjusted closes. The two
+    metadata arrays let the tooltip identify the real session behind each
+    Friday sample and calculate that session's daily move without changing the
+    chart series or any momentum calculation.
+    """
+    frame = series.frame
+    weekly = frame["adj"].resample("W-FRI").last().dropna().tail(weeks)
+    values = []
+    dates = []
+    observation_dates = []
+    daily_changes = []
+
+    for stamp, value in weekly.items():
+        position = int(frame.index.searchsorted(stamp, side="right") - 1)
+        if position < 0:
+            continue
+        values.append(round(float(value), 2))
+        dates.append(stamp.strftime("%Y-%m-%d"))
+        observation_dates.append(frame.index[position].strftime("%Y-%m-%d"))
+        if position == 0:
+            daily_changes.append(None)
+            continue
+        current = float(frame["adj"].iloc[position])
+        previous = float(frame["adj"].iloc[position - 1])
+        change = None if previous <= 0 else round((current / previous - 1) * 100, 2)
+        daily_changes.append(change)
+
+    return {
+        "values": values,
+        "dates": dates,
+        "observationDates": observation_dates,
+        "dailyChanges": daily_changes,
+    }
+
+
 # --------------------------------------------------------------------------- #
 # Payload builders                                                             #
 # --------------------------------------------------------------------------- #
@@ -953,7 +991,13 @@ def build_stock_detail(ticker: str) -> dict | None:
     # manual refresh never leaves a stale exchange label or price behind.
     publication_stamp = publication["meta"]["generated_at"]
     cached = cache.read("detail", ticker, settings.ttl_snapshot)
-    if cached and cached.get("_snapshot") == publication_stamp:
+    cached_history = (cached or {}).get("priceHistory") or {}
+    cached_values = cached_history.get("values") or []
+    has_tooltip_history = (
+        len(cached_history.get("observationDates") or []) == len(cached_values)
+        and len(cached_history.get("dailyChanges") or []) == len(cached_values)
+    )
+    if cached and cached.get("_snapshot") == publication_stamp and has_tooltip_history:
         return cached
 
     results, _ = load_series([ticker])
@@ -968,14 +1012,12 @@ def build_stock_detail(ticker: str) -> dict | None:
     rank_history = (cache.read("derived", "rank_history", ttl=-1) or {}).get(ticker, [])
     rank_by_date = {point["date"]: point for point in rank_history}
 
-    weekly = series.frame["adj"].resample("W-FRI").last().dropna()
-    tail = weekly.tail(52)
+    price_history = _weekly_price_history(series)
 
     detail = {
         **stock,
         "priceHistory": {
-            "values": [round(float(value), 2) for value in tail.values],
-            "dates": [stamp.strftime("%Y-%m-%d") for stamp in tail.index],
+            **price_history,
             "returns": {
                 "oneMonth": stock["momentum1m"],
                 "threeMonth": stock["momentum3m"],

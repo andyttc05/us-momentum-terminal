@@ -27,6 +27,7 @@ from app.portfolio import _rounded_sector_values, build_portfolio
 from app.snapshot import (
     PUBLICATION_VERSION,
     UNIVERSE_VERSION,
+    _weekly_price_history,
     _merge_verified_fundamentals,
     _performance_payload,
     _verified_fundamental_fallbacks,
@@ -41,6 +42,40 @@ from app.universe import (
 
 
 class MomentumTests(unittest.TestCase):
+    def test_weekly_price_history_keeps_plot_values_and_uses_prior_session_for_daily_move(self):
+        adjusted = np.array([100.0, 101.0, 102.0, 103.0, 104.0, 105.0, 106.0, 107.0, 108.0, 90.0])
+        dates = pd.bdate_range("2026-01-05", periods=len(adjusted))
+        frame = pd.DataFrame(
+            {
+                "adj": adjusted,
+                "close": adjusted,
+                "volume": np.full(len(adjusted), 1_000_000.0),
+                "open": adjusted,
+                "high": adjusted,
+                "low": adjusted,
+                "dividends": 0.0,
+                "splits": 0.0,
+            },
+            index=dates,
+        )
+        series = SymbolSeries(
+            symbol="TEST",
+            frame=frame,
+            source="test",
+            source_label="Synthetic",
+            fetched_at="2026-01-16T00:00:00+00:00",
+            adjusted=True,
+            is_backup=False,
+        )
+
+        history = _weekly_price_history(series)
+        self.assertEqual(history["values"], [104.0, 90.0])
+        self.assertEqual(history["dates"], ["2026-01-09", "2026-01-16"])
+        self.assertEqual(history["observationDates"], ["2026-01-09", "2026-01-16"])
+        self.assertEqual(history["dailyChanges"][0], 0.97)
+        self.assertEqual(history["dailyChanges"][1], -16.67)
+        self.assertEqual(len(history["dailyChanges"]), len(history["values"]))
+
     def test_score_transform_boundaries(self):
         self.assertEqual(momentum_score(0), 1.0)
         self.assertEqual(momentum_score(1), 2.0)

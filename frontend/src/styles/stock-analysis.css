@@ -86,7 +86,16 @@
 .stock-price-chart-wrap { display: flex; min-height: 0; flex: 1 1 auto; margin-top: 3px; }
 /* The canvas is the measured box; the SVG draws itself 1:1 inside it so no
    element is ever stretched by a viewBox scale. */
-.stock-price-chart-canvas { flex: 1 1 auto; min-width: 0; min-height: 0; }
+.stock-price-chart-canvas {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  cursor: crosshair;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+}
 .stock-price-chart-svg { display: block; width: 100%; height: 100%; overflow: visible; }
 .stock-chart-gridline { stroke: var(--color-line); stroke-width: 1; }
 .stock-chart-axis-label { fill: var(--color-text-secondary); font-family: var(--font-family); font-size: 12px; font-weight: 700; }
@@ -94,6 +103,87 @@
 .stock-price-endpoint { fill: #F2B600; stroke: var(--color-yellow); stroke-width: 2; }
 .stock-price-value-pill { fill: var(--color-yellow-soft); }
 .stock-price-value-label { fill: var(--color-ink); font-family: var(--font-family); font-size: 13px; font-weight: 900; }
+.stock-price-crosshair {
+  stroke: #AAA49C;
+  stroke-width: 1.25;
+  stroke-dasharray: 4 5;
+  vector-effect: non-scaling-stroke;
+}
+.stock-price-selected-halo { fill: #FFF2CC; fill-opacity: 0.78; }
+.stock-price-selected-point { fill: var(--color-surface); stroke: #F2B600; stroke-width: 3.5; vector-effect: non-scaling-stroke; }
+.stock-price-tooltip-layer {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+}
+.stock-price-tooltip {
+  display: grid;
+  width: 176px;
+  height: 112px;
+  align-content: center;
+  justify-items: start;
+  gap: 2px;
+  overflow: hidden;
+  padding: 14px 17px;
+  border-radius: 18px;
+  background: rgb(255 254 252 / 98%);
+  box-shadow: var(--shadow-float);
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+.stock-price-tooltip__date {
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: var(--font-weight-black);
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.stock-price-tooltip__price {
+  font-size: 2rem;
+  font-weight: var(--font-weight-black);
+  letter-spacing: -0.045em;
+  line-height: 1.08;
+  white-space: nowrap;
+}
+.stock-price-tooltip__change {
+  display: inline-flex;
+  min-height: 22px;
+  align-items: center;
+  padding: 0 8px;
+  border-radius: var(--radius-pill);
+  font-size: 0.84rem;
+  font-weight: var(--font-weight-black);
+  line-height: 1;
+}
+.stock-price-tooltip__change.is-positive { background: var(--color-positive-soft); color: #078C47; }
+.stock-price-tooltip__change.is-negative { background: var(--color-negative-soft); color: #D74B5B; }
+.stock-price-tooltip__change.is-neutral { background: var(--color-surface-soft); color: var(--color-text-secondary); }
+.stock-price-mobile-readout {
+  position: absolute;
+  z-index: 5;
+  top: 8px;
+  right: 10px;
+  left: 10px;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.stock-price-tooltip--mobile {
+  width: min(220px, 100%);
+  height: 58px;
+  grid-template-rows: auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-content: center;
+  align-items: center;
+  gap: 1px 12px;
+  padding: 8px 12px;
+  border-radius: 16px;
+}
+.stock-price-tooltip--mobile .stock-price-tooltip__date { grid-column: 1; grid-row: 1; }
+.stock-price-tooltip--mobile .stock-price-tooltip__price { grid-column: 1; grid-row: 2; font-size: 1.28rem; letter-spacing: -0.03em; }
+.stock-price-tooltip--mobile .stock-price-tooltip__change { grid-column: 2; grid-row: 1 / span 2; font-size: 0.76rem; }
 
 .stock-returns-card { display: grid; min-width: 0; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: center; padding: 11px 8px; border: 1px solid rgb(234 228 220 / 78%); border-radius: var(--radius-lg); background: var(--color-surface); box-shadow: var(--shadow-card); }
 .stock-return { position: relative; display: grid; min-width: 0; justify-items: center; gap: 7px; padding-inline: 5px; text-align: center; }

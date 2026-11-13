@@ -1,11 +1,20 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ChartBar, CrownSimple, Scales, Sigma, Stack } from "@phosphor-icons/react";
 import { AppButton } from "./components/AppButton.jsx";
 import { DashboardCard } from "./components/DashboardCard.jsx";
 import { Mascot, MascotDuo } from "./components/Mascot.jsx";
 import { useElementSize } from "./components/useElementSize.js";
+import { useMediaQuery } from "./components/useMediaQuery.js";
 import { useMarket, useStockDetail } from "./api/MarketProvider.jsx";
 import { formatMarketCap } from "./utils/format.js";
+import {
+  PRICE_TOOLTIP_HEIGHT,
+  PRICE_TOOLTIP_WIDTH,
+  formatTooltipDate,
+  nearestObservationIndex,
+  placePriceTooltip,
+  sideForMovement,
+} from "./utils/priceTooltip.js";
 import { getRankTier } from "./utils/rankTier.js";
 
 const priceRanges = ["1M", "3M", "6M", "12M"];
@@ -31,6 +40,21 @@ function signedPercent(value, digits = 1) {
   if (typeof value !== "number" || Number.isNaN(value)) return "—";
   const sign = value > 0 ? "+" : value < 0 ? "−" : "";
   return `${sign}${Math.abs(value).toFixed(digits)}%`;
+}
+
+function PriceTooltipContent({ date, price, change, compact = false }) {
+  const tone = typeof change === "number" && change > 0
+    ? "positive"
+    : typeof change === "number" && change < 0
+      ? "negative"
+      : "neutral";
+  return (
+    <div className={`stock-price-tooltip${compact ? " stock-price-tooltip--mobile" : ""}`} role="tooltip">
+      <span className="stock-price-tooltip__date">{formatTooltipDate(date)}</span>
+      <strong className="stock-price-tooltip__price">{formatMoney(price)}</strong>
+      <span className={`stock-price-tooltip__change is-${tone}`}>{signedPercent(change, 2)}</span>
+    </div>
+  );
 }
 
 function monthlyTicks(dates) {
@@ -66,12 +90,19 @@ function getPriceTicks(values) {
 
 function PriceChart({ stock, range }) {
   const [boxRef, box] = useElementSize();
+  const [selectedIndex, setSelectedIndex] = useState(null);
+  const [tooltipSide, setTooltipSide] = useState("left");
+  const movementOriginX = useRef(Number.NaN);
+  const touchStart = useRef(null);
+  const stableTouchDetail = useMediaQuery("(max-width: 680px), (hover: none), (pointer: coarse)");
   const history = stock.priceHistory;
   const total = history.values.length;
   const months = monthsBack[range];
   const startIndex = Math.max(0, Math.round(total - (months / 12) * (total - 1)));
   const visible = history.values.slice(startIndex);
   const visibleDates = history.dates.slice(startIndex);
+  const observationDates = (history.observationDates ?? history.dates).slice(startIndex);
+  const dailyChanges = (history.dailyChanges ?? []).slice(startIndex);
   const axis = getPriceTicks(visible);
 
   const width = Math.round(box.width);
@@ -112,8 +143,91 @@ function PriceChart({ stock, range }) {
     ? Math.min(Math.max(endPoint.y - pillHeight / 2, top), height - bottom - pillHeight)
     : top;
 
+  useEffect(() => {
+    setSelectedIndex(null);
+    movementOriginX.current = Number.NaN;
+  }, [range, stock.ticker]);
+
+  const activeIndex = selectedIndex != null && selectedIndex < points.length ? selectedIndex : null;
+  const selectedPoint = activeIndex == null ? null : points[activeIndex];
+  const tooltipPlacement = selectedPoint
+    ? placePriceTooltip({
+      anchorX: selectedPoint.x,
+      anchorY: selectedPoint.y,
+      preferredSide: tooltipSide,
+      containerWidth: width,
+      containerHeight: height,
+      tooltipWidth: PRICE_TOOLTIP_WIDTH,
+      tooltipHeight: PRICE_TOOLTIP_HEIGHT,
+    })
+    : null;
+
+  function selectPointerPosition(clientX) {
+    const rect = boxRef.current?.getBoundingClientRect();
+    if (!rect || !points.length) return;
+    const pointerX = Math.min(Math.max(clientX - rect.left, plot.left), plotRight);
+    setSelectedIndex(nearestObservationIndex(points, pointerX));
+  }
+
+  function handlePointerMove(event) {
+    if (event.pointerType === "touch" || event.pointerType === "pen") {
+      const start = touchStart.current;
+      if (start && start.pointerId === event.pointerId
+        && Math.hypot(event.clientX - start.x, event.clientY - start.y) > 8) {
+        touchStart.current = null;
+      }
+      return;
+    }
+    const rect = boxRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const pointerX = event.clientX - rect.left;
+    const nextMovement = sideForMovement({
+      pointerX,
+      movementOriginX: movementOriginX.current,
+      currentSide: tooltipSide,
+    });
+    movementOriginX.current = nextMovement.movementOriginX;
+    if (nextMovement.side !== tooltipSide) setTooltipSide(nextMovement.side);
+    selectPointerPosition(event.clientX);
+  }
+
+  function handlePointerLeave(event) {
+    if (stableTouchDetail && (event.pointerType === "touch" || event.pointerType === "pen")) return;
+    setSelectedIndex(null);
+    movementOriginX.current = Number.NaN;
+  }
+
+  function handlePointerDown(event) {
+    if (event.pointerType === "touch" || event.pointerType === "pen") {
+      touchStart.current = { x: event.clientX, y: event.clientY, pointerId: event.pointerId };
+    }
+  }
+
+  function handlePointerUp(event) {
+    if (event.pointerType !== "touch" && event.pointerType !== "pen") return;
+    const start = touchStart.current;
+    touchStart.current = null;
+    if (start && start.pointerId === event.pointerId
+      && Math.hypot(event.clientX - start.x, event.clientY - start.y) <= 8) {
+      selectPointerPosition(event.clientX);
+    }
+  }
+
+  function handlePointerCancel() {
+    touchStart.current = null;
+  }
+
   return (
-    <div className="stock-price-chart-canvas" ref={boxRef}>
+    <div
+      className="stock-price-chart-canvas"
+      ref={boxRef}
+      data-testid="stock-price-chart"
+      onPointerMove={handlePointerMove}
+      onPointerLeave={handlePointerLeave}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
+    >
       {ready && (
         <svg
           className="stock-price-chart-svg"
@@ -154,7 +268,45 @@ function PriceChart({ stock, range }) {
               )}
             </>
           )}
+          {selectedPoint && (
+            <g className="stock-price-selection" data-testid="stock-price-selection">
+              <line
+                x1={selectedPoint.x}
+                x2={selectedPoint.x}
+                y1={plot.top}
+                y2={plot.top + plot.height}
+                className="stock-price-crosshair"
+              />
+              <circle cx={selectedPoint.x} cy={selectedPoint.y} r="10" className="stock-price-selected-halo" />
+              <circle cx={selectedPoint.x} cy={selectedPoint.y} r="5.5" className="stock-price-selected-point" />
+            </g>
+          )}
         </svg>
+      )}
+      {ready && selectedPoint && (
+        stableTouchDetail ? (
+          <div className="stock-price-mobile-readout" data-testid="stock-price-mobile-readout">
+            <PriceTooltipContent
+              compact
+              date={observationDates[activeIndex] ?? visibleDates[activeIndex]}
+              price={visible[activeIndex]}
+              change={dailyChanges[activeIndex]}
+            />
+          </div>
+        ) : (
+          <div
+            className="stock-price-tooltip-layer"
+            style={{ left: tooltipPlacement.x, top: tooltipPlacement.y }}
+            data-side={tooltipPlacement.side}
+            data-testid="stock-price-tooltip"
+          >
+            <PriceTooltipContent
+              date={observationDates[activeIndex] ?? visibleDates[activeIndex]}
+              price={visible[activeIndex]}
+              change={dailyChanges[activeIndex]}
+            />
+          </div>
+        )
       )}
     </div>
   );
