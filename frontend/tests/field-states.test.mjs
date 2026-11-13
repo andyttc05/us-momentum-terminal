@@ -18,9 +18,11 @@ function mediaBlock(css, query) {
   return css.slice(start);
 }
 
+/** The bare-control focus rule, sliced out of the shared layer. */
+const focusBlock = formsCss.slice(formsCss.indexOf("/* Focus:"), formsCss.indexOf("/* Pill fields"));
+
 test("hover and focus resolve to the same shared pastel-yellow border", () => {
   assert.match(tokensCss, /--color-field-border-active:\s*#E4C35A/);
-  const focusBlock = formsCss.slice(formsCss.indexOf("/* Focus:"), formsCss.indexOf("@media"));
   assert.match(focusBlock, /border-color: var\(--color-field-border-active\)/);
   const hoverBlock = mediaBlock(formsCss, "@media (hover: hover) and (pointer: fine)");
   assert.match(hoverBlock, /border-color: var\(--color-field-border-active\)/);
@@ -36,7 +38,6 @@ test("field states never paint a glow", () => {
 });
 
 test("the browser focus ring is replaced, not merely deleted", () => {
-  const focusBlock = formsCss.slice(formsCss.indexOf("/* Focus:"), formsCss.indexOf("@media"));
   assert.match(focusBlock, /outline: none/);
   assert.match(focusBlock, /border-color: var\(--color-field-border-active\)/);
 });
@@ -47,7 +48,18 @@ test("hover is limited to devices that can actually hover", () => {
   assert.match(hoverBlock, /select:hover/);
   // Nothing outside that media query may tint a field on hover.
   const beforeMedia = formsCss.slice(0, formsCss.indexOf("@media (hover: hover)"));
-  assert.doesNotMatch(beforeMedia, /:hover/);
+  assert.doesNotMatch(beforeMedia, /:hover[^,{]*\{[^}]*--color-field-border-active/);
+});
+
+test("a tap cannot leave the date field tinted", () => {
+  // Touch devices match :hover after a tap; the resting edge is restored, and
+  // the focus rule has to stay after this reset so an active field still tints.
+  const touchBlock = mediaBlock(formsCss, "@media (hover: none)");
+  assert.match(touchBlock, /\.backtest-date-control:hover \{[^}]*border-color: var\(--color-line\)/s);
+  assert.ok(
+    formsCss.indexOf("@media (hover: none)") < formsCss.indexOf("/* Focus: same yellow edge"),
+    "the touch reset must precede the focus rules",
+  );
 });
 
 test("disabled and invalid fields keep their own appearance", () => {

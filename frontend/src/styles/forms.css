@@ -16,6 +16,18 @@
    field, the mobile date field) carry the state on the wrapper, because the
    wrapper's edge is the one the user sees. */
 
+/* Touch devices report `hover: none`, yet a tap can still leave a :hover match
+   behind. The backtest date field is the one still declaring a neutral hover
+   tint in its page stylesheet, so it is reset to the resting edge here: after a
+   tap nothing stays tinted. Focus, declared below, still wins while the field
+   is actually active. */
+@media (hover: none) {
+  .backtest-date-input:hover,
+  .backtest-date-control:hover {
+    border-color: var(--color-line);
+  }
+}
+
 /* Focus: same yellow edge for mouse, keyboard and touch. */
 input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):focus:not([aria-invalid="true"]),
 select:focus:not(:disabled),
