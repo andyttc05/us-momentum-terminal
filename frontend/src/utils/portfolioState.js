@@ -9,13 +9,18 @@ const REASON_TEXT = {
 export function getPortfolioState({ portfolio, status, meta, error }) {
   const holdings = portfolio?.holdings ?? [];
   if (portfolio?.available && holdings.length) {
-    const cached = portfolio.fundamentals?.state === "cached";
+    const cachedFundamentals = portfolio.fundamentals?.state === "cached";
+    const cachedSnapshot = meta?.cache_state === "cached";
     const fallbackCount = portfolio.fundamentals?.fallbackCount ?? holdings.length;
-    return cached
+    return cachedFundamentals || cachedSnapshot
       ? {
         kind: "cached",
-        title: "Portfolio loaded from verified cached fundamentals",
-        detail: `${fallbackCount} ${fallbackCount === 1 ? "holding" : "holdings"} reused recent cached float-share metadata.`,
+        title: cachedFundamentals
+          ? "Portfolio loaded from verified cached fundamentals"
+          : "Portfolio loaded from verified cached data",
+        detail: cachedFundamentals
+          ? `${fallbackCount} ${fallbackCount === 1 ? "holding" : "holdings"} reused recent cached float-share metadata.`
+          : "A background refresh is updating the publication.",
       }
       : { kind: "ready", title: "Portfolio loaded", detail: "Portfolio data is current." };
   }

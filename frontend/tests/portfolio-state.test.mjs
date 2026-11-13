@@ -40,5 +40,14 @@ test("fresh and cached portfolios are distinguished", () => {
   const cached = getPortfolioState({ portfolio, status: "ready", meta: {}, error: null });
   assert.equal(cached.kind, "cached");
   assert.match(cached.detail, /1 holding/);
+
+  const cachedSnapshot = getPortfolioState({
+    portfolio: { available: true, holdings: [{ ticker: "TEST" }] },
+    status: "ready",
+    meta: { cache_state: "cached", refresh_in_progress: true },
+    error: null,
+  });
+  assert.equal(cachedSnapshot.kind, "cached");
+  assert.match(cachedSnapshot.title, /cached data/);
 });
 
