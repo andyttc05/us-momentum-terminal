@@ -20,7 +20,9 @@ import { useMarket } from "./api/MarketProvider.jsx";
 import { PHONE_TABLE_MEDIA_QUERY } from "./utils/breakpoints.js";
 import { formatMarketCap } from "./utils/format.js";
 import { momentumSeriesDomain, momentumSeriesValues } from "./utils/momentumSeries.js";
+import { shouldOpenRow, shouldRouteTickerClick, stockLinkLabel } from "./utils/rowNavigation.js";
 import { searchMatch } from "./utils/stockSearch.js";
+import { stockPath } from "./router.jsx";
 
 const emptyFilters = { sector: "", minPrice: "", maxPrice: "", minMomentum: "", minScore: "" };
 const rowsPerPage = 10;
@@ -323,19 +325,29 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
               </thead>
               <tbody>
                 {visibleStocks.length ? visibleStocks.map((stock) => (
-                  <tr key={stock.ticker}>
+                  <tr
+                    key={stock.ticker}
+                    className="stock-row"
+                    onClick={(event) => {
+                      if (shouldOpenRow(event)) onSelectStock?.(stock.ticker);
+                    }}
+                  >
                     {!isPhone && <td className="stock-rank-cell"><span>{stock.rank}</span></td>}
-                    <td className="stock-ticker-cell"><button type="button" className="stock-ticker-link" onClick={() => onSelectStock?.(stock.ticker)} aria-label={`Open ${stock.ticker} stock analysis`}>{stock.ticker}</button></td>
-                    <td className="stock-company-cell" title={stock.company}>
-                      <button
-                        type="button"
-                        className="stock-company-link"
-                        onClick={() => onSelectStock?.(stock.ticker)}
-                        aria-label={`Open ${stock.ticker} stock analysis`}
+                    <td className="stock-ticker-cell">
+                      <a
+                        className="stock-ticker-link"
+                        href={stockPath(stock.ticker)}
+                        aria-label={stockLinkLabel(stock.ticker)}
+                        onClick={(event) => {
+                          if (!shouldRouteTickerClick(event)) return;
+                          event.preventDefault();
+                          onSelectStock?.(stock.ticker);
+                        }}
                       >
-                        {stock.company}
-                      </button>
+                        {stock.ticker}
+                      </a>
                     </td>
+                    <td className="stock-company-cell" title={stock.company}>{stock.company}</td>
                     <td className="stock-market-cap-cell">{formatMarketCap(stock.marketCap)}</td>
                     <td className="stock-price-cell">{formatPrice(stock.price)}</td>
                     <td className="stock-change-cell"><span className={stock.change >= 0 ? "change-pill is-positive" : "change-pill is-negative"}>{formatPercent(stock.change)}</span></td>

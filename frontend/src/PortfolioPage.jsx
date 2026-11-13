@@ -26,6 +26,8 @@ import { PHONE_TABLE_MEDIA_QUERY } from "./utils/breakpoints.js";
 import { downloadCsvFile } from "./utils/csv.js";
 import { buildPortfolioCsv, portfolioCsvFilename, validatePortfolioForExport } from "./utils/portfolioExport.js";
 import { getPortfolioState } from "./utils/portfolioState.js";
+import { shouldOpenRow, shouldRouteTickerClick, stockLinkLabel } from "./utils/rowNavigation.js";
+import { stockPath } from "./router.jsx";
 
 const rowsPerPage = 10;
 // [field, label, class suffix, short label used on phones]
@@ -306,17 +308,27 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
                     </tr>
                   )}
                   {visibleHoldings.map((holding) => (
-                    <tr key={holding.ticker}>
+                    <tr
+                      key={holding.ticker}
+                      className="stock-row"
+                      onClick={(event) => {
+                        if (shouldOpenRow(event)) onSelectStock?.(holding.ticker);
+                      }}
+                    >
                       {!isPhone && <td className="portfolio-rank-cell"><span>{holding.rank}</span></td>}
                       <td className="portfolio-ticker-cell">
-                        <button
-                          type="button"
+                        <a
                           className="portfolio-ticker-link"
-                          onClick={() => onSelectStock?.(holding.ticker)}
-                          aria-label={`Open ${holding.ticker} stock analysis`}
+                          href={stockPath(holding.ticker)}
+                          aria-label={stockLinkLabel(holding.ticker)}
+                          onClick={(event) => {
+                            if (!shouldRouteTickerClick(event)) return;
+                            event.preventDefault();
+                            onSelectStock?.(holding.ticker);
+                          }}
                         >
                           {holding.ticker}
-                        </button>
+                        </a>
                       </td>
                       <td className="portfolio-sector-cell" title={holding.sector}>{holding.sector}</td>
                       <td className="portfolio-score-cell"><span>{holding.score.toFixed(2)}</span></td>

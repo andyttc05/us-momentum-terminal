@@ -137,13 +137,19 @@
 .portfolio-table-scroll { width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
 .portfolio-table-shell { position: relative; min-width: 0; }
 .portfolio-table { width: 100%; min-width: 850px; table-layout: fixed; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-.portfolio-col-rank { width: 7%; }
-.portfolio-col-ticker { width: 12%; }
-.portfolio-col-sector { width: 15%; }
-.portfolio-col-score { width: 12%; }
-.portfolio-col-market-cap { width: 25%; }
-.portfolio-col-raw-weight { width: 14%; }
-.portfolio-col-final-weight { width: 15%; }
+/* One colgroup, one set of proportions, `table-layout: fixed` — the header and
+   the body are laid out by the same widths, so a column can never drift between
+   them. # / Ticker / Sector / Score / Market cap / Raw / Final = 100%.
+   Rank and Score are a hair wider than the raw 5/11 sketch: their fixed-size
+   badges (32px circle, 82px pill) would otherwise be clipped at the 1100px
+   breakpoint, where the table is only 882px wide. */
+.portfolio-col-rank { width: 5.5%; }
+.portfolio-col-ticker { width: 11.5%; }
+.portfolio-col-sector { width: 14.5%; }
+.portfolio-col-score { width: 11.5%; }
+.portfolio-col-market-cap { width: 22%; }
+.portfolio-col-raw-weight { width: 17%; }
+.portfolio-col-final-weight { width: 18%; }
 .portfolio-table thead tr { height: var(--table-head-height); border-bottom: 1px solid var(--color-line); }
 .portfolio-table th {
   overflow: hidden;
@@ -179,6 +185,14 @@
 /* Phones swap the long "Float-Adj. Market Cap" heading for a short one so the
    column keeps its full width without clipping; desktop keeps the full label. */
 .portfolio-heading__short { display: none; }
+/* Between the phone layout and a wide desktop the market-cap column is still
+   too narrow for the full label: because the heading is right-aligned, the
+   overflow would eat its first letters instead of trailing off with an ellipsis.
+   The sort button keeps the full name in its aria-label either way. */
+@media (min-width: 768px) and (max-width: 1340px) {
+  .portfolio-heading--market-cap .portfolio-heading__full { display: none; }
+  .portfolio-heading--market-cap .portfolio-heading__short { display: inline; }
+}
 .portfolio-heading--rank,
 .portfolio-heading--score { text-align: center; }
 .portfolio-table th.portfolio-heading--rank { text-align: center; }

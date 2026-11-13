@@ -105,6 +105,9 @@ test("pages no longer paint their own field focus glow", () => {
 
 test("the shared field layer loads after every page stylesheet", () => {
   const order = [...stylesIndex.matchAll(/styles\/([\w-]+)\.css/g)].map((match) => match[1]);
-  assert.equal(order.at(-1), "forms");
-  assert.ok(order.includes("screener") && order.includes("backtesting"));
+  const position = order.indexOf("forms");
+  assert.ok(position > -1, "forms.css must be imported");
+  for (const page of ["screener", "portfolio", "backtesting", "app"]) {
+    assert.ok(position > order.indexOf(page), `forms.css must load after ${page}.css`);
+  }
 });

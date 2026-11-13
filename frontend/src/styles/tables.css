@@ -1,0 +1,65 @@
+/* Tables — shared row behaviour -------------------------------------------
+   The Screener table and the Holdings table are two instances of one table:
+   same row rhythm, same hover, same keyboard position, same "the whole row
+   opens the stock" interaction. Everything both tables must agree on lives
+   here, so the two implementations cannot drift apart again. */
+
+/* The row is the hit area; the ticker cell holds the real link. */
+.stock-row { cursor: pointer; }
+
+/* Row feedback, limited to pointers that can actually hover so a tap on a
+   touch device does not leave a row tinted. */
+@media (hover: hover) and (pointer: fine) {
+  .stock-row:hover { background: #FCFAF7; }
+}
+
+/* A focused ticker link marks its row the same way a hover does. */
+.stock-row:focus-within { background: #FCFAF7; }
+
+/* The Screener table still declares its row hover unconditionally; a tap there
+   would stick. Both tables keep the same rule here, so neither can. */
+@media (hover: none) {
+  .screener-table .stock-row:hover,
+  .portfolio-table .stock-row:hover { background: transparent; }
+
+  /* The pinned ticker cell keeps its own opaque surface over the scrolling
+     columns. */
+  .screener-table .stock-row:hover .stock-ticker-cell,
+  .portfolio-table .stock-row:hover .portfolio-ticker-cell { background: var(--color-surface); }
+}
+
+/* The ticker is an anchor now: it keeps the cell's type, never link styling. */
+.stock-row .stock-ticker-link,
+.stock-row .portfolio-ticker-link { text-decoration: none; }
+
+/* Heading alignment -------------------------------------------------------
+   Each heading sits over the values it labels. The page sheets declare these
+   on the class alone, which loses to `.table th`, so the table is part of the
+   selector here. Hover/focus feedback and column widths stay in the page
+   sheets; only the alignment contract is shared. */
+.screener-table th.stock-heading--price,
+.screener-table th.stock-heading--change,
+.screener-table th.stock-heading--momentum,
+.screener-table th.stock-heading--score { text-align: center; }
+.screener-table th.stock-heading--market-cap { text-align: right; }
+
+.portfolio-table th.portfolio-heading--rank,
+.portfolio-table th.portfolio-heading--score { text-align: center; }
+.portfolio-table th.portfolio-heading--market-cap,
+.portfolio-table th.portfolio-heading--raw-weight,
+.portfolio-table th.portfolio-heading--final-weight { text-align: right; }
+
+/* The button carries the label and the sort icon; it has to hug the same edge
+   the heading text does, or right-aligned headings float away from their
+   numbers. */
+.screener-table th.stock-heading--price button,
+.screener-table th.stock-heading--change button,
+.screener-table th.stock-heading--momentum button,
+.screener-table th.stock-heading--score button,
+.portfolio-table th.portfolio-heading--rank button,
+.portfolio-table th.portfolio-heading--score button { justify-content: center; }
+
+.screener-table th.stock-heading--market-cap button,
+.portfolio-table th.portfolio-heading--market-cap button,
+.portfolio-table th.portfolio-heading--raw-weight button,
+.portfolio-table th.portfolio-heading--final-weight button { justify-content: flex-end; }
