@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import * as XLSX from "xlsx";
 import { strFromU8, unzipSync } from "fflate";
 import { buildBacktestExportData } from "../src/utils/backtestExport.js";
-import { createWorkbookBytes } from "../src/utils/exportFiles.js";
+import { createWorkbookBytes, resolveSpreadsheetApi } from "../src/utils/exportFiles.js";
 import { buildPortfolioCsv, buildPortfolioExportData } from "../src/utils/portfolioExport.js";
 import { buildScreenerExportData } from "../src/utils/screenerExport.js";
 
@@ -52,6 +52,22 @@ async function readWorkbook(sheets) {
     archive: unzipSync(bytes),
   };
 }
+
+test("the workbook API resolves from the ESM build that browsers actually bundle", async () => {
+  // Bundlers honour `module` (xlsx.mjs), which has no default export. Node
+  // resolves `main` (xlsx.js) and adds a CJS interop default, so only a test
+  // that reads the ESM entry guards the browser path.
+  const esmNamespace = await import("xlsx/xlsx.mjs");
+  assert.equal("default" in esmNamespace, false);
+  assert.equal(esmNamespace.default, undefined);
+  assert.equal(typeof resolveSpreadsheetApi(esmNamespace).utils.book_new, "function");
+
+  // Any resolver that still hands back the CommonJS wrapper keeps working.
+  assert.equal(resolveSpreadsheetApi({ default: esmNamespace }).utils, esmNamespace.utils);
+
+  assert.throws(() => resolveSpreadsheetApi({}), /did not load correctly/);
+  assert.throws(() => resolveSpreadsheetApi(undefined), /did not load correctly/);
+});
 
 test("all pages use the same ExportMenu component and page-specific data", () => {
   const backtesting = source("../src/BacktestingPage.jsx");

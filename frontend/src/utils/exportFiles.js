@@ -63,6 +63,26 @@ function applyFreezePane(xml) {
 }
 
 /**
+ * Pick the SheetJS API object out of a module namespace.
+ *
+ * xlsx@0.18.5 ships `xlsx.mjs` as the `module` entry, and that build exposes
+ * only named exports — there is no `default`. Bundlers honour the `module`
+ * field, so `import("xlsx").default` is undefined in the browser, while Node
+ * resolves `main` and does expose a CommonJS interop default. Accept both.
+ */
+export function resolveSpreadsheetApi(module) {
+  const api = module?.utils ? module : module?.default;
+  if (!api?.utils?.book_new) {
+    throw new Error("The Excel export library did not load correctly.");
+  }
+  return api;
+}
+
+export async function loadSpreadsheetApi() {
+  return resolveSpreadsheetApi(await import("xlsx"));
+}
+
+/**
  * Build a real .xlsx file from plain worksheet rows.
  *
  * Each sheet accepts:
@@ -72,8 +92,8 @@ function applyFreezePane(xml) {
  * - `freezeHeader`, which freezes the first row
  */
 export async function createWorkbookBytes(sheets) {
-  const [{ default: XLSX }, { unzipSync, zipSync, strFromU8, strToU8 }] = await Promise.all([
-    import("xlsx"),
+  const [XLSX, { unzipSync, zipSync, strFromU8, strToU8 }] = await Promise.all([
+    loadSpreadsheetApi(),
     import("fflate"),
   ]);
   const workbook = XLSX.utils.book_new();
