@@ -4,6 +4,14 @@ Windows are trading sessions: 21, 63, 126 and 252. The headline 12-1 signal is
 P(t-21) / P(t-252) - 1. Symbols without the full window are excluded rather
 than scored on a shorter history, and missing adjusted prices are never filled
 from unadjusted closes.
+
+Volatility uses exactly the same observation window as the 12-1 signal, so the
+risk adjustment and the signal describe one price path. With ``t`` the latest
+observation the window is ``adj[t-252 : t-20]`` in Python's exclusive-end
+slice convention: it starts at the 12-month leg ``t-252`` and stops at the
+1-month leg ``t-21``. That is 232 closes and 231 daily returns. The most recent
+21 sessions are the excluded "skip month" and are never part of the volatility
+estimate either.
 """
 
 from __future__ import annotations
@@ -16,6 +24,13 @@ import pandas as pd
 TRADING_DAYS = {"1M": 21, "3M": 63, "6M": 126, "12M": 252}
 MIN_OBSERVATIONS = 253
 Z_CLIP = 3.0
+
+# The volatility window is the 12-1 observation window itself: the 12-month leg
+# through the 1-month leg inclusive, i.e. 252 - 21 + 1 = 232 closes. Slicing
+# ``adj[t-252 : t-20]`` yields exactly those observations and excludes the
+# 21-session skip month.
+VOLATILITY_WINDOW_OBSERVATIONS = TRADING_DAYS["12M"] - TRADING_DAYS["1M"] + 1  # 232
+VOLATILITY_RETURNS = VOLATILITY_WINDOW_OBSERVATIONS - 1  # 231
 
 
 @dataclass
@@ -70,7 +85,18 @@ def build_frame(bars) -> pd.DataFrame | None:
 
 
 def _window_metrics(adj: np.ndarray, index: int) -> dict | None:
-    """Metrics for the observation at positional ``index`` (0-based)."""
+    """Metrics for the observation at positional ``index`` (0-based).
+
+    The momentum legs and the volatility estimate share one window:
+
+    - 12-1 momentum is ``adj[index-21] / adj[index-252] - 1``.
+    - Daily volatility is the sample standard deviation (``ddof=1``) of the
+      231 returns formed inside ``adj[index-252 : index-20]``, which is the
+      232-close path from ``t-252`` through ``t-21``.
+
+    Nothing later than ``index-21`` enters the volatility, so a violent skip
+    month cannot inflate the risk denominator of a risk-adjusted score.
+    """
     if index < TRADING_DAYS["12M"]:
         return None
     p0 = float(adj[index])
@@ -81,8 +107,8 @@ def _window_metrics(adj: np.ndarray, index: int) -> dict | None:
     if min(p0, p1m, p3m, p6m, p12m) <= 0:
         return None
 
-    window = adj[index - 252: index + 1]
-    if len(window) < 253:
+    window = adj[index - TRADING_DAYS["12M"]: index - TRADING_DAYS["1M"] + 1]
+    if len(window) < VOLATILITY_WINDOW_OBSERVATIONS:
         return None
     returns = np.diff(window) / window[:-1]
     daily_volatility = float(np.std(returns, ddof=1))

@@ -2,21 +2,42 @@
 
 Signals are formed on the final trading session of each scheduled month. Trades
 execute at the next available session close, and existing holdings are marked
-to market every session between rebalances. The historical book starts from
-equal weights and applies the same stock and sector caps as the live portfolio.
-Point-in-time float capitalisation is unavailable, so using today's float caps
-historically would introduce look-ahead bias.
+to market every session between rebalances.
+
+Selection is identical to the live book: the highest Momentum Scores among the
+eligible names on that date, with the same deterministic tie-break. Weighting
+depends on what is actually known at the signal date:
+
+- When a point-in-time float-adjusted market-cap lookup is supplied and covers
+  every selected name, the book is sized with the production formula
+  ``score x (float cap / median float cap) ** beta`` and the same 9% stock and
+  35% sector-group caps. This is the only path that reflects the live weighting.
+- Otherwise the book starts from equal weights and applies the same caps. That
+  is an explicitly labelled research proxy: point-in-time float capitalisation
+  is not available from the configured providers, and applying today's float
+  caps to a past date would be look-ahead bias.
+
+The publisher records which path each rebalance took in ``methodology`` and in
+every ``holdings_log`` entry, so an equal-weight proxy is never presented as a
+validated test of the live sizing rule.
 """
 
 from __future__ import annotations
 
 import math
+from typing import Callable
 
 import numpy as np
 import pandas as pd
 
 from .momentum import cross_section_at
-from .portfolio import _apply_caps, group_sector
+from .portfolio import (
+    MARKET_CAP_EXPONENT,
+    _apply_caps,
+    group_sector,
+    raw_weights,
+    selection_sort_key,
+)
 
 MIN_UNIVERSE_OBSERVATIONS = 210
 LIQUIDITY_SESSIONS = 63
@@ -226,15 +247,61 @@ def rebalance_schedule(
 def _target_weights(
     targets: list[str],
     sector_by_symbol: dict[str, str] | None,
-) -> tuple[dict[str, float], str | None]:
-    """Equal-start weights, with the live portfolio caps when sectors are known."""
-    raw = {symbol: 1.0 for symbol in targets}
+    *,
+    scores: dict[str, float] | None = None,
+    float_caps: dict[str, float] | None = None,
+    market_cap_exponent: float = MARKET_CAP_EXPONENT,
+) -> tuple[dict[str, float], str | None, str]:
+    """Size the selected names and apply the live caps.
+
+    Returns ``(weights, error, mode)``. ``mode`` is ``"score-size"`` only when a
+    complete point-in-time size input exists for every selected name; otherwise
+    it is ``"equal-weight-proxy"`` and the caller must report that.
+    """
+    if not targets:
+        return {}, "no selected holdings", "equal-weight-proxy"
+
+    mode = "equal-weight-proxy"
+    raw: dict[str, float]
+    sized = (
+        bool(scores)
+        and bool(float_caps)
+        and all(
+            symbol in float_caps
+            and isinstance(float_caps[symbol], (int, float))
+            and math.isfinite(float_caps[symbol])
+            and float_caps[symbol] > 0
+            and symbol in scores
+            for symbol in targets
+        )
+    )
+    if sized:
+        rows = [
+            {
+                "symbol": symbol,
+                "score": scores[symbol],
+                "float_market_cap": float_caps[symbol],
+            }
+            for symbol in targets
+        ]
+        raw, _ = raw_weights(rows, market_cap_exponent=market_cap_exponent)
+        if raw and all(value > 0 for value in raw.values()):
+            mode = "score-size"
+        else:
+            raw = {}
+    else:
+        raw = {}
+
+    if not raw:
+        raw = {symbol: 1.0 for symbol in targets}
+        mode = "equal-weight-proxy"
+
     if not sector_by_symbol or any(symbol not in sector_by_symbol for symbol in targets):
-        equal = 100.0 / len(targets)
-        return {symbol: equal for symbol in targets}, None
+        total = sum(raw.values())
+        return {symbol: value / total * 100.0 for symbol, value in raw.items()}, None, mode
     sectors = {symbol: group_sector(sector_by_symbol[symbol]) for symbol in targets}
     weights, feasible, reason = _apply_caps(raw, sectors)
-    return weights, None if feasible else reason
+    return weights, None if feasible else reason, mode
 
 
 def _mark_to_market(
@@ -265,8 +332,17 @@ def run_backtest(
     sector_by_symbol: dict[str, str] | None = None,
     transaction_cost_rate: float = TRANSACTION_COST_RATE,
     slippage_rate: float = SLIPPAGE_RATE,
+    market_cap_exponent: float = MARKET_CAP_EXPONENT,
+    float_cap_lookup: Callable[[str, pd.Timestamp], float | None] | None = None,
 ) -> dict:
-    """Run a ranking simulation with explicit schedule and execution timing."""
+    """Run a ranking simulation with explicit schedule and execution timing.
+
+    ``float_cap_lookup(symbol, signal_date)`` must return the float-adjusted
+    market cap that was knowable on ``signal_date``. When it returns nothing for
+    a selected name, that rebalance falls back to the labelled equal-weight
+    proxy instead of borrowing a current or future market cap.
+    """
+
     if rebalance_months is not None:
         requested_months = tuple(sorted({int(month) for month in rebalance_months}))
         matching = next(
@@ -321,11 +397,26 @@ def run_backtest(
         scores = cross_section_at(candidates, lookup, include=historical_universe_eligible)
         if len(scores) < 5:
             continue
-        ranked = sorted(scores.values(), key=lambda row: (-row["score"], row["symbol"]))
+        ranked = sorted(scores.values(), key=selection_sort_key)
         selected = [row["symbol"] for row in ranked[:_selection_count(ranked, top_n)]]
         if not selected:
             continue
-        target_weights, constraint_error = _target_weights(selected, sector_by_symbol)
+        selected_scores = {symbol: scores[symbol]["score"] for symbol in selected}
+        float_caps = None
+        if float_cap_lookup is not None:
+            resolved = {symbol: float_cap_lookup(symbol, signal_date) for symbol in selected}
+            float_caps = {
+                symbol: float(value)
+                for symbol, value in resolved.items()
+                if isinstance(value, (int, float)) and math.isfinite(value) and value > 0
+            }
+        target_weights, constraint_error, weighting_mode = _target_weights(
+            selected,
+            sector_by_symbol,
+            scores=selected_scores,
+            float_caps=float_caps,
+            market_cap_exponent=market_cap_exponent,
+        )
         if constraint_error:
             return {
                 "available": False,
@@ -341,6 +432,7 @@ def run_backtest(
                 "kind": "initial_formation" if not events else scheduled_event["kind"],
                 "selected": selected,
                 "weights": target_weights,
+                "weighting_mode": weighting_mode,
             }
         )
 
@@ -457,6 +549,7 @@ def run_backtest(
                 },
                 "turnover_pct": round(one_way_turnover * 100.0, 2),
                 "cost_usd": round(cost, 4),
+                "weighting_mode": event["weighting_mode"],
             }
         )
 
@@ -571,6 +664,27 @@ def run_backtest(
         "scheduled": sum(event["type"] == "scheduled" for event in holdings_log),
         "total": len(holdings_log),
     }
+    sized_events = sum(1 for event in events if event["weighting_mode"] == "score-size")
+    proxy_events = len(events) - sized_events
+    if sized_events and not proxy_events:
+        weighting_label = (
+            f"score x (point-in-time float cap / median) ^ {market_cap_exponent:g} "
+            "with 9% stock and 35% sector-group caps"
+        )
+        live_weighting_tested = True
+    elif sized_events:
+        weighting_label = (
+            f"mixed: {sized_events} rebalance(s) sized with the production formula at beta "
+            f"{market_cap_exponent:g}, {proxy_events} on the equal-weight research proxy"
+        )
+        live_weighting_tested = False
+    else:
+        weighting_label = (
+            "equal-start weights with 9% stock and 35% sector-group caps"
+            if sector_by_symbol
+            else "equal weight (research proxy; sector caps unavailable)"
+        )
+        live_weighting_tested = False
 
     return {
         "available": True,
@@ -588,20 +702,30 @@ def run_backtest(
         "event_counts": event_counts,
         "methodology": {
             "selection": f"top {top_n}" if top_n is not None else "all eligible stocks",
+            "selection_rule": "Momentum Score, descending (score, risk-adjusted, ticker)",
             "rebalance_frequency": rebalance_frequency,
             "rebalance_months": list(sorted(rebalance_set)),
             "initial_formation": events[0]["kind"] == "initial_formation",
-            "weighting": (
-                "equal-start weights with 9% stock and 35% sector caps"
-                if sector_by_symbol
-                else "equal weight (research proxy; sector caps unavailable)"
+            "weighting": weighting_label,
+            "weighting_mode": (
+                "score-size" if sized_events and not proxy_events
+                else "mixed" if sized_events
+                else "equal-weight-proxy"
             ),
+            "market_cap_exponent": market_cap_exponent,
+            "live_weighting_tested": live_weighting_tested,
+            "sized_rebalances": sized_events,
+            "proxy_rebalances": proxy_events,
             "signal_months": sorted(rebalance_set),
             "execution": "next available adjusted close",
             "transaction_cost_bps": transaction_cost_rate * 10_000,
             "slippage_bps": slippage_rate * 10_000,
             "risk_free_rate": RISK_FREE_RATE,
-            "historical_capitalisation": "not available point-in-time",
+            "historical_capitalisation": (
+                "point-in-time float-adjusted market cap supplied per signal date"
+                if sized_events
+                else "not available point-in-time"
+            ),
         },
         "metrics": {
             "cumulative_return": round((total - 1.0) * 100.0, 1),

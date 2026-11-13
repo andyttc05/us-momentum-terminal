@@ -1,0 +1,151 @@
+{
+  "generated_at": "2026-11-13T19:06:56+00:00",
+  "official_default_market_cap_exponent": 0.5,
+  "selection_rule": "Momentum Score only; market cap never reorders the ranking",
+  "classification": "research comparison; the production default stays Beta 0.5 and is not chosen by maximising historical CAGR",
+  "current_cross_section": {
+    "available": true,
+    "scoredRows": 198,
+    "models": {
+      "beta_0": {
+        "formula": "momentum score only",
+        "available": true,
+        "holdings": 100,
+        "totalWeightPct": 100.0,
+        "largestHolding": {
+          "ticker": "MPC",
+          "weightPct": 2.3279
+        },
+        "smallestHolding": {
+          "ticker": "JPM",
+          "weightPct": 0.5216
+        },
+        "largestToSmallestRatio": 4.463,
+        "topTenWeightPct": 19.45,
+        "herfindahlIndex": 0.011854,
+        "effectiveNames": 84.36,
+        "maxSectorGroupWeightPct": 33.568,
+        "namesAtStockCap": 0,
+        "constraintsPassed": true
+      },
+      "beta_0.5": {
+        "formula": "score x (float cap / median float cap) ^ 0.5",
+        "available": true,
+        "holdings": 100,
+        "totalWeightPct": 100.0,
+        "largestHolding": {
+          "ticker": "AAPL",
+          "weightPct": 6.4626
+        },
+        "smallestHolding": {
+          "ticker": "COLM",
+          "weightPct": 0.0746
+        },
+        "largestToSmallestRatio": 86.578,
+        "topTenWeightPct": 37.38,
+        "herfindahlIndex": 0.023676,
+        "effectiveNames": 42.24,
+        "maxSectorGroupWeightPct": 34.722,
+        "namesAtStockCap": 0,
+        "constraintsPassed": true
+      },
+      "beta_1": {
+        "formula": "score x (float cap / median float cap) ^ 1",
+        "available": true,
+        "holdings": 100,
+        "totalWeightPct": 100.0,
+        "largestHolding": {
+          "ticker": "GOOGL",
+          "weightPct": 9.0
+        },
+        "smallestHolding": {
+          "ticker": "COLM",
+          "weightPct": 0.0056
+        },
+        "largestToSmallestRatio": 1616.379,
+        "topTenWeightPct": 56.67,
+        "herfindahlIndex": 0.041159,
+        "effectiveNames": 24.3,
+        "maxSectorGroupWeightPct": 35.0,
+        "namesAtStockCap": 1,
+        "constraintsPassed": true
+      }
+    },
+    "selectionIdenticalAcrossModels": true
+  },
+  "point_in_time_coverage": {
+    "historical_universe_size": 108,
+    "symbols_with_cached_bars": 108,
+    "symbols_with_point_in_time_float_cap": 0,
+    "coverage_pct": 0.0,
+    "cached_bar_fields": "date, open, high, low, close, adjusted close, volume, dividends, splits",
+    "missing_fields": [
+      "historical shares outstanding",
+      "historical float shares",
+      "historical float-adjusted market capitalisation",
+      "sector classification as known on each rebalance date"
+    ],
+    "candidate_sources": [
+      {
+        "source": "Financial Modeling Prep historical market capitalisation",
+        "fields": "shares outstanding and market cap per date",
+        "available_in_project": false,
+        "note": "paid tier; the configured FMP key is not used for fundamentals"
+      },
+      {
+        "source": "Sharadar SF1 / SEP (Nasdaq Data Link)",
+        "fields": "point-in-time shares outstanding and fundamentals",
+        "available_in_project": false,
+        "note": "separate paid subscription, not part of the provider chain"
+      },
+      {
+        "source": "CRSP / Compustat via WRDS",
+        "fields": "point-in-time shares outstanding and float",
+        "available_in_project": false,
+        "note": "institutional licence, not redistributable in this repository"
+      },
+      {
+        "source": "Yahoo Finance / Stooq / Twelve Data bar endpoints",
+        "fields": "prices, volume, dividends, splits only",
+        "available_in_project": true,
+        "note": "current float shares only via the quote endpoint; no history"
+      }
+    ],
+    "conclusion": "No point-in-time float-adjusted market cap exists in the project's data layer. A historical test of the Beta 0.5 sizing rule is therefore not available, and current float caps are never substituted for past values."
+  },
+  "historical_comparison": {
+    "available": false,
+    "reason": "point-in-time float-adjusted market capitalisation coverage is 0%, so CAGR, Sharpe, drawdown, turnover and sector concentration cannot be compared across betas without look-ahead bias",
+    "proxy": {
+      "available": true,
+      "window": [
+        "2018-04-02",
+        "2026-11-13"
+      ],
+      "weighting_mode": "equal-weight-proxy",
+      "selection": "top 100",
+      "rebalances": 18,
+      "identicalHoldingsAcrossBetas": true,
+      "identicalMetricsAcrossBetas": true,
+      "proxyMetrics": {
+        "cumulative_return": 375.4,
+        "cagr": 19.8,
+        "annualized_volatility": 18.9,
+        "max_drawdown": -34.3,
+        "sharpe": 1.06,
+        "risk_free_rate": 0.0,
+        "transaction_cost_pct": 1.0037,
+        "price_only_transaction_cost_pct": 1.0408,
+        "total_one_way_turnover_pct": 273.4,
+        "annualized_one_way_turnover_pct": 31.8
+      },
+      "interpretation": "All three exponents produce the same book because the historical proxy has no size input. These numbers describe the equal-weight momentum proxy, not the Beta 0.5 production rule."
+    }
+  },
+  "limitations": [
+    "The current cross-section uses today's float caps on today's signal date; that is not a backtest.",
+    "No historical float, shares-outstanding or point-in-time sector history is available.",
+    "The equal-weight proxy is published separately and never labelled as validating Beta 0.5.",
+    "Survivorship: the universe is today's list, not a point-in-time membership record."
+  ]
+}

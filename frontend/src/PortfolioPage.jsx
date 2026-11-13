@@ -256,7 +256,7 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
         <PageHeader
           eyebrow="Portfolio"
           title="Model Portfolio"
-          subtitle="Momentum × Float-Adj. Cap"
+          subtitle="Momentum × √Float-Adj. Cap"
           art={<MascotDuo creamColor="var(--color-surface)" yellowColor="var(--color-yellow)" />}
           controls={(
             <UpdateBar

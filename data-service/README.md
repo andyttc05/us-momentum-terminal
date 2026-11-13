@@ -77,15 +77,21 @@ minutes, intraday bars 15 minutes, closed-market bars 6 hours and quote metadata
 
 ## Analytics
 
-- 12–1 momentum, 252-session daily volatility, risk-adjusted momentum and clipped Z-scores.
-- Top 100 or exactly Top 20 ranked eligible stocks.
-- Float-adjusted model portfolio with a 9% single-stock cap and a 35% sector-group cap.
+- 12–1 momentum (`P(t−21)/P(t−252)−1`) with daily volatility measured on the same 232-close
+  observation window (`t−252 … t−21`, 231 returns), then risk-adjusted momentum and clipped
+  population Z-scores.
+- Momentum Score alone selects Top 100 or exactly Top 20, with a deterministic tie-break
+  (score, risk-adjusted momentum, ticker). Top 20 is always a prefix of Top 100.
+- Float-adjusted model portfolio sized with `score × (float cap / median float cap) ^ 0.5`
+  (Beta 0.5, not user-configurable), then a 9% single-stock cap and a 35% cap on combined sector groups.
 - Rebalancing choices: monthly, quarterly, semiannual and annual.
-- Historical strategies start from equal weights and apply the same stock/sector caps.
+- Historical books are equal-weighted research proxies unless a point-in-time float-cap lookup is
+  supplied; each rebalance records its `weighting_mode` so a proxy is never presented as validating
+  the production sizing rule.
 - Signals use the final trading session of the selected months; execution uses the next close.
 - Transaction costs are 0.10%; slippage and risk-free rate are 0%.
 - Adjusted-close and cash-dividend conventions remain separate.
 - CPI-U inflation adjustment uses published observations only.
 
-The historical universe, current constituents, current fundamentals and missing delisting returns
-remain research limitations. See `../docs/TECHNICAL_DOCUMENTATION.md`.
+The historical universe, current constituents, missing point-in-time float capitalisation and missing
+delisting returns remain research limitations. See `../docs/TECHNICAL_DOCUMENTATION.md`.

@@ -201,7 +201,10 @@ export function buildPortfolioExportData({
   ]);
   const settings = [
     ["Universe Selection", universeLabel(universe)],
+    ["Selection Rule", portfolio.selection?.rule ?? "Momentum Score, descending"],
     ["Portfolio Methodology", portfolio.weighting?.rawFormula ?? null],
+    ["Market Cap Exponent (Beta)", portfolio.weighting?.marketCapExponent ?? null],
+    ["Sector Cap Scope", portfolio.weighting?.sectorRule ?? null],
     ["Constraint Solver", portfolio.weighting?.solver ?? null],
     ["Solver Converged", typeof portfolio.weighting?.converged === "boolean"
       ? (portfolio.weighting.converged ? "Yes" : "No")

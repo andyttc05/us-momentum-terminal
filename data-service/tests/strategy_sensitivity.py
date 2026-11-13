@@ -153,7 +153,10 @@ def main() -> int:
         "execution": base["methodology"],
         "limitations": [
             "The universe list is current rather than point-in-time.",
-            "Historical float-adjusted market caps are unavailable, so the backtest uses equal weights.",
+            (
+                "Historical float-adjusted market caps are unavailable, so the backtest uses equal "
+                "weights and does not test the Beta 0.5 production sizing rule."
+            ),
             "The 2023-to-end result is a chronological holdout, not a separately trained model test.",
             "All results depend on the vendor's adjusted-close history and the 0% Sharpe risk-free assumption.",
         ],

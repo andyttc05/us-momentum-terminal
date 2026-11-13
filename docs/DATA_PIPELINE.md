@@ -8,7 +8,7 @@ runtime Python server.
 ```text
 Yahoo Finance
   → Python provider cache
-  → universe validation + momentum + portfolio + backtest
+  → universe validation + momentum + score-only selection + square-root weighting + backtest
   → atomic static export
   → frontend/public/data
   → GitHub Pages artifact
@@ -16,7 +16,13 @@ Yahoo Finance
 ```
 
 The exporter is `data-service/scripts/export_static.py`. It reuses the same functions as FastAPI and
-does not maintain a second set of calculations.
+does not maintain a second set of calculations. `--write-seed` also refreshes
+`data-service/seed/publication.json` from the identical payload, because the seed is what the API
+serves before its first live build and must not describe an older weighting rule.
+
+`PUBLICATION_VERSION` is bumped whenever the construction methodology changes. The static publisher,
+the validator and the browser all compare it, so a visitor with a cached linear-weight publication is
+sent to the new one instead of seeing old weights presented as current.
 
 ## Published files
 
@@ -130,9 +136,9 @@ them and reports the difference through the shared notification card.
 | Field | Content |
 | --- | --- |
 | `universe` | `top100` or `top20` |
-| `meta` | Universe, target holdings, selected count, calculation date, data timestamp, run id, portfolio/backtest status |
+| `meta` | Universe, target holdings, selected count, calculation date, data timestamp, run id, portfolio/backtest status, methodology id, weighting method, market-cap exponent, constraint-validation state |
 | `stockTickers` | The selection in rank order (the ranked rows live once in `stocks`) |
-| `portfolio` | That universe's model portfolio — holdings, sectors, summary, constraints |
+| `portfolio` | That universe's model portfolio — holdings, sectors, summary, constraints, selection rule, weighting metadata |
 | `overview` | Snapshot counts, Top Momentum, sector allocation and performance for that universe |
 
 Stock rows are resolved from the portfolio's own selection rather than sliced from the top of the

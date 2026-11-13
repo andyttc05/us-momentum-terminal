@@ -17,6 +17,7 @@
     "build": "npm --prefix frontend run build",
     "test:sites": "npm --prefix frontend run test:sites",
     "test:frontend": "npm --prefix frontend run test:unit",
-    "test": "npm run data:test && npm run test:frontend"
+    "test": "npm run data:test && npm run test:frontend",
+    "data:weighting": "PYTHONPATH=data-service .venv-datatest/bin/python data-service/scripts/weighting_comparison.py"
   }
 }

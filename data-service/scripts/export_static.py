@@ -29,6 +29,7 @@ from app.snapshot import (  # noqa: E402
 )
 
 DEFAULT_OUTPUT = ROOT / "frontend" / "public" / "data"
+DEFAULT_SEED = ROOT / "data-service" / "seed" / "publication.json"
 SCHEMA_VERSION = 2
 
 
@@ -228,6 +229,7 @@ def build_static(
     min_stock_ratio: float,
     min_detail_ratio: float,
     force: bool = False,
+    seed_path: Path | None = None,
 ) -> dict:
     payload = build_publication(force=force)
     errors = validate_publication(
@@ -342,6 +344,17 @@ def build_static(
         if staging.exists():
             shutil.rmtree(staging)
 
+    # The seed is what the API serves before its first live build, so it must
+    # describe the same methodology and weights as the published snapshot.
+    seed_written = False
+    if seed_path is not None:
+        seed_path.parent.mkdir(parents=True, exist_ok=True)
+        _write_json(
+            seed_path,
+            {"stored_at": _now().timestamp(), "value": compact_payload},
+        )
+        seed_written = True
+
     return {
         "status": "updated",
         "generated_at": compact_payload["meta"]["generated_at"],
@@ -349,6 +362,7 @@ def build_static(
         "stocks": len(stocks),
         "details": len(details),
         "bytes": publication_bytes + sum(stock_files.values()) + sum(backtest_bytes.values()),
+        "seed": str(seed_path) if seed_written else None,
     }
 
 
@@ -360,6 +374,11 @@ def main() -> int:
     parser.add_argument("--min-detail-ratio", type=float, default=0.98)
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--validate-only", action="store_true")
+    parser.add_argument(
+        "--write-seed",
+        action="store_true",
+        help="Also refresh data-service/seed/publication.json from the same payload.",
+    )
     args = parser.parse_args()
 
     output = args.output.resolve()
@@ -392,6 +411,7 @@ def main() -> int:
             min_stock_ratio=args.min_stock_ratio,
             min_detail_ratio=args.min_detail_ratio,
             force=args.force,
+            seed_path=DEFAULT_SEED if args.write_seed else None,
         )
         print(json.dumps(result, indent=2))
         _set_github_output("data_status", result["status"])

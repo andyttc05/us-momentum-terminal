@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import unittest
 from collections import Counter
 from datetime import date, datetime, timezone
@@ -24,6 +25,9 @@ from app.main import _loading_payload, _seed_payload, backtest as run_backtest_e
 from app.macro import parse_cpi_csv
 from app.models import NormalizedBar
 from app.momentum import (
+    MIN_OBSERVATIONS,
+    VOLATILITY_RETURNS,
+    VOLATILITY_WINDOW_OBSERVATIONS,
     SymbolSeries,
     _window_metrics,
     _zscore,
@@ -32,10 +36,18 @@ from app.momentum import (
     momentum_score,
 )
 from app.portfolio import (
+    MARKET_CAP_EXPONENT,
+    METHODOLOGY_ID,
+    SECTOR_CAP,
+    SINGLE_NAME_CAP,
     _rounded_sector_values,
     build_portfolio,
+    canonical_sector,
     evaluate_portfolio_constraints,
     group_sector,
+    rank_for_selection,
+    raw_weights,
+    selection_sort_key,
 )
 from app.snapshot import (
     PUBLICATION_VERSION,
@@ -320,7 +332,7 @@ class PortfolioTests(unittest.TestCase):
             "float_market_cap": cap,
         }
 
-    def test_portfolio_uses_score_and_float_cap_and_obeys_caps(self):
+    def test_portfolio_uses_score_and_sqrt_relative_float_cap_and_obeys_caps(self):
         sectors = ["Technology", "Communication", "Healthcare", "Consumer Staples", "Industrials", "Energy"]
         rows = [self._row(i, sectors[i % len(sectors)], score=1.0 + (i % 5) * 0.1) for i in range(100)]
         portfolio = build_portfolio(rows)
@@ -332,8 +344,10 @@ class PortfolioTests(unittest.TestCase):
         self.assertFalse({"Consumer", "Others"} & {item["sector"] for item in portfolio["holdings"]})
 
         by_symbol = {row["symbol"]: row for row in rows}
+        median = portfolio["weighting"]["medianFloatMarketCap"]
         weighted = [
-            by_symbol[item["ticker"]]["float_market_cap"] * by_symbol[item["ticker"]]["score"]
+            by_symbol[item["ticker"]]["score"]
+            * np.sqrt(by_symbol[item["ticker"]]["float_market_cap"] / median)
             for item in portfolio["holdings"]
         ]
         total = sum(weighted)
@@ -357,9 +371,484 @@ class PortfolioTests(unittest.TestCase):
         self.assertEqual(len(portfolio["holdings"]), 20)
         self.assertAlmostEqual(sum(item["finalWeight"] for item in portfolio["holdings"]), 100.0, places=5)
         self.assertIn(
-            {"id": "target-holdings", "label": "Target Holdings", "rule": "= 20", "passed": True, "status": "passed"},
+            {
+                "id": "target-holdings",
+                "label": "Target Holdings",
+                "rule": "= 20",
+                "scope": "portfolio",
+                "passed": True,
+                "status": "passed",
+            },
             portfolio["constraints"],
         )
+
+
+class VolatilityWindowTests(unittest.TestCase):
+    """Volatility must be measured on the 12-1 signal's own price path.
+
+    Including the excluded skip month inflates the denominator exactly when a
+    name has just had a violent month - the case the 12-1 convention exists to
+    neutralise - so the window is asserted against an independent slice.
+    """
+
+    @staticmethod
+    def _closes(days: int = 320) -> np.ndarray:
+        return np.linspace(100.0, 180.0, days)
+
+    def test_window_is_the_232_closes_from_t_minus_252_to_t_minus_21(self):
+        closes = self._closes()
+        index = len(closes) - 1
+        metrics = _window_metrics(closes, index)
+
+        window = closes[index - 252: index - 20]
+        returns = np.diff(window) / window[:-1]
+
+        self.assertEqual(len(window), 232)
+        self.assertEqual(len(window), VOLATILITY_WINDOW_OBSERVATIONS)
+        self.assertEqual(len(returns), 231)
+        self.assertEqual(len(returns), VOLATILITY_RETURNS)
+        self.assertAlmostEqual(metrics["daily_volatility"], float(np.std(returns, ddof=1)))
+        self.assertAlmostEqual(metrics["volatility"], float(np.std(returns, ddof=1)) * np.sqrt(252) * 100.0)
+
+    def test_risk_adjusted_momentum_divides_by_that_daily_volatility(self):
+        closes = self._closes()
+        index = len(closes) - 1
+        metrics = _window_metrics(closes, index)
+        momentum = closes[index - 21] / closes[index - 252] - 1.0
+        self.assertAlmostEqual(metrics["momentum_12_1"], momentum * 100.0)
+        self.assertAlmostEqual(metrics["risk_adjusted"], momentum / metrics["daily_volatility"])
+
+    def test_skip_month_never_enters_the_volatility_estimate(self):
+        index = 319
+        baseline = _window_metrics(self._closes(), index)
+
+        spiked = self._closes()
+        # A 2x level shift inside the excluded 21 sessions...
+        spiked[index - 20:] *= 2.0
+        self.assertAlmostEqual(
+            _window_metrics(spiked, index)["daily_volatility"],
+            baseline["daily_volatility"],
+            places=12,
+            msg="the skip month must not change the risk denominator",
+        )
+
+        # ...but the same shock inside the observation window must.
+        inside = self._closes()
+        inside[index - 30] *= 2.0
+        self.assertNotAlmostEqual(
+            _window_metrics(inside, index)["daily_volatility"],
+            baseline["daily_volatility"],
+            places=6,
+        )
+
+    def test_old_full_trailing_window_would_have_given_a_different_answer(self):
+        index = 319
+        closes = self._closes()
+        closes[len(closes) - 15] *= 4.0  # shock inside the old window only
+        metrics = _window_metrics(closes, index)
+
+        legacy_window = closes[index - 252: index + 1]
+        legacy = float(np.std(np.diff(legacy_window) / legacy_window[:-1], ddof=1))
+        self.assertEqual(len(legacy_window), 253)
+        self.assertGreater(legacy, metrics["daily_volatility"] * 1.5)
+
+    def test_missing_history_is_still_rejected(self):
+        closes = self._closes(252)
+        self.assertIsNone(_window_metrics(closes, 251))
+        self.assertEqual(MIN_OBSERVATIONS, 253)
+
+
+class SelectionRuleTests(unittest.TestCase):
+    """Momentum Score alone decides membership; market cap only decides sizing."""
+
+    @staticmethod
+    def _row(symbol, score, cap=1e10, risk_adjusted=None, sector="Technology"):
+        return {
+            "symbol": symbol,
+            "company": symbol,
+            "sector": sector,
+            "score": score,
+            "risk_adjusted": score * 10 if risk_adjusted is None else risk_adjusted,
+            "momentum_12_1": score,
+            "market_cap": cap * 1.2,
+            "float_market_cap": cap,
+        }
+
+    def _cross_section(self, count=40):
+        sectors = ["Technology", "Healthcare", "Financials", "Energy", "Industrials", "Utilities"]
+        return [
+            self._row(
+                f"S{index:03d}",
+                round(2.6 - index * 0.01, 4),
+                cap=1e9 * (1 + index),
+                sector=sectors[index % len(sectors)],
+            )
+            for index in range(count)
+        ]
+
+    def test_market_cap_never_reorders_the_selection(self):
+        rows = self._cross_section()
+        shuffled = [dict(row, float_market_cap=row["float_market_cap"] * (100 if index % 2 else 0.01))
+                    for index, row in enumerate(rows)]
+        baseline = [row["ticker"] for row in build_portfolio(rows, target_holdings=20)["holdings"]]
+        inverted = [row["ticker"] for row in build_portfolio(shuffled, target_holdings=20)["holdings"]]
+        self.assertEqual(baseline, inverted)
+        self.assertEqual(baseline, [row["symbol"] for row in rank_for_selection(rows)[:20]])
+
+    def test_top_twenty_is_the_first_twenty_of_the_top_hundred_in_order(self):
+        rows = self._cross_section(count=140)
+        top100 = [row["ticker"] for row in build_portfolio(rows, target_holdings=100)["holdings"]]
+        top20 = [row["ticker"] for row in build_portfolio(rows, target_holdings=20)["holdings"]]
+        self.assertEqual(len(top100), 100)
+        self.assertEqual(len(top20), 20)
+        self.assertEqual(top20, top100[:20])
+
+    def test_ties_break_on_risk_adjusted_then_ticker(self):
+        rows = [
+            self._row("ZZZ", 2.0, risk_adjusted=50.0),
+            self._row("AAA", 2.0, risk_adjusted=50.0),
+            self._row("MOM", 2.0, risk_adjusted=90.0),
+        ]
+        self.assertEqual([row["symbol"] for row in rank_for_selection(rows)], ["MOM", "AAA", "ZZZ"])
+
+    def test_selection_is_deterministic_and_input_order_independent(self):
+        rows = self._cross_section(count=60)
+        first = [row["ticker"] for row in build_portfolio(rows, target_holdings=20)["holdings"]]
+        second = [row["ticker"] for row in build_portfolio(list(reversed(rows)), target_holdings=20)["holdings"]]
+        self.assertEqual(first, second)
+
+    def test_a_better_score_without_a_float_cap_is_excluded_not_weighted(self):
+        rows = self._cross_section(count=30)
+        rows[0]["float_market_cap"] = None
+        book = build_portfolio(rows, target_holdings=20)
+        self.assertTrue(book["available"])
+        self.assertIn(rows[0]["symbol"], book["excluded_no_market_cap"])
+        self.assertNotIn(rows[0]["symbol"], {row["ticker"] for row in book["holdings"]})
+        self.assertEqual(len(book["holdings"]), 20)
+
+    def test_non_positive_and_non_finite_caps_are_never_weighted(self):
+        rows = self._cross_section(count=30)
+        rows[0]["float_market_cap"] = 0.0
+        rows[1]["float_market_cap"] = float("nan")
+        rows[2]["float_market_cap"] = -1.0
+        selected = {row["ticker"] for row in build_portfolio(rows, target_holdings=20)["holdings"]}
+        self.assertFalse({rows[0]["symbol"], rows[1]["symbol"], rows[2]["symbol"]} & selected)
+
+    def test_selection_metadata_describes_the_rule(self):
+        book = build_portfolio(self._cross_section(count=40), target_holdings=20)
+        self.assertEqual(book["selection"]["rule"], "Momentum Score, descending")
+        self.assertEqual(book["selection"]["tieBreak"], ["score:desc", "riskAdjusted:desc", "ticker:asc"])
+
+
+class WeightingModelTests(unittest.TestCase):
+    """One selection, three exponents: only the sizing may move."""
+
+    @staticmethod
+    def _rows(count=100):
+        sectors = ["Technology", "Healthcare", "Financials", "Energy", "Industrials", "Utilities"]
+        return [
+            {
+                "symbol": f"W{index:03d}",
+                "company": f"Company {index}",
+                "sector": sectors[index % len(sectors)],
+                "score": 1.0 + (index % 9) * 0.1,
+                "risk_adjusted": float(count - index),
+                "momentum_12_1": 2.0,
+                "market_cap": 1e10 * (1 + index % 12),
+                "float_market_cap": 1e9 * (1.5 ** (index % 12)),
+            }
+            for index in range(count)
+        ]
+
+    def _books(self):
+        rows = self._rows()
+        return {beta: build_portfolio(rows, market_cap_exponent=beta) for beta in (0.0, 0.5, 1.0)}
+
+    def test_default_exponent_is_one_half(self):
+        self.assertEqual(MARKET_CAP_EXPONENT, 0.5)
+        book = build_portfolio(self._rows())
+        self.assertEqual(book["weighting"]["marketCapExponent"], 0.5)
+        self.assertIn("^ 0.5", book["weighting"]["rawFormula"])
+
+    def test_beta_zero_is_pure_score_weighting(self):
+        rows = self._rows()
+        book = build_portfolio(rows, market_cap_exponent=0.0)
+        scores = {row["symbol"]: row["score"] for row in rows}
+        total_score = sum(scores[row["ticker"]] for row in book["holdings"])
+        for holding in book["holdings"]:
+            self.assertAlmostEqual(
+                holding["rawWeight"],
+                scores[holding["ticker"]] / total_score * 100.0,
+                places=3,
+            )
+
+    def test_beta_one_reproduces_the_linear_market_cap_rule(self):
+        rows = self._rows()
+        book = build_portfolio(rows, market_cap_exponent=1.0)
+        by_symbol = {row["symbol"]: row for row in rows}
+        linear = {
+            holding["ticker"]: by_symbol[holding["ticker"]]["score"] * by_symbol[holding["ticker"]]["float_market_cap"]
+            for holding in book["holdings"]
+        }
+        total = sum(linear.values())
+        for holding in book["holdings"]:
+            self.assertAlmostEqual(holding["rawWeight"], linear[holding["ticker"]] / total * 100.0, places=3)
+
+    def test_square_root_compresses_size_dispersion_relative_to_linear(self):
+        books = self._books()
+        largest = {beta: max(holding["finalWeight"] for holding in book["holdings"])
+                   for beta, book in books.items()}
+        smallest = {beta: min(holding["finalWeight"] for holding in book["holdings"])
+                    for beta, book in books.items()}
+        self.assertGreater(largest[1.0], largest[0.5])
+        self.assertGreater(largest[0.5], largest[0.0])
+        # Every beta is still a fully invested, capped book.
+        for beta, book in books.items():
+            self.assertTrue(book["available"], beta)
+            self.assertAlmostEqual(sum(row["finalWeight"] for row in book["holdings"]), 100.0, places=6)
+            self.assertLessEqual(max(row["finalWeight"] for row in book["holdings"]), SINGLE_NAME_CAP + 1e-6)
+
+    def test_the_exponent_never_changes_which_names_are_held(self):
+        books = self._books()
+        orders = {beta: [row["ticker"] for row in book["holdings"]] for beta, book in books.items()}
+        self.assertEqual(orders[0.0], orders[0.5])
+        self.assertEqual(orders[0.5], orders[1.0])
+
+    def test_relative_form_matches_the_absolute_form(self):
+        rows = self._rows(count=12)
+        relative, meta = raw_weights(rows, market_cap_exponent=0.5)
+        absolute = {
+            row["symbol"]: row["score"] * math.sqrt(row["float_market_cap"])
+            for row in rows
+        }
+        relative_total = sum(relative.values())
+        absolute_total = sum(absolute.values())
+        for symbol in relative:
+            self.assertAlmostEqual(
+                relative[symbol] / relative_total,
+                absolute[symbol] / absolute_total,
+                places=12,
+            )
+        self.assertGreater(meta["medianFloatMarketCap"], 0)
+
+    def test_unstable_or_unsupported_exponents_are_rejected(self):
+        for beta in (-0.1, 2.5, float("nan")):
+            with self.assertRaises(ValueError):
+                build_portfolio(self._rows(), market_cap_exponent=beta)
+
+
+class SectorConstraintScopeTests(unittest.TestCase):
+    """The solver and the published validation must use one classification."""
+
+    def test_group_sector_is_idempotent(self):
+        for name in ("Technology", "Consumer", "Others", "Other", "Financials", "Energy"):
+            self.assertEqual(canonical_sector(canonical_sector(name)), canonical_sector(name))
+        self.assertEqual(group_sector("Consumer Discretionary"), "Consumer")
+        self.assertEqual(group_sector("Consumer Staples"), "Consumer")
+        self.assertEqual(group_sector("Financials"), "Others")
+
+    def test_validation_catches_a_group_breach_that_individual_sectors_hide(self):
+        holdings = [
+            {"ticker": "FIN", "sector": "Financials", "finalWeight": 18.0},
+            {"ticker": "ENE", "sector": "Energy", "finalWeight": 18.0},
+            {"ticker": "TECH", "sector": "Technology", "finalWeight": 22.0},
+            {"ticker": "HLTH", "sector": "Healthcare", "finalWeight": 22.0},
+            {"ticker": "IND", "sector": "Industrials", "finalWeight": 20.0},
+        ]
+        constraints, validation = evaluate_portfolio_constraints(holdings, target_holdings=5)
+        by_id = {row["id"]: row for row in constraints}
+        # 18% Financials + 18% Energy = 36% in the "Others" group, while no
+        # individual sector exceeds 35%.
+        self.assertEqual(max(row["finalWeight"] for row in holdings), 22.0)
+        self.assertEqual(by_id["max-sector"]["status"], "failed")
+        self.assertEqual(by_id["max-sector"]["scope"], "sector-group")
+        self.assertGreater(validation["maximumSectorGroupWeight"], SECTOR_CAP)
+
+    def test_every_holding_carries_the_solver_group(self):
+        rows = [
+            {"symbol": f"G{index}", "company": f"C{index}", "sector": sectors,
+             "score": 2.0 - index * 0.01, "risk_adjusted": 10.0, "momentum_12_1": 1.0,
+             "market_cap": 1e10, "float_market_cap": 1e9 * (1 + index)}
+            for index, sectors in enumerate(
+                ["Technology", "Healthcare", "Financials", "Energy", "Industrials",
+                 "Consumer Discretionary", "Utilities"] * 3
+            )
+        ]
+        book = build_portfolio(rows, target_holdings=20)
+        self.assertTrue(book["available"], book.get("reason"))
+        for holding in book["holdings"]:
+            self.assertEqual(holding["sectorGroup"], canonical_sector(holding["sector"]))
+        grouped = {}
+        for holding in book["holdings"]:
+            grouped[holding["sectorGroup"]] = grouped.get(holding["sectorGroup"], 0.0) + holding["finalWeight"]
+        self.assertLessEqual(max(grouped.values()), SECTOR_CAP + 1e-6)
+        self.assertTrue(all(row["passed"] for row in book["constraints"]))
+
+    def test_a_single_group_book_is_reported_infeasible(self):
+        rows = [
+            {"symbol": f"O{index}", "company": f"C{index}", "sector": "Financials",
+             "score": 2.0 - index * 0.01, "risk_adjusted": 10.0, "momentum_12_1": 1.0,
+             "market_cap": 1e10, "float_market_cap": 1e9}
+            for index in range(20)
+        ]
+        book = build_portfolio(rows, target_holdings=20)
+        self.assertFalse(book["available"])
+        self.assertEqual(book["status"], "infeasible")
+        self.assertIn("sector cap", book["reason"])
+        self.assertEqual(book["holdings"], [])
+
+
+
+class PointInTimeWeightingTests(unittest.TestCase):
+    """A historical book may only be sized from data known at the signal date."""
+
+    SYMBOLS = ["AAA", "BBB", "CCC", "DDD", "EEE", "FFF"]
+
+    def _series(self):
+        return {symbol: synthetic_series(symbol) for symbol in self.SYMBOLS + ["SPY"]}
+
+    def test_without_point_in_time_caps_the_book_is_a_labelled_proxy(self):
+        result = run_backtest(
+            self._series(),
+            top_n=3,
+            universe_symbols=set(self.SYMBOLS),
+            rebalance_frequency="quarterly",
+        )
+        self.assertTrue(result["available"], result.get("reason"))
+        methodology = result["methodology"]
+        self.assertEqual(methodology["weighting_mode"], "equal-weight-proxy")
+        self.assertFalse(methodology["live_weighting_tested"])
+        self.assertEqual(methodology["sized_rebalances"], 0)
+        self.assertEqual(methodology["historical_capitalisation"], "not available point-in-time")
+        self.assertTrue(all(event["weighting_mode"] == "equal-weight-proxy" for event in result["holdings_log"]))
+        # Equal weights: every selected name carries the same target weight.
+        for event in result["holdings_log"]:
+            values = list(event["holdings"].values())
+            self.assertAlmostEqual(max(values) - min(values), 0.0, places=3)
+
+    def test_complete_point_in_time_caps_produce_the_production_weights(self):
+        series = self._series()
+        caps = {"AAA": 1e9, "BBB": 4e9, "CCC": 9e9, "DDD": 16e9, "EEE": 25e9, "FFF": 36e9}
+        lookup = lambda symbol, _date: caps.get(symbol)  # noqa: E731
+        result = run_backtest(
+            series,
+            top_n=3,
+            universe_symbols=set(self.SYMBOLS),
+            rebalance_frequency="quarterly",
+            float_cap_lookup=lookup,
+        )
+        self.assertTrue(result["available"], result.get("reason"))
+        self.assertEqual(result["methodology"]["weighting_mode"], "score-size")
+        self.assertTrue(result["methodology"]["live_weighting_tested"])
+        self.assertIn("^ 0.5", result["methodology"]["weighting"])
+
+        baseline = run_backtest(
+            series,
+            top_n=3,
+            universe_symbols=set(self.SYMBOLS),
+            rebalance_frequency="quarterly",
+        )
+        for sized, proxy in zip(result["holdings_log"], baseline["holdings_log"]):
+            self.assertEqual(list(sized["holdings"]), list(proxy["holdings"]), "selection must not move")
+            self.assertNotEqual(sized["holdings"], proxy["holdings"], "sizing must move")
+
+    def test_scores_and_caps_reproduce_the_raw_formula_exactly(self):
+        # Without sector metadata the solver is skipped, so the published
+        # weights are the normalized raw weights and can be recomputed here.
+        series = self._series()
+        caps = {"AAA": 1e9, "BBB": 4e9, "CCC": 9e9, "DDD": 16e9, "EEE": 25e9, "FFF": 36e9}
+        result = run_backtest(
+            series,
+            top_n=3,
+            universe_symbols=set(self.SYMBOLS),
+            rebalance_frequency="quarterly",
+            float_cap_lookup=lambda symbol, _date: caps.get(symbol),
+        )
+        self.assertTrue(result["available"], result.get("reason"))
+        for event in result["holdings_log"]:
+            selected = list(event["holdings"])
+            signal_date = pd.Timestamp(event["signal_date"])
+
+            def metrics_for(symbol):
+                frame = series[symbol].frame
+                position = int(frame.index.searchsorted(signal_date, side="right") - 1)
+                return _window_metrics(frame["adj"].to_numpy(dtype=float), position)
+
+            # The cross-sectional Z-score is formed over the eligible
+            # universe for this signal date, exactly as the backtest does.
+            cross_section = [_window_metrics(series[symbol].frame["adj"].to_numpy(dtype=float),
+                                            int(series[symbol].frame.index.searchsorted(signal_date, side="right") - 1))["risk_adjusted"]
+                             for symbol in self.SYMBOLS]
+            z_scores = _zscore(cross_section)
+            scored = {symbol: momentum_score(z) for symbol, z in zip(self.SYMBOLS, z_scores)}
+            self.assertTrue(all(metrics_for(symbol) for symbol in selected))
+
+            median = float(np.median([caps[symbol] for symbol in selected]))
+            expected = {
+                symbol: scored[symbol] * math.sqrt(caps[symbol] / median)
+                for symbol in selected
+            }
+            total = sum(expected.values())
+            for symbol, weight in event["holdings"].items():
+                self.assertAlmostEqual(weight, expected[symbol] / total * 100.0, places=3, msg=symbol)
+
+    def test_the_lookup_is_asked_for_the_signal_date_only(self):
+        series = self._series()
+        requested: list[tuple[str, pd.Timestamp]] = []
+
+        def lookup(symbol, stamp):
+            requested.append((symbol, pd.Timestamp(stamp)))
+            return 1e9 * (1 + self.SYMBOLS.index(symbol))
+
+        result = run_backtest(
+            series,
+            top_n=3,
+            universe_symbols=set(self.SYMBOLS),
+            rebalance_frequency="semiannual",
+            start="2024-04-15",
+            end="2024-12-31",
+            float_cap_lookup=lookup,
+        )
+        self.assertTrue(result["available"], result.get("reason"))
+        signal_dates = {event["signal_date"] for event in result["holdings_log"]}
+        self.assertTrue({stamp.strftime("%Y-%m-%d") for _, stamp in requested} <= signal_dates)
+        for _, stamp in requested:
+            self.assertLessEqual(stamp.strftime("%Y-%m-%d"), "2024-12-31")
+
+    def test_a_partial_lookup_falls_back_for_that_rebalance(self):
+        series = self._series()
+        result = run_backtest(
+            series,
+            top_n=3,
+            universe_symbols=set(self.SYMBOLS),
+            rebalance_frequency="quarterly",
+            float_cap_lookup=lambda symbol, _date: 1e9 if symbol == "AAA" else None,
+        )
+        self.assertTrue(result["available"], result.get("reason"))
+        self.assertEqual(result["methodology"]["weighting_mode"], "equal-weight-proxy")
+        self.assertTrue(all(event["weighting_mode"] == "equal-weight-proxy" for event in result["holdings_log"]))
+
+    def test_the_market_cap_exponent_is_recorded_and_does_not_move_selection(self):
+        series = self._series()
+        caps = {"AAA": 1e9, "BBB": 4e9, "CCC": 9e9, "DDD": 16e9, "EEE": 25e9, "FFF": 36e9}
+        runs = {
+            beta: run_backtest(
+                series,
+                top_n=3,
+                universe_symbols=set(self.SYMBOLS),
+                rebalance_frequency="quarterly",
+                market_cap_exponent=beta,
+                float_cap_lookup=lambda symbol, _date: caps.get(symbol),
+            )
+            for beta in (0.0, 0.5, 1.0)
+        }
+        for beta, run in runs.items():
+            self.assertEqual(run["methodology"]["market_cap_exponent"], beta)
+        orders = {beta: [list(event["holdings"]) for event in run["holdings_log"]] for beta, run in runs.items()}
+        self.assertEqual(orders[0.0], orders[0.5])
+        self.assertEqual(orders[0.5], orders[1.0])
+        weights = {beta: [event["holdings"] for event in run["holdings_log"]] for beta, run in runs.items()}
+        self.assertNotEqual(weights[0.0], weights[1.0])
 
 
 class CalendarTests(unittest.TestCase):
@@ -933,7 +1422,9 @@ class PortfolioWeightTests(unittest.TestCase):
         for row in book["holdings"]:
             by_sector[row["sector"]] = by_sector.get(row["sector"], 0.0) + row["finalWeight"]
         for row in book["sectors"]:
-            self.assertAlmostEqual(row["value"], by_sector[row["name"]], delta=0.05, msg=row["name"])
+            # The donut is published in tenths of a percent and re-balanced to
+            # keep its own total at 100%, so one tenth is the rounding budget.
+            self.assertAlmostEqual(row["value"], by_sector[row["name"]], delta=0.1, msg=row["name"])
         self.assertAlmostEqual(sum(row["value"] for row in book["sectors"]), 100.0, places=6)
         # Every holding sector appears in the donut, and nothing extra does.
         self.assertEqual({row["name"] for row in book["sectors"]}, set(by_sector))
@@ -955,14 +1446,27 @@ class PortfolioWeightTests(unittest.TestCase):
         self.assertAlmostEqual(sum(rounded.values()), 100.0, places=6)
         self.assertLessEqual(max(rounded.values()), 35.0 + 1e-9)
 
-    def test_raw_weight_formula_is_float_cap_times_score(self):
+    def test_raw_weight_formula_is_score_times_relative_sqrt_float_cap(self):
         scored = self._scored()
         book = build_portfolio(scored)
         selected = {row["ticker"]: row for row in book["holdings"]}
-        denominator = sum(row["float_market_cap"] * row["score"] for row in scored[: len(selected)])
+        selected_rows = [row for row in scored if row["symbol"] in selected]
+        median = book["weighting"]["medianFloatMarketCap"]
+        # The relative form divides by the median of the *selected* holdings.
+        self.assertAlmostEqual(
+            median,
+            float(np.median([row["float_market_cap"] for row in selected_rows])),
+            places=6,
+        )
+        expected = {
+            ticker: row["score"] * math.sqrt(row["float_market_cap"] / median)
+            for ticker, row in selected.items()
+        }
+        denominator = sum(expected.values())
         for ticker, row in selected.items():
-            expected = row["float_market_cap"] * row["score"] / denominator * 100.0
-            self.assertAlmostEqual(row["rawWeight"], expected, places=3, msg=ticker)
+            self.assertAlmostEqual(row["rawWeight"], expected[ticker] / denominator * 100.0, places=3, msg=ticker)
+        self.assertEqual(book["weighting"]["marketCapExponent"], 0.5)
+        self.assertEqual(book["weighting"]["methodologyId"], METHODOLOGY_ID)
 
     def test_rounding_never_moves_a_name_over_its_cap(self):
         book = build_portfolio(self._scored())
@@ -1011,7 +1515,11 @@ class PortfolioWeightTests(unittest.TestCase):
         scored = self._scored(count=120)
         book = build_portfolio(scored)
         self.assertEqual(len(book["holdings"]), 100)
-        self.assertEqual([row["ticker"] for row in book["holdings"]], [row["symbol"] for row in scored[:100]])
+        expected = [
+            row["symbol"]
+            for row in sorted(scored, key=selection_sort_key)[:100]
+        ]
+        self.assertEqual([row["ticker"] for row in book["holdings"]], expected)
         self.assertEqual(book["summary"]["totalHoldings"], 100)
 
     def test_summary_kpis_reconcile_with_final_holding_weights(self):

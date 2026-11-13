@@ -1,16 +1,36 @@
 """Model portfolio construction and constraint enforcement.
 
-Selection is the requested number of highest-ranked eligible names. Raw weights
-are proportional to ``float-adjusted market cap x momentum score``. A
-proportional redistribution finds the allocation that satisfies both the
-individual-name and sector caps while remaining fully invested. If the
-constraints are infeasible, the function reports that state and does not publish
-an invalid book.
+Two rules are deliberately kept apart:
+
+1. **Selection** uses the Momentum Score alone. Portfolio-investable stocks are
+   ranked by score with a deterministic tie-break (higher score, then higher
+   risk-adjusted momentum, then ticker) and the first ``target_holdings`` are
+   taken. Market capitalisation never moves a stock up or down this ranking; it
+   only decides whether a stock can be weighted at all, because a name with no
+   verified float-adjusted market cap cannot receive a size weight.
+2. **Weighting** sizes the selected names. The official default is
+   ``Beta = 0.5``:
+
+   ``raw weight = score x sqrt(float market cap / median float market cap)``
+
+   The median is a common positive denominator, so it changes no normalized
+   proportion; it keeps the exponent on a comparable, numerically well-behaved
+   scale. A proportional redistribution then finds the allocation that satisfies
+   both the individual-name and sector-group caps while remaining fully invested.
+   If the constraints are infeasible, the function reports that state and does
+   not publish an invalid book.
 """
 
 from __future__ import annotations
 
 import math
+import statistics
+
+# Official production weighting. Beta is intentionally not user-configurable.
+MARKET_CAP_EXPONENT = 0.5
+SUPPORTED_MARKET_CAP_EXPONENTS = (0.0, 0.5, 1.0)
+WEIGHTING_METHOD_ID = "score-times-relative-float-market-cap-power"
+METHODOLOGY_ID = "risk-adjusted-momentum-sqrt-float-cap-v1"
 
 SINGLE_NAME_CAP = 9.0
 SECTOR_CAP = 35.0
@@ -19,6 +39,9 @@ SUPPORTED_HOLDING_COUNTS = (20, 100)
 WEIGHT_TOTAL_TOLERANCE = 0.01
 CAP_ROUNDING_TOLERANCE = 1e-5
 
+# The 35% cap is enforced on *combined sector groups*, not on the eleven
+# individual sectors the donut chart displays. Both the solver and the published
+# validation read this one mapping, so they can never disagree.
 SECTOR_GROUPS = {
     "Technology": "Technology",
     "Communication": "Communication",
@@ -31,6 +54,11 @@ SECTOR_GROUPS = {
     "Materials": "Others",
     "Utilities": "Others",
     "Real Estate": "Others",
+    # Group names map to themselves so ``group_sector`` is idempotent and a
+    # grouped value can never be re-grouped into "Others" by mistake.
+    "Consumer": "Consumer",
+    "Others": "Others",
+    "Other": "Others",
 }
 
 SECTOR_COLORS = {
@@ -55,7 +83,15 @@ SECTOR_DISPLAY_ORDER = tuple(
 
 
 def group_sector(sector: str) -> str:
+    """The canonical constraint classification for one holding.
+
+    Unknown values fall into "Others" rather than silently forming a new group,
+    and the mapping is idempotent for values that are already groups.
+    """
     return SECTOR_GROUPS.get(sector, "Others")
+
+
+canonical_sector = group_sector
 
 
 def constraint_definitions(target_holdings: int = TARGET_HOLDINGS) -> tuple[tuple[str, str, str], ...]:
@@ -72,6 +108,10 @@ def evaluate_portfolio_constraints(
     target_holdings: int = TARGET_HOLDINGS,
 ) -> tuple[list[dict], dict]:
     """Validate the four published constraints from the final holdings.
+
+    Sector totals are aggregated with the same canonical grouping the solver
+    used to place the cap, so the published check can never approve an
+    allocation under one classification while the book was built under another.
 
     Missing or invalid weights are never treated as a pass. The returned rules
     stay in canonical display order even when the portfolio cannot be evaluated.
@@ -92,6 +132,7 @@ def evaluate_portfolio_constraints(
                 "id": constraint_id,
                 "label": label,
                 "rule": rule,
+                "scope": "sector-group" if constraint_id == "max-sector" else "portfolio",
                 "passed": False,
                 "status": "unavailable",
             }
@@ -103,6 +144,7 @@ def evaluate_portfolio_constraints(
             "totalFinalWeight": None,
             "maximumHoldingWeight": None,
             "maximumSectorWeight": None,
+            "maximumSectorGroupWeight": None,
             "sectorsAtOrBelowCap": False,
             "topTenWeight": None,
         }
@@ -111,8 +153,8 @@ def evaluate_portfolio_constraints(
     maximum_holding = max(weights)
     sector_totals: dict[str, float] = {}
     for holding, weight in zip(holdings, weights):
-        sector = str(holding.get("sector") or "Other")
-        sector_totals[sector] = sector_totals.get(sector, 0.0) + weight
+        group = canonical_sector(str(holding.get("sector") or "Other"))
+        sector_totals[group] = sector_totals.get(group, 0.0) + weight
     maximum_sector = max(sector_totals.values())
     passed_by_id = {
         "max-stock": maximum_holding <= SINGLE_NAME_CAP + CAP_ROUNDING_TOLERANCE,
@@ -125,6 +167,7 @@ def evaluate_portfolio_constraints(
             "id": constraint_id,
             "label": label,
             "rule": rule,
+            "scope": "sector-group" if constraint_id == "max-sector" else "portfolio",
             "passed": passed_by_id[constraint_id],
             "status": "passed" if passed_by_id[constraint_id] else "failed",
         }
@@ -137,6 +180,7 @@ def evaluate_portfolio_constraints(
         "totalFinalWeight": round(total_weight, 2),
         "maximumHoldingWeight": maximum_holding,
         "maximumSectorWeight": round(maximum_sector, 4),
+        "maximumSectorGroupWeight": round(maximum_sector, 4),
         "sectorsAtOrBelowCap": passed_by_id["max-sector"],
         "topTenWeight": round(top_ten, 1),
     }
@@ -175,6 +219,10 @@ def _apply_caps(
 ) -> tuple[dict[str, float], bool, str | None]:
     """Find a fully invested allocation under both cap constraints.
 
+    ``sectors`` may hold either raw sector names or group names; every value is
+    passed through :func:`canonical_sector`, which is idempotent, so the 35% cap
+    always applies to the same groups the published validation reports.
+
     For a scaling factor ``lambda``, each candidate name receives
     ``min(9%, lambda * raw_weight)``. Candidate sector totals above 35% are
     scaled back inside that sector. The resulting total is monotonic in
@@ -182,6 +230,7 @@ def _apply_caps(
     """
     if not weights:
         return {}, False, "no eligible holdings"
+    sectors = {ticker: canonical_sector(str(sector)) for ticker, sector in sectors.items()}
     if len(weights) * SINGLE_NAME_CAP + 1e-9 < 100.0:
         return {}, False, "too few holdings to reach 100% under the 9% stock cap"
 
@@ -235,13 +284,84 @@ def _apply_caps(
     return final, True, None
 
 
+def selection_sort_key(row: dict) -> tuple:
+    """Deterministic ordering: score, then risk-adjusted momentum, then ticker."""
+    score = row.get("score")
+    risk_adjusted = row.get("risk_adjusted")
+    return (
+        -float(score),
+        -(
+            float(risk_adjusted)
+            if isinstance(risk_adjusted, (int, float)) and math.isfinite(risk_adjusted)
+            else float("-inf")
+        ),
+        str(row.get("symbol") or ""),
+    )
+
+
+def rank_for_selection(scored: list[dict]) -> list[dict]:
+    """Rank portfolio-investable stocks for Top N selection.
+
+    Only Momentum Score orders this list. A verified, strictly positive
+    float-adjusted market cap is an investability prerequisite, not a ranking
+    input: a name without one cannot be sized, so it is excluded instead of
+    being given an invented weight.
+    """
+    investable = [
+        row
+        for row in scored
+        if isinstance(row.get("score"), (int, float))
+        and math.isfinite(row["score"])
+        and row["score"] > 0
+        and isinstance(row.get("float_market_cap"), (int, float))
+        and math.isfinite(row["float_market_cap"])
+        and row["float_market_cap"] > 0
+    ]
+    return sorted(investable, key=selection_sort_key)
+
+
+def raw_weights(
+    selected: list[dict],
+    *,
+    market_cap_exponent: float = MARKET_CAP_EXPONENT,
+) -> tuple[dict[str, float], dict]:
+    """Relative-form size weights for the selected holdings.
+
+    ``raw = score x (float cap / median float cap) ** beta``
+
+    ``beta = 0`` is pure score weighting, ``beta = 0.5`` is the official
+    square-root default, and ``beta = 1`` reproduces the former linear
+    market-cap rule. The median denominator is shared by every name, so it
+    cancels in normalization and only makes the numbers interpretable.
+    """
+    caps = [float(row["float_market_cap"]) for row in selected]
+    median = float(statistics.median(caps)) if caps else 0.0
+    if median <= 0:
+        return {}, {"medianFloatMarketCap": None, "relativeTo": None}
+    raw = {
+        str(row["symbol"]): float(row["score"]) * (float(row["float_market_cap"]) / median) ** market_cap_exponent
+        for row in selected
+    }
+    return raw, {
+        "medianFloatMarketCap": median,
+        "relativeTo": "median float-adjusted market cap of the selected holdings",
+    }
+
+
 def build_portfolio(
     scored: list[dict],
     *,
     target_holdings: int = TARGET_HOLDINGS,
+    market_cap_exponent: float = MARKET_CAP_EXPONENT,
 ) -> dict:
     if target_holdings not in SUPPORTED_HOLDING_COUNTS:
         raise ValueError(f"unsupported portfolio holding count: {target_holdings}")
+    if not (
+        isinstance(market_cap_exponent, (int, float))
+        and math.isfinite(market_cap_exponent)
+        and 0.0 <= market_cap_exponent <= 2.0
+    ):
+        raise ValueError(f"unsupported market-cap exponent: {market_cap_exponent}")
 
     def valid_cap(row: dict) -> bool:
         value = row.get("float_market_cap")
@@ -251,12 +371,11 @@ def build_portfolio(
         value = row.get("score")
         return isinstance(value, (int, float)) and math.isfinite(value) and value > 0
 
-    with_cap = [row for row in scored if valid_cap(row)]
-    excluded_no_cap = [row["symbol"] for row in scored if not valid_cap(row)]
-    excluded_no_score = [row["symbol"] for row in with_cap if not valid_score(row)]
-    with_score = [row for row in with_cap if valid_score(row)]
+    excluded_no_cap = [row["symbol"] for row in scored if valid_score(row) and not valid_cap(row)]
+    excluded_no_score = [row["symbol"] for row in scored if not valid_score(row)]
+    ranked = rank_for_selection(scored)
 
-    selected = with_score[:target_holdings]
+    selected = ranked[:target_holdings]
     if not selected:
         return {
             "available": False,
@@ -264,9 +383,9 @@ def build_portfolio(
             "excluded_no_market_cap": excluded_no_cap,
             "excluded_no_score": excluded_no_score,
             "reason": (
-                "no verified Momentum Scores"
-                if with_cap
-                else "no verified float-adjusted market caps"
+                "no verified float-adjusted market caps"
+                if any(valid_score(row) for row in scored)
+                else "no verified Momentum Scores"
             ),
         }
     if len(selected) < target_holdings:
@@ -279,10 +398,7 @@ def build_portfolio(
             "reason": f"too few holdings: {len(selected)} of {target_holdings} have verified fundamentals",
         }
 
-    weighted_cap = {
-        row["symbol"]: row["float_market_cap"] * row["score"]
-        for row in selected
-    }
+    weighted_cap, weight_meta = raw_weights(selected, market_cap_exponent=market_cap_exponent)
     total_cap = sum(weighted_cap.values())
     if total_cap <= 0:
         return {
@@ -293,7 +409,7 @@ def build_portfolio(
             "reason": "float-adjusted market cap and score produced no positive raw weights",
         }
     weights = {symbol: value / total_cap * 100.0 for symbol, value in weighted_cap.items()}
-    solver_sectors = {row["symbol"]: group_sector(row["sector"]) for row in selected}
+    solver_sectors = {row["symbol"]: canonical_sector(str(row["sector"] or "Other")) for row in selected}
     final, feasible, reason = _apply_caps(weights, solver_sectors)
     if not feasible:
         return {
@@ -313,12 +429,16 @@ def build_portfolio(
                 "ticker": row["symbol"],
                 "company": row["company"],
                 "sector": row["sector"] or "Other",
+                "sectorGroup": solver_sectors[row["symbol"]],
                 "score": row["score"],
                 "momentum_12_1": row["momentum_12_1"],
                 "market_cap": row["market_cap"],
                 "float_market_cap": row["float_market_cap"],
                 "floatAdjustedMarketCapValue": row["float_market_cap"],
                 "floatAdjustedMarketCap": format_cap(row["float_market_cap"]),
+                "relativeFloatMarketCap": round(
+                    row["float_market_cap"] / weight_meta["medianFloatMarketCap"], 4
+                ) if weight_meta["medianFloatMarketCap"] else None,
                 "rawWeight": round(weights[row["symbol"]], 4),
                 "finalWeight": round(final[row["symbol"]], 6),
             }
@@ -326,19 +446,20 @@ def build_portfolio(
 
     # Preserve an exact total after display rounding without moving a name above
     # its cap. Any residual cents come from the largest position with headroom.
+    # The headroom test uses sector groups, the same scope the solver enforced.
     rounded_total = round(sum(holding["finalWeight"] for holding in holdings), 6)
     drift = round(100.0 - rounded_total, 6)
     if holdings and abs(drift) >= 1e-6:
-        sector_before = {}
+        group_before = {}
         for holding in holdings:
-            sector_before[holding["sector"]] = sector_before.get(holding["sector"], 0.0) + holding["finalWeight"]
+            group_before[holding["sectorGroup"]] = group_before.get(holding["sectorGroup"], 0.0) + holding["finalWeight"]
         candidates = [
             (weight, -index, holding)
             for index, holding in enumerate(holdings)
             for weight in [holding["finalWeight"]]
             if drift <= 0 or (
                 weight + drift <= SINGLE_NAME_CAP + 1e-9
-                and sector_before[holding["sector"]] + drift <= SECTOR_CAP + 1e-9
+                and group_before[holding["sectorGroup"]] + drift <= SECTOR_CAP + 1e-9
             )
         ]
         if candidates:
@@ -385,8 +506,24 @@ def build_portfolio(
         "validation": validation,
         "excluded_no_market_cap": excluded_no_cap,
         "excluded_no_score": excluded_no_score,
+        "selection": {
+            "rule": "Momentum Score, descending",
+            "tieBreak": ["score:desc", "riskAdjusted:desc", "ticker:asc"],
+            "scoredUniverse": len(scored),
+            "investableUniverse": len(ranked),
+            "selectedCount": len(holdings),
+        },
         "weighting": {
-            "rawFormula": "float-adjusted market cap x momentum score",
+            "methodologyId": METHODOLOGY_ID,
+            "method": WEIGHTING_METHOD_ID,
+            "marketCapExponent": market_cap_exponent,
+            "rawFormula": (
+                f"momentum score x (float-adjusted market cap / median float-adjusted market cap) ^ {market_cap_exponent:g}"
+            ),
+            "normalization": "raw weights scaled to 100% of invested capital before constraints",
+            "medianFloatMarketCap": weight_meta["medianFloatMarketCap"],
+            "relativeTo": weight_meta["relativeTo"],
+            "sectorRule": "35% cap applied to canonical sector groups",
             "solver": "proportional capped redistribution (bisection)",
             "converged": feasible,
         },

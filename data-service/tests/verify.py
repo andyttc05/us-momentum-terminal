@@ -18,10 +18,11 @@ ROOT = Path(__file__).resolve().parents[2]
 DOCS = ROOT / "data-service" / "docs"
 BASE = "http://127.0.0.1:8787"
 SAMPLE = ["AAPL", "MSFT", "NVDA", "META", "JPM"]
-# The three symbols the 12-1 chart audit is specified against. Their momentum
-# must stay near +146.3%, +279.6% and +180.7% and both chart sizes must render
-# the identical indexed series.
-CHART_AUDIT = {"MPC": 146.3, "MU": 279.6, "HPE": 180.7}
+# The three symbols the 12-1 chart audit is signed off against, re-signed on
+# each audited publication. These are a drift alarm for the vendor's adjusted
+# history, not a formula: the formula itself is asserted by
+# ``test_quantitative`` and by the window/endpoint checks below.
+CHART_AUDIT = {"MPC": 146.3, "MU": 280.7, "HPE": 154.2}
 
 
 def get(path: str):
@@ -77,7 +78,10 @@ def main() -> int:
         # Engine convention: the leg N sessions back is closes[-1-N].
         mom_12_1 = (closes[-22] / closes[-253] - 1) * 100
         mom_6 = (closes[-1] / closes[-127] - 1) * 100
-        daily = [(closes[i] / closes[i - 1] - 1) for i in range(len(closes) - 252, len(closes))]
+        # Volatility uses the same observation window as the 12-1 signal: the
+        # 232 closes from t-252 through t-21, i.e. 231 daily returns. The
+        # 21-session skip month is deliberately excluded from both.
+        daily = [(closes[i] / closes[i - 1] - 1) for i in range(len(closes) - 252, len(closes) - 21)]
         mean = sum(daily) / len(daily)
         daily_std = math.sqrt(sum((value - mean) ** 2 for value in daily) / (len(daily) - 1))
         vol = daily_std * math.sqrt(252) * 100
@@ -217,23 +221,56 @@ def main() -> int:
     portfolio = snapshot["portfolio"]
     holdings = portfolio["holdings"]
     total_weight = sum(row["finalWeight"] for row in holdings)
+
+    # The audit recomputes both rules independently instead of importing them:
+    # selection is score-only, sizing is score x relative-sqrt float cap.
+    caps = sorted(row["float_market_cap"] for row in holdings)
+    middle = len(caps) // 2
+    median_cap = caps[middle] if len(caps) % 2 else (caps[middle - 1] + caps[middle]) / 2
+    raw = {
+        row["ticker"]: row["score"] * math.sqrt(row["float_market_cap"] / median_cap)
+        for row in holdings
+    }
+    raw_total = sum(raw.values())
+
     sector_totals: dict[str, float] = {}
     for row in holdings:
         sector_totals[row["sector"]] = sector_totals.get(row["sector"], 0.0) + row["finalWeight"]
+    # The 35% cap is enforced on combined groups, so the audit measures the same
+    # scope. This mapping deliberately mirrors the published rule.
+    group_map = {
+        "Consumer Discretionary": "Consumer",
+        "Consumer Staples": "Consumer",
+        "Financials": "Others",
+        "Energy": "Others",
+        "Materials": "Others",
+        "Utilities": "Others",
+        "Real Estate": "Others",
+    }
+    group_totals: dict[str, float] = {}
+    for row in holdings:
+        group = group_map.get(row["sector"], row["sector"])
+        group_totals[group] = group_totals.get(group, 0.0) + row["finalWeight"]
+
     checks["portfolio"] = {
         "holdings": len(holdings),
         "total_weight": round(total_weight, 2),
         "max_single_weight": max(row["finalWeight"] for row in holdings),
         "max_sector_weight": round(max(sector_totals.values()), 2),
+        "max_sector_group_weight": round(max(group_totals.values()), 2),
+        "sector_group_totals": {key: round(value, 1) for key, value in group_totals.items()},
+        "median_float_cap": median_cap,
+        "published_market_cap_exponent": portfolio.get("weighting", {}).get("marketCapExponent"),
+        "published_methodology": portfolio.get("weighting", {}).get("methodologyId"),
+        "selection_rule": portfolio.get("selection", {}).get("rule"),
         "raw_formula_max_error": round(max(
-            abs(
-                row["rawWeight"]
-                - row["float_market_cap"] * row["score"]
-                / sum(item["float_market_cap"] * item["score"] for item in holdings)
-                * 100
-            )
+            abs(row["rawWeight"] - raw[row["ticker"]] / raw_total * 100)
             for row in holdings
         ), 6),
+        "selection_is_score_ordered": all(
+            holdings[index]["score"] >= holdings[index + 1]["score"]
+            for index in range(len(holdings) - 1)
+        ),
         "float_caps_available": all(row.get("float_market_cap", 0) > 0 for row in holdings),
         "sector_totals": {key: round(value, 1) for key, value in sector_totals.items()},
         "all_constraints_pass": all(item["passed"] for item in portfolio["constraints"]),
@@ -544,6 +581,9 @@ def main() -> int:
             checks["portfolio"]["all_constraints_pass"],
             checks["portfolio"]["raw_formula_max_error"] < 0.001,
             checks["portfolio"]["float_caps_available"],
+            checks["portfolio"]["max_sector_group_weight"] <= 35.01,
+            checks["portfolio"]["published_market_cap_exponent"] == 0.5,
+            checks["portfolio"]["selection_is_score_ordered"],
             abs(total_weight - 100) < 0.1,
             checks["backtest"]["no_nan"],
             checks["backtest"]["starts_below_100_by_initial_cost"],

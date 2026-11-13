@@ -48,7 +48,14 @@ from .momentum import (
     monthly_history,
     sparkline_points,
 )
-from .portfolio import build_portfolio
+from .portfolio import (
+    MARKET_CAP_EXPONENT,
+    METHODOLOGY_ID,
+    SINGLE_NAME_CAP,
+    SECTOR_CAP,
+    WEIGHTING_METHOD_ID,
+    build_portfolio,
+)
 from .providers.registry import registry
 from .universe import (
     BENCHMARKS,
@@ -65,7 +72,7 @@ PERFORMANCE_PERIODS = ("1Y", "3Y", "5Y", "All")
 SERIES_COLORS = {"strategy": "#FFC83D", "spy": "#69A5F5", "spmo": "#AA8BF2"}
 SUPPORTED_EXCHANGES = {"NYSE", "NASDAQ", "NYSE American"}
 UNIVERSE_VERSION = "2026-11-12-live200-v2"
-PUBLICATION_VERSION = "2026-11-14-universe-datasets-v10"
+PUBLICATION_VERSION = "2026-11-14-sqrt-float-cap-v11"
 # The two published universes. Every page reads one of these datasets; there is
 # no third "20%" variant and no page-local selection.
 DATASET_UNIVERSES = ("top100", "top20")
@@ -863,7 +870,23 @@ def _dataset_meta(
         "status": status,
         "portfolioStatus": "ready" if portfolio_ready else str(portfolio.get("status") or "unavailable"),
         "backtestStatus": "success" if backtest_ready else "unavailable",
+        "methodology": METHODOLOGY_ID,
+        "weightingMethod": (portfolio.get("weighting") or {}).get("method"),
+        "marketCapExponent": (portfolio.get("weighting") or {}).get("marketCapExponent"),
+        "constraintValidation": _constraint_state(portfolio),
     }
+
+
+def _constraint_state(portfolio: dict) -> str:
+    """One word for the published constraint outcome, never an optimistic guess."""
+    constraints = portfolio.get("constraints") or []
+    if not constraints:
+        return "unavailable"
+    if all(row.get("passed") for row in constraints):
+        return "passed"
+    if any(row.get("status") == "passed" for row in constraints):
+        return "failed"
+    return "unavailable"
 
 
 def _momentum_row(row: dict) -> dict:
@@ -1007,7 +1030,11 @@ def build_publication(force: bool = False, progress=None) -> dict:
             row["company"] = quote.get("name") or row["symbol"]
             row["sector"] = normalize_sector(quote.get("sector"), row["symbol"])
 
-        detail_candidates = [row["symbol"] for row in scored[:140]]
+        # Float shares are only needed for names that could enter a book. The
+        # candidates run deeper than the largest published count (100) because a
+        # name without verified float shares is skipped for investability rather
+        # than substituted, so the walk must be able to reach rank 100 with margin.
+        detail_candidates = [row["symbol"] for row in scored[:150]]
         if progress:
             progress("loading_fundamentals", 0, len(detail_candidates))
         detailed_quotes = registry.detailed_quotes(
@@ -1202,6 +1229,27 @@ def build_publication(force: bool = False, progress=None) -> dict:
                 "history_years": settings.history_years,
                 "universe_version": UNIVERSE_VERSION,
                 "publication_version": PUBLICATION_VERSION,
+                "methodology": {
+                    "id": METHODOLOGY_ID,
+                    "selection": "Momentum Score, descending (score, risk-adjusted, ticker)",
+                    "weighting_method": WEIGHTING_METHOD_ID,
+                    "weighting": (
+                        "score x (float-adjusted market cap / median float-adjusted market cap) "
+                        f"^ {MARKET_CAP_EXPONENT:g}"
+                    ),
+                    "market_cap_exponent": MARKET_CAP_EXPONENT,
+                    "single_name_cap_pct": SINGLE_NAME_CAP,
+                    "sector_cap_pct": SECTOR_CAP,
+                    "sector_cap_scope": "canonical sector groups",
+                    "momentum_window": "P(t-21) / P(t-252) - 1",
+                    "volatility_window": (
+                        "sample std-dev (ddof=1) of 231 daily returns over the 232 adjusted "
+                        "closes t-252 through t-21"
+                    ),
+                    "historical_weighting": (
+                        "equal-weight research proxy; point-in-time float cap unavailable"
+                    ),
+                },
                 "dataset_universes": list(DATASET_UNIVERSES),
                 "default_dataset_universe": DATASET_UNIVERSES[0],
                 "cache_state": cache_state,

@@ -231,28 +231,47 @@ data remains static.
 
 ## Methodology and Limitations
 
-Momentum uses adjusted closes and a 12–1 window. Scoring combines risk-adjusted momentum with a
-cross-sectional Z-score. The model portfolio uses float-adjusted market capitalization multiplied by
-Momentum Score, then applies a 9% stock cap and a 35% sector-group cap.
+Momentum uses adjusted closes and a 12–1 window: `P(t−21) / P(t−252) − 1`. Daily volatility is the
+sample standard deviation of the 231 returns inside that same 232-close observation window
+(`t−252 … t−21`), so the excluded skip month never enters the risk denominator. Risk-adjusted momentum
+is 12–1 momentum divided by that daily volatility; the cross-sectional Z-score (population σ, clipped
+to ±3) becomes a Momentum Score of `1 + Z` above zero and `1 / (1 − Z)` below it.
+
+**Selection and weighting are separate rules.** Momentum Score alone ranks the portfolio-investable
+stocks, and Top 20 / Top 100 are the first 20 / 100 entries of that single ranked list — so Top 20 is
+always a prefix of Top 100. Market capitalisation never reorders the ranking. Selected names are then
+sized with the official square-root rule:
+
+```text
+raw weight = Momentum Score × (float-adjusted market cap / median float-adjusted market cap) ^ 0.5
+```
+
+`Beta = 0.5` is the production default. A capped solver then applies a 9% stock limit and a 35% cap on
+combined sector groups, and a book that cannot satisfy both is reported infeasible instead of being
+published. Square-root weighting keeps a positive size preference while compressing the gap that
+linear (Beta 1.0) weighting opens between the largest and smallest names: on the current 100-name
+book, top-10 weight is about 57% at Beta 1.0, 37% at Beta 0.5 and 19% at Beta 0.0.
 
 Backtesting's Universe control is the selection for the next run; Overview, Screener and Portfolio read
 the active dataset described above. Top 100 and Top 20 mean exactly 100 and exactly 20 ranked eligible
-stocks. The model portfolio is rebuilt from the selected candidate universe for each count, with the
-same raw weight (`float-adjusted market cap × Momentum Score`), the same 9% stock and 35% sector caps
-and the same redistribution solver, so a Top 20 book is never a filtered copy of the Top 100 one.
+stocks, rebuilt from the same candidate universe with the same weighting rule, so a Top 20 book is
+never a filtered copy of the Top 100 one.
 
 Temporary state — a universe mismatch, an outdated backtest, a missing price history, an export result —
 is reported through the single black notification card in the bottom-right corner. Important errors
 stay until dismissed and offer Retry. The persistent data-freshness pill in the page header is not a
 notification and is unaffected.
 
-The backtest is a research proxy:
+The backtest is a research proxy, and it says which proxy it is:
 
 - Top 100 and Top 20 use exact-ranked counts on every signal date;
-- changing Universe and not rerunning marks existing results as belonging to the other universe;
+- changing Universe and not rerunning leaves existing results labelled with the universe that produced them;
 - current constituents introduce survivorship and selection bias;
-- historical point-in-time float capitalisation is unavailable;
-- current fundamentals are applied to historical portfolio construction;
+- no historical float shares, shares outstanding or point-in-time sector history is available, so
+  point-in-time float-adjusted market cap coverage is 0%;
+- historical books are therefore equal-weighted and flagged `live_weighting_tested: false`; the Beta 0.5
+  rule is **not** claimed to be historically validated;
+- current fundamentals are never substituted into a past signal date;
 - no delisting-return model, taxes, market impact or capacity limit is included;
 - Yahoo Finance is unofficial and has no service-level guarantee or published quota;
 - the free site publishes end-of-day snapshots, not a tick-by-tick trading feed.
