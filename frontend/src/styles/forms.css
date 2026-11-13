@@ -37,15 +37,20 @@
 .backtest-date-control { border-radius: var(--radius-pill); }
 
 /* Inner inputs of a pill wrapper must never draw their own ring: the wrapper's
-   edge is the field's edge. */
-.screener-search input:focus,
-.backtest-amount-control input:focus,
-.backtest-date-control input:focus {
+   edge is the field's edge. The page rules already clear the outline for the
+   search bar and the money field; the date input needs it spelled out here. */
+.backtest-date-control input:focus,
+.backtest-date-control input:hover {
   outline: none;
 }
 
-/* Focus: same yellow ring for mouse, keyboard and touch. */
-:where(input, select, textarea):where(:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"])):focus:not(:disabled):not([aria-invalid="true"]) {
+/* Focus: same yellow ring for mouse, keyboard and touch. The element selector
+   carries the specificity (0,1,0) and every condition sits in `:where()`, so a
+   page rule such as `.screener-search input { outline: 0 }` still wins — that is
+   how the border-less inner inputs of a pill stay ring-free. */
+input:where(:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"])):where(:focus:not(:disabled):not([aria-invalid="true"])),
+select:where(:focus:not(:disabled)),
+textarea:where(:focus:not(:disabled)) {
   border-color: var(--color-field-border-active);
   outline: var(--field-ring-width) solid var(--color-field-border-active);
   outline-offset: calc(-1 * var(--field-ring-width));
@@ -72,7 +77,9 @@
 
 /* Hover: same ring, only where a real pointer can hover. */
 @media (hover: hover) and (pointer: fine) {
-  :where(input, select, textarea):where(:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"])):hover:not(:disabled):not([aria-invalid="true"]) {
+  input:where(:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"])):where(:hover:not(:disabled):not([aria-invalid="true"])),
+  select:where(:hover:not(:disabled)),
+  textarea:where(:hover:not(:disabled)) {
     border-color: var(--color-field-border-active);
     outline: var(--field-ring-width) solid var(--color-field-border-active);
     outline-offset: calc(-1 * var(--field-ring-width));
