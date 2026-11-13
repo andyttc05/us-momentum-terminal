@@ -16,6 +16,7 @@ import { PageHeader } from "./components/PageHeader.jsx";
 import { Toast } from "./components/Toast.jsx";
 import { useElementSize } from "./components/useElementSize.js";
 import { useMarket } from "./api/MarketProvider.jsx";
+import { useMediaQuery } from "./components/useMediaQuery.js";
 import { computeWindowMetrics } from "./utils/backtestMetrics.js";
 import { buildDrawdownScale } from "./utils/drawdownScale.js";
 
@@ -266,6 +267,9 @@ export function BacktestingPage({ hidden = false }) {
   const [submittedWindow, setSubmittedWindow] = useState({ startDate: "", endDate: "" });
   const [isRunning, setIsRunning] = useState(false);
   const [toast, setToast] = useState("");
+  // Matches the responsive breakpoint where the toolbar becomes a single
+  // stacked column; the message changes container there, not just its styling.
+  const isDesktop = useMediaQuery("(min-width: 681px)");
 
   const block = data?.backtest?.[portfolio] ?? null;
   const available = Boolean(block?.available);
@@ -363,51 +367,71 @@ export function BacktestingPage({ hidden = false }) {
           )}
         />
 
-        <section className="backtest-controls" aria-label="Backtest controls">
-          {/* Each date is one field group: label, input and — when the range is
-              invalid — a message that occupies the input's own column. The grid
-              gives the message the input's exact left edge without a
-              hand-measured offset, and it wraps inside that column. */}
-          <div className="backtest-date-group">
-            <label className="backtest-date-label" htmlFor="backtest-start-date">Start Date</label>
-            <input
-              className="backtest-date-input"
-              id="backtest-start-date"
-              type="date"
-              min={block?.start ?? ""}
-              max={block?.end ?? ""}
-              value={startDate}
-              onInput={(event) => setStartDate(event.target.value)}
-              onChange={(event) => setStartDate(event.target.value)}
-            />
-          </div>
-          <div className={`backtest-date-group${dateError ? " is-invalid" : ""}`}>
-            <label className="backtest-date-label" htmlFor="backtest-end-date">End Date</label>
-            <input
-              className="backtest-date-input"
-              id="backtest-end-date"
-              type="date"
-              min={block?.start ?? ""}
-              max={block?.end ?? ""}
-              value={endDate}
-              aria-invalid={Boolean(dateError)}
-              aria-describedby={dateError ? "backtest-date-error" : undefined}
-              onInput={(event) => setEndDate(event.target.value)}
-              onChange={(event) => setEndDate(event.target.value)}
-            />
-            {dateError && (
-              <p className="backtest-date-error" id="backtest-date-error" role="alert">
-                <WarningCircle size={15} weight="fill" aria-hidden="true" />
-                <span>{dateError}</span>
-              </p>
-            )}
-          </div>
-          <div className="backtest-control-separator" aria-hidden="true" />
-          <div className="backtest-segmented backtest-portfolio-choice" role="group" aria-label="Portfolio selection">
-            {[["top100", "Top 100"], ["top20", "Top 20%"]].map(([value, label]) => <button key={value} type="button" aria-pressed={portfolio === value} onClick={() => setPortfolio(value)}>{label}</button>)}
-          </div>
-          <AppButton variant="primary" icon={Play} className="backtest-run-button" disabled={Boolean(dateError) || isRunning || !available} onClick={runBacktest}>{isRunning ? "Running…" : "Run Backtest"}</AppButton>
-        </section>
+        {/* On desktop the validation message sits outside the white card, in a
+            strip that is always reserved so the KPI row never shifts. On phones
+            it stays inside the field group, directly under its input. */}
+        <div className="backtest-controls-stack">
+          <section className="backtest-controls" aria-label="Backtest controls">
+            {/* Each date is one field group: a label and its input share a row,
+                so the input's left edge is derived from the label rather than a
+                measured offset. */}
+            <div className="backtest-date-group">
+              <label className="backtest-date-label" htmlFor="backtest-start-date">Start Date</label>
+              <input
+                className="backtest-date-input"
+                id="backtest-start-date"
+                type="date"
+                min={block?.start ?? ""}
+                max={block?.end ?? ""}
+                value={startDate}
+                onInput={(event) => setStartDate(event.target.value)}
+                onChange={(event) => setStartDate(event.target.value)}
+              />
+            </div>
+            <div className={`backtest-date-group${dateError ? " is-invalid" : ""}`}>
+              <label className="backtest-date-label" htmlFor="backtest-end-date">End Date</label>
+              <input
+                className="backtest-date-input"
+                id="backtest-end-date"
+                type="date"
+                min={block?.start ?? ""}
+                max={block?.end ?? ""}
+                value={endDate}
+                aria-invalid={Boolean(dateError)}
+                aria-describedby={dateError ? "backtest-date-error" : undefined}
+                onInput={(event) => setEndDate(event.target.value)}
+                onChange={(event) => setEndDate(event.target.value)}
+              />
+              {!isDesktop && dateError && (
+                <p className="backtest-date-error" id="backtest-date-error" role="alert">
+                  <WarningCircle size={15} weight="fill" aria-hidden="true" />
+                  <span>{dateError}</span>
+                </p>
+              )}
+            </div>
+            <div className="backtest-control-separator" aria-hidden="true" />
+            <div className="backtest-segmented backtest-portfolio-choice" role="group" aria-label="Portfolio selection">
+              {[["top100", "Top 100"], ["top20", "Top 20%"]].map(([value, label]) => <button key={value} type="button" aria-pressed={portfolio === value} onClick={() => setPortfolio(value)}>{label}</button>)}
+            </div>
+            <AppButton variant="primary" icon={Play} className="backtest-run-button" disabled={Boolean(dateError) || isRunning || !available} onClick={runBacktest}>{isRunning ? "Running…" : "Run Backtest"}</AppButton>
+          </section>
+          {isDesktop && (
+            <div className="backtest-validation">
+              <div className="backtest-validation__slot">
+                {/* Same label, same font, hidden: it holds the label column open
+                    so the message starts exactly at the End Date input's left
+                    edge without displacing the input. */}
+                <span className="backtest-date-label backtest-validation__spacer" aria-hidden="true">End Date</span>
+                {dateError && (
+                  <p className="backtest-date-error" id="backtest-date-error" role="alert">
+                    <WarningCircle size={15} weight="fill" aria-hidden="true" />
+                    <span>{dateError}</span>
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
 
         <section className="backtest-kpis" aria-label="Backtest summary">
           <KpiCard label="CAGR" value={formatPercent(metrics.cagr)} icon={ChartBar} tint="cream" mascotVariant="cream" mascotColor="var(--color-cream)" />

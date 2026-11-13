@@ -10,14 +10,26 @@
   overflow: hidden;
 }
 
+/* The card holds only the controls; the validation message lives in the strip
+   below it, so the card keeps one size in both states. Both boxes read their
+   geometry from the same custom properties, so the message can never drift
+   away from the input it describes. */
+.backtest-controls-stack {
+  display: grid;
+  min-width: 0;
+  max-width: 100%;
+  row-gap: 0;
+  --bt-columns: minmax(212px, 1.1fr) minmax(212px, 1.1fr) 1px minmax(190px, 0.95fr) minmax(185px, 0.9fr);
+  --bt-gap: var(--card-gap);
+  --bt-pad-inline: 19px; /* 1px card border plus 18px card padding */
+  --bt-label-gap: 10px;
+}
 .backtest-controls {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(212px, 1.1fr) minmax(212px, 1.1fr) 1px minmax(190px, 0.95fr) minmax(185px, 0.9fr);
-  /* Top-aligned so a validation message grows the toolbar downwards instead of
-     lifting its own input out of line with the neighbouring field. */
-  align-items: start;
-  gap: var(--card-gap);
+  grid-template-columns: var(--bt-columns);
+  align-items: center;
+  gap: var(--bt-gap);
   min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
@@ -27,16 +39,16 @@
   background: var(--color-surface);
   box-shadow: var(--shadow-card);
 }
-/* A date is one field group. The label and the input share row 1; the message
-   takes row 2 of the input's column, so it always starts exactly at the input's
-   left edge and wraps inside the input's width — no measured offsets. */
+/* A date is one field group: the label and its input share row 1, so the input's
+   left edge follows from the label's own width. On phones the validation message
+   takes row 3 of the same column. */
 .backtest-date-group {
   display: grid;
   min-width: 0;
   max-width: 100%;
   grid-template-columns: max-content minmax(0, 1fr);
   align-items: center;
-  column-gap: 10px;
+  column-gap: var(--bt-label-gap);
 }
 .backtest-date-label { grid-column: 1; grid-row: 1; color: var(--color-ink); font-size: var(--font-size-sm); font-weight: var(--font-weight-bold); white-space: nowrap; }
 /* A date input is a replaced element: flex on the input would re-flow WebKit's
@@ -47,7 +59,33 @@
 .backtest-date-input::-webkit-date-and-time-value { min-width: 0; max-width: 100%; overflow: hidden; }
 .backtest-date-input:hover { border-color: #D8D0C6; }
 .backtest-date-group.is-invalid .backtest-date-input { border-color: #D8848B; }
-.backtest-date-error { display: flex; min-width: 0; align-items: flex-start; gap: 6px; grid-column: 2; grid-row: 2; margin: 6px 0 0; color: #A84D57; font-size: 0.72rem; font-weight: 700; line-height: 1.3; }
+/* Reserved strip below the card. It is rendered in both states, so the KPI row
+   below never moves when the message appears or clears. */
+.backtest-validation {
+  display: grid;
+  box-sizing: border-box;
+  grid-template-columns: var(--bt-columns);
+  column-gap: var(--bt-gap);
+  align-items: start;
+  padding: 4px var(--bt-pad-inline) 0;
+  min-height: 22px;
+}
+/* The slot spans the End Date column and everything to its right, so a message
+   is never forced to wrap inside one narrow column. */
+.backtest-validation__slot {
+  grid-column: 2 / -1;
+  display: grid;
+  min-width: 0;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: var(--bt-label-gap);
+  align-items: start;
+}
+/* Invisible twin of the End Date label. It holds the label column to exactly
+   the label's width, so the message lines up with the input without a
+   hand-measured offset and without moving the input itself. */
+.backtest-validation__spacer { visibility: hidden; }
+.backtest-validation__slot .backtest-date-error { grid-column: 2; grid-row: 1; margin: 0; }
+.backtest-date-error { display: flex; min-width: 0; align-items: flex-start; gap: 6px; color: #A84D57; font-size: 0.72rem; font-weight: 700; line-height: 1.3; }
 .backtest-date-error svg { flex: 0 0 auto; margin-top: 1px; }
 .backtest-date-error span { min-width: 0; overflow-wrap: anywhere; }
 .backtest-control-separator { width: 1px; height: 32px; align-self: center; background: var(--color-line); }
@@ -140,8 +178,8 @@
 .backtest-annual-table td.is-negative { color: #EB3B44; }
 
 @media (max-height: 830px) and (min-width: 1101px) {
+  .backtest-controls-stack { --bt-gap: 10px; --bt-pad-inline: 15px; --bt-label-gap: 7px; }
   .backtest-controls { gap: 10px; padding: 5px 14px; }
-  .backtest-date-group { column-gap: 7px; }
   .backtest-date-label { font-size: 0.8rem; }
   .backtest-date-input { height: 38px; padding-inline: 9px; font-size: 0.75rem; }
   .backtest-segmented button { min-height: 34px; padding-inline: 7px; font-size: 0.78rem; }
@@ -159,6 +197,7 @@
 
 @media (max-width: 1100px) {
   .backtest-page { height: auto; min-height: 100vh; overflow: visible; grid-template-rows: auto auto auto auto; }
+  .backtest-controls-stack { --bt-columns: repeat(2, minmax(0, 1fr)); --bt-pad-inline: 14px; }
   .backtest-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 13px; }
   .backtest-control-separator { display: none; }
   .backtest-portfolio-choice, .backtest-run-button { width: 100%; }
@@ -206,10 +245,15 @@
        field is focused; anything smaller shifts the whole layout on tap. */
     font-size: 16px;
     line-height: normal;
+    /* Safari positions the date value from the host input's own `text-align`;
+       it ignores `text-align` written on the WebKit date pseudo-elements below
+       (Chromium does the opposite). Centring must be declared here, on the
+       input, or the value sits at the leading edge on iPhone while desktop
+       Chrome and every device emulator still look centred. */
+    text-align: center;
   }
-  /* Centre the value inside the field. The input itself stays block-level so
-     WebKit keeps its calendar indicator at the trailing edge, where the native
-     control expects it. */
+  /* Kept for Chromium, where the pseudo-elements do control the value's
+     alignment. They are harmless on WebKit, which simply ignores them. */
   .backtest-date-input::-webkit-datetime-edit {
     text-align: center;
   }
