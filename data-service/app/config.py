@@ -82,6 +82,7 @@ class Settings:
     ttl_bars_intraday: int = _int("DATA_TTL_BARS_INTRADAY", 900)       # 15 min while the market is open
     ttl_bars_closed: int = _int("DATA_TTL_BARS_CLOSED", 21_600)        # 6 h after the close
     ttl_meta: int = _int("DATA_TTL_META", 86_400)                      # 24 h for name/sector/market cap
+    fundamental_fallback_max_age: int = _int("DATA_FUNDAMENTAL_FALLBACK_MAX_AGE", 2_592_000)  # 30 days
     ttl_snapshot: int = _int("DATA_TTL_SNAPSHOT", 900)
     ttl_probe: int = _int("DATA_TTL_PROBE", 600)
 

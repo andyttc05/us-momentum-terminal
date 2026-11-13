@@ -9,6 +9,8 @@ the function reports that state and does not publish an invalid book.
 
 from __future__ import annotations
 
+import math
+
 SINGLE_NAME_CAP = 9.0
 SECTOR_CAP = 35.0
 TARGET_HOLDINGS = 100
@@ -50,6 +52,33 @@ SECTOR_DISPLAY_ORDER = tuple(
 
 def group_sector(sector: str) -> str:
     return SECTOR_GROUPS.get(sector, "Others")
+
+
+def _rounded_sector_values(totals: dict[str, float], target: float = 100.0) -> dict[str, float]:
+    """Round sector totals to tenths while preserving their exact grand total."""
+    scale = 10
+    target_units = round(target * scale)
+    source_total = sum(totals.values())
+    if source_total <= 0:
+        return {name: 0.0 for name in totals}
+    normalized = {
+        name: value / source_total * target
+        for name, value in totals.items()
+    }
+    units = {
+        # The epsilon treats binary floating-point residue around 35.0 as 35.0.
+        name: int(value * scale + 1e-7)
+        for name, value in normalized.items()
+    }
+    remainder = target_units - sum(units.values())
+    order = sorted(
+        normalized,
+        key=lambda name: normalized[name] * scale - units[name],
+        reverse=True,
+    )
+    for index in range(max(0, remainder)):
+        units[order[index % len(order)]] += 1
+    return {name: units[name] / scale for name in totals}
 
 
 def _apply_caps(
@@ -119,16 +148,39 @@ def _apply_caps(
 
 
 def build_portfolio(scored: list[dict]) -> dict:
-    with_cap = [row for row in scored if row.get("float_market_cap")]
-    excluded_no_cap = [row["symbol"] for row in scored if not row.get("float_market_cap")]
+    def valid_cap(row: dict) -> bool:
+        value = row.get("float_market_cap")
+        return isinstance(value, (int, float)) and math.isfinite(value) and value > 0
 
-    selected = with_cap[:TARGET_HOLDINGS]
+    def valid_score(row: dict) -> bool:
+        value = row.get("score")
+        return isinstance(value, (int, float)) and math.isfinite(value) and value > 0
+
+    with_cap = [row for row in scored if valid_cap(row)]
+    excluded_no_cap = [row["symbol"] for row in scored if not valid_cap(row)]
+    excluded_no_score = [row["symbol"] for row in with_cap if not valid_score(row)]
+    with_score = [row for row in with_cap if valid_score(row)]
+
+    selected = with_score[:TARGET_HOLDINGS]
     if not selected:
         return {
             "available": False,
             "holdings": [],
             "excluded_no_market_cap": excluded_no_cap,
-            "reason": "no verified float-adjusted market caps",
+            "excluded_no_score": excluded_no_score,
+            "reason": (
+                "no verified Momentum Scores"
+                if with_cap
+                else "no verified float-adjusted market caps"
+            ),
+        }
+    if len(selected) < TARGET_HOLDINGS:
+        return {
+            "available": False,
+            "holdings": [],
+            "excluded_no_market_cap": excluded_no_cap,
+            "excluded_no_score": excluded_no_score,
+            "reason": f"too few holdings: {len(selected)} of {TARGET_HOLDINGS} have verified fundamentals",
         }
 
     weighted_cap = {
@@ -141,6 +193,7 @@ def build_portfolio(scored: list[dict]) -> dict:
             "available": False,
             "holdings": [],
             "excluded_no_market_cap": excluded_no_cap,
+            "excluded_no_score": excluded_no_score,
             "reason": "float-adjusted market cap and score produced no positive raw weights",
         }
     weights = {symbol: value / total_cap * 100.0 for symbol, value in weighted_cap.items()}
@@ -151,6 +204,7 @@ def build_portfolio(scored: list[dict]) -> dict:
             "available": False,
             "holdings": [],
             "excluded_no_market_cap": excluded_no_cap,
+            "excluded_no_score": excluded_no_score,
             "reason": reason,
         }
 
@@ -197,15 +251,16 @@ def build_portfolio(scored: list[dict]) -> dict:
     sector_totals: dict[str, float] = {}
     for holding in holdings:
         sector_totals[holding["sector"]] = sector_totals.get(holding["sector"], 0.0) + holding["finalWeight"]
+    rounded_sectors = _rounded_sector_values(sector_totals)
     sector_rows = [
-        {"name": name, "value": round(sector_totals.get(name, 0.0), 1), "color": SECTOR_COLORS[name]}
+        {"name": name, "value": rounded_sectors.get(name, 0.0), "color": SECTOR_COLORS[name]}
         for name in SECTOR_DISPLAY_ORDER
         if sector_totals.get(name, 0.0) > 0
     ]
     if sector_totals.get("Other", 0.0) > 0:
         sector_rows.append({
             "name": "Other",
-            "value": round(sector_totals["Other"], 1),
+            "value": rounded_sectors["Other"],
             "color": SECTOR_COLORS["Other"],
         })
 
@@ -242,6 +297,7 @@ def build_portfolio(scored: list[dict]) -> dict:
             "topTenWeight": round(top_ten, 1),
         },
         "excluded_no_market_cap": excluded_no_cap,
+        "excluded_no_score": excluded_no_score,
         "weighting": {
             "rawFormula": "float-adjusted market cap x momentum score",
             "solver": "proportional capped redistribution (bisection)",

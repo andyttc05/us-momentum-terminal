@@ -6,6 +6,7 @@ import {
   ChartPieSlice,
   CheckCircle,
   DownloadSimple,
+  Info,
   Stack,
   Target,
   WarningCircle,
@@ -25,6 +26,7 @@ import { useMarket } from "./api/MarketProvider.jsx";
 import { PHONE_TABLE_MEDIA_QUERY } from "./utils/breakpoints.js";
 import { downloadCsvFile } from "./utils/csv.js";
 import { buildPortfolioCsv, portfolioCsvFilename, validatePortfolioForExport } from "./utils/portfolioExport.js";
+import { getPortfolioState } from "./utils/portfolioState.js";
 
 const rowsPerPage = 10;
 // [field, label, class suffix, short label used on phones]
@@ -90,7 +92,7 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
   const [page, setPage] = useState(1);
   const [toast, setToast] = useState("");
   const [isExporting, setIsExporting] = useState(false);
-  const { data, refresh } = useMarket();
+  const { data, error, meta, refresh, status } = useMarket();
   // Phones drop the rank column so the ticker can pin to the left edge without
   // an empty lane beside it. The rank stays on every holding and in the CSV
   // export; only the phone table stops rendering the cell.
@@ -103,6 +105,9 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
   const portfolioPreviewValidation = portfolio?.validation ?? { maximumHoldingWeight: 9 };
   const portfolioSummary = portfolio?.summary ?? null;
   const snapshot = data?.overview?.snapshot;
+  const portfolioState = getPortfolioState({ portfolio, status, meta, error });
+  const portfolioReady = portfolioState.kind === "ready" || portfolioState.kind === "cached";
+  const pendingKpi = portfolioState.kind === "loading" ? "Loading…" : "Unavailable";
 
   const sortedHoldings = useMemo(() => [...portfolioHoldings].sort((left, right) => {
     const a = left[sort.key];
@@ -191,20 +196,35 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
           )}
         />
 
+        {portfolioState.kind !== "ready" && (
+          <div
+            className={`portfolio-data-notice portfolio-data-notice--${portfolioState.kind}`}
+            role={portfolioState.kind === "unavailable" ? "alert" : "status"}
+          >
+            <Info size={18} weight="fill" aria-hidden="true" />
+            <span>
+              <strong>{portfolioState.title}</strong>
+              <span>{portfolioState.detail}</span>
+            </span>
+          </div>
+        )}
+
         <section className="overview-kpis portfolio-kpis" aria-label="Portfolio summary">
-          <KpiCard label="Total Holdings" value={portfolioSummary?.totalHoldings ?? "—"} icon={Briefcase} tint="cream" mascotVariant="cream" mascotColor="var(--color-cream)" />
-          <KpiCard label="Largest Holding" value={portfolioSummary ? `${portfolioSummary.largestHolding.ticker} ${displayPercent(portfolioSummary.largestHolding.finalWeight)}` : "—"} icon={Stack} tint="mint" mascotVariant="mint" mascotColor="var(--color-mint)" longValue />
-          <KpiCard label="Top 10 Weight" value={portfolioSummary ? displayPercent(portfolioSummary.topTenWeight) : "—"} icon={ChartPieSlice} tint="pink" mascotVariant="pink" mascotColor="var(--color-pink)" />
-          <KpiCard label="Invested Capital" value={portfolioSummary ? `${Math.round(portfolioSummary.investedCapital)}%` : "—"} icon={Target} tint="blue" mascotVariant="blue" mascotColor="var(--color-blue)" />
+          <KpiCard label="Total Holdings" value={portfolioSummary?.totalHoldings ?? pendingKpi} icon={Briefcase} tint="cream" mascotVariant="cream" mascotColor="var(--color-cream)" />
+          <KpiCard label="Largest Holding" value={portfolioSummary ? `${portfolioSummary.largestHolding.ticker} ${displayPercent(portfolioSummary.largestHolding.finalWeight)}` : pendingKpi} icon={Stack} tint="mint" mascotVariant="mint" mascotColor="var(--color-mint)" longValue />
+          <KpiCard label="Top 10 Weight" value={portfolioSummary ? displayPercent(portfolioSummary.topTenWeight) : pendingKpi} icon={ChartPieSlice} tint="pink" mascotVariant="pink" mascotColor="var(--color-pink)" />
+          <KpiCard label="Invested Capital" value={portfolioSummary ? `${Math.round(portfolioSummary.investedCapital)}%` : pendingKpi} icon={Target} tint="blue" mascotVariant="blue" mascotColor="var(--color-blue)" />
         </section>
 
         <section className="portfolio-summary-grid" aria-label="Portfolio allocation and constraints">
           <DashboardCard title="Sector Allocation" className="portfolio-sector-card">
-            <SectorAllocation sectors={portfolioSectors} className="portfolio-sector-content" />
+            {portfolioReady
+              ? <SectorAllocation sectors={portfolioSectors} className="portfolio-sector-content" />
+              : <div className="portfolio-inline-state" role="status">{portfolioState.title}</div>}
           </DashboardCard>
 
           <DashboardCard title="Stock Weight Distribution" className="portfolio-weight-card">
-            <div className="portfolio-weight-list">
+            <div className="portfolio-weight-list" hidden={!portfolioReady}>
               {largestPositions.map((holding) => (
                 <div className="portfolio-weight-row" key={holding.ticker}>
                   <strong className="portfolio-weight-row__ticker">{holding.ticker}</strong>
@@ -219,23 +239,26 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
                 </div>
               ))}
             </div>
+            {!portfolioReady && <div className="portfolio-inline-state" role="status">{portfolioState.title}</div>}
           </DashboardCard>
 
           <section className="dashboard-card portfolio-constraints" aria-labelledby="portfolio-constraints-title">
             <div className="dashboard-card__header"><h3 className="dashboard-card__title" id="portfolio-constraints-title">Constraints</h3></div>
             <div className="dashboard-card__body">
-              <ul className="portfolio-constraint-list">
-                {portfolioConstraints.map((constraint) => {
-                  const Icon = constraint.passed ? CheckCircle : WarningCircle;
-                  return (
-                    <li className={`portfolio-constraint${constraint.passed ? " is-passed" : " is-failed"}`} key={constraint.id}>
-                      <span>{constraint.label}</span>
-                      <strong>{constraint.rule}</strong>
-                      <Icon size={24} weight="fill" aria-hidden="true" />
-                    </li>
-                  );
-                })}
-              </ul>
+              {portfolioReady ? (
+                <ul className="portfolio-constraint-list">
+                  {portfolioConstraints.map((constraint) => {
+                    const Icon = constraint.passed ? CheckCircle : WarningCircle;
+                    return (
+                      <li className={`portfolio-constraint${constraint.passed ? " is-passed" : " is-failed"}`} key={constraint.id}>
+                        <span>{constraint.label}</span>
+                        <strong>{constraint.rule}</strong>
+                        <Icon size={24} weight="fill" aria-hidden="true" />
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : <div className="portfolio-inline-state" role="status">Not evaluated</div>}
             </div>
           </section>
         </section>
@@ -249,7 +272,7 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
               icon={DownloadSimple}
               className="portfolio-export-button"
               onClick={exportHoldingsCsv}
-              disabled={isExporting}
+              disabled={isExporting || !portfolioReady}
               ariaLabel="Export the complete portfolio to CSV"
             >
               Export
@@ -289,6 +312,13 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
                   </tr>
                 </thead>
                 <tbody>
+                  {!portfolioReady && (
+                    <tr>
+                      <td className="portfolio-empty-state" colSpan={isPhone ? 6 : 7}>
+                        {portfolioState.title}
+                      </td>
+                    </tr>
+                  )}
                   {visibleHoldings.map((holding) => (
                     <tr key={holding.ticker}>
                       {!isPhone && <td className="portfolio-rank-cell"><span>{holding.rank}</span></td>}
@@ -313,15 +343,17 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
               </table>
             </div>
           </div>
-          <Pagination
-            page={currentPage}
-            totalPages={totalPages}
-            rangeStart={firstResult}
-            rangeEnd={lastResult}
-            total={sortedHoldings.length}
-            onPageChange={setPage}
-            label="Holdings table pagination"
-          />
+          {portfolioReady && (
+            <Pagination
+              page={currentPage}
+              totalPages={totalPages}
+              rangeStart={firstResult}
+              rangeEnd={lastResult}
+              total={sortedHoldings.length}
+              onPageChange={setPage}
+              label="Holdings table pagination"
+            />
+          )}
         </DashboardCard>
       </div>
       {toast && <Toast kind={toast.kind} message={toast.message} className="page-toast" durationMs={toast.duration} />}

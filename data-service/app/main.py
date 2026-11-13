@@ -127,7 +127,12 @@ def _seed_payload() -> dict | None:
     except (OSError, json.JSONDecodeError):
         return None
     value = payload.get("value", payload)
-    return value if _is_current(value) else None
+    meta = value.get("meta", {})
+    return (
+        value
+        if meta.get("universe_version") == UNIVERSE_VERSION and value.get("stocks")
+        else None
+    )
 
 
 def _loading_payload(error: str | None = None) -> dict:
@@ -165,8 +170,18 @@ def _loading_payload(error: str | None = None) -> dict:
             "unavailable": [],
         },
         "stocks": [],
-        "overview": {"snapshot": {}, "topMomentum": [], "sectorAllocation": [], "performance": {}},
-        "portfolio": {"available": False, "holdings": [], "constraints": []},
+        "overview": {
+            "snapshot": {"portfolioStocks": "—"},
+            "topMomentum": [],
+            "sectorAllocation": [],
+            "performance": {},
+        },
+        "portfolio": {
+            "available": False,
+            "holdings": [],
+            "constraints": [],
+            "reason": "warming" if not error else error,
+        },
         "backtest": {
             "top100": {"available": False, "reason": "warming"},
             "top20": {"available": False, "reason": "warming"},

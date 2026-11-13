@@ -11,18 +11,30 @@ import { SectorAllocation } from "./components/SectorAllocation.jsx";
 import { Sparkline } from "./components/Sparkline.jsx";
 import { UpdateBar } from "./components/UpdateBar.jsx";
 import { useMarket } from "./api/MarketProvider.jsx";
+import { getPortfolioState } from "./utils/portfolioState.js";
 
 const periods = ["1Y", "3Y", "5Y", "All"];
 
 
 export function OverviewPage({ onNavigate, onSelectStock, hidden = false }) {
   const [period, setPeriod] = useState("1Y");
-  const { data } = useMarket();
+  const { data, error, meta, status } = useMarket();
 
   const snapshot = data?.overview?.snapshot;
   const performance = data?.overview?.performance?.[period];
   const topMomentum = data?.overview?.topMomentum ?? [];
   const sectorAllocation = data?.overview?.sectorAllocation ?? [];
+  const portfolioState = getPortfolioState({
+    portfolio: data?.portfolio,
+    status,
+    meta,
+    error,
+  });
+  const portfolioReady = portfolioState.kind === "ready" || portfolioState.kind === "cached";
+  const portfolioCount = snapshot?.portfolioStocks;
+  const portfolioTitle = portfolioCount && portfolioCount !== "—"
+    ? `${portfolioCount} Holdings`
+    : portfolioState.kind === "loading" ? "Portfolio loading…" : "Portfolio unavailable";
 
   return (
     <main className="app-main" hidden={hidden}>
@@ -71,7 +83,7 @@ export function OverviewPage({ onNavigate, onSelectStock, hidden = false }) {
             <section className="model-banner" aria-label="Model portfolio">
               <div className="model-banner__copy">
                 <p className="eyebrow">Model portfolio</p>
-                <SectionHeader title={`${snapshot?.portfolioStocks ?? "—"} Holdings`} />
+                <SectionHeader title={portfolioTitle} />
               </div>
               <div className="model-banner__mascot" aria-hidden="true"><Mascot size={178} variant="cream" color="var(--color-surface)" /></div>
               <AppButton variant="secondary" icon={ArrowRight} iconOnly ariaLabel="View model portfolio" className="model-banner__arrow" onClick={() => onNavigate?.("portfolio")} />
@@ -110,7 +122,9 @@ export function OverviewPage({ onNavigate, onSelectStock, hidden = false }) {
             </DashboardCard>
 
             <DashboardCard title="Sector Allocation" className="sector-card">
-              <SectorAllocation sectors={sectorAllocation} className="sector-card__content" />
+              {portfolioReady
+                ? <SectorAllocation sectors={sectorAllocation} className="sector-card__content" />
+                : <div className="portfolio-inline-state" role="status">{portfolioState.title}</div>}
             </DashboardCard>
           </aside>
         </div>

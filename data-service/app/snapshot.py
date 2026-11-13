@@ -7,6 +7,7 @@ a data provider and never sees an API key.
 
 from __future__ import annotations
 
+import json
 import math
 import threading
 import time
@@ -61,7 +62,7 @@ PERFORMANCE_PERIODS = ("1Y", "3Y", "5Y", "All")
 SERIES_COLORS = {"strategy": "#FFC83D", "spy": "#69A5F5", "spmo": "#AA8BF2"}
 SUPPORTED_EXCHANGES = {"NYSE", "NASDAQ", "NYSE American"}
 UNIVERSE_VERSION = "2026-11-12-live200-v2"
-PUBLICATION_VERSION = "2026-11-13-chart-audit-v4"
+PUBLICATION_VERSION = "2026-11-13-portfolio-fundamentals-v5"
 
 
 def publication_is_current(payload: dict | None) -> bool:
@@ -81,6 +82,81 @@ def _label_date(iso: str) -> str:
         return datetime.strptime(iso[:10], "%Y-%m-%d").strftime("%b %d, %Y").replace(" 0", " ")
     except (ValueError, TypeError):
         return iso
+
+
+def _verified_fundamental_fallbacks(
+    payloads: list[dict | None],
+    *,
+    now: datetime | None = None,
+) -> dict[str, dict]:
+    """Collect recent, previously verified float-share records by ticker.
+
+    These records never replace a successful current provider response. They
+    keep portfolio construction available when a refresh can read prices but
+    Yahoo's heavier fundamentals endpoint is temporarily unavailable.
+    """
+    current = now or datetime.now(timezone.utc)
+    maximum_age = settings.fundamental_fallback_max_age
+    fallbacks: dict[str, dict] = {}
+    for payload in payloads:
+        for stock in (payload or {}).get("stocks", []):
+            ticker = str(stock.get("ticker") or "").upper()
+            shares = stock.get("floatShares")
+            fetched_at = stock.get("marketCapFetchedAt")
+            if not ticker or ticker in fallbacks or not isinstance(shares, (int, float)) or shares <= 0:
+                continue
+            try:
+                fetched = datetime.fromisoformat(str(fetched_at).replace("Z", "+00:00"))
+            except (TypeError, ValueError):
+                continue
+            if fetched.tzinfo is None:
+                fetched = fetched.replace(tzinfo=timezone.utc)
+            age_seconds = max(0.0, (current - fetched).total_seconds())
+            if age_seconds > maximum_age:
+                continue
+            fallbacks[ticker] = {
+                "float_shares": float(shares),
+                "market_cap": stock.get("marketCap"),
+                "fetched_at": fetched_at,
+                "source": stock.get("quoteSource") or stock.get("source") or "yahoo",
+                "source_label": stock.get("sourceLabel") or "Yahoo Finance",
+                "cache_age_seconds": round(age_seconds, 1),
+            }
+    return fallbacks
+
+
+def _merge_verified_fundamentals(
+    scored: list[dict],
+    quotes: dict[str, dict],
+    fallbacks: dict[str, dict],
+) -> list[str]:
+    """Fill only missing float shares from bounded cached fundamentals."""
+    used: list[str] = []
+    for row in scored:
+        symbol = row["symbol"]
+        quote = dict(quotes.get(symbol) or {})
+        shares = quote.get("float_shares")
+        if isinstance(shares, (int, float)) and shares > 0:
+            quotes[symbol] = quote
+            continue
+        fallback = fallbacks.get(symbol)
+        if not fallback:
+            quotes[symbol] = quote
+            continue
+        quote.update({
+            "float_shares": fallback["float_shares"],
+            "fetched_at": fallback["fetched_at"],
+            "source": fallback["source"],
+            "provider": fallback["source"],
+            "cached": True,
+            "cache_age_seconds": fallback["cache_age_seconds"],
+            "detail_level": "verified-cache",
+        })
+        if not isinstance(quote.get("market_cap"), (int, float)):
+            quote["market_cap"] = fallback["market_cap"]
+        quotes[symbol] = quote
+        used.append(symbol)
+    return used
 
 
 # --------------------------------------------------------------------------- #
@@ -576,6 +652,16 @@ def build_publication(force: bool = False, progress=None) -> dict:
 
         started = _now()
         build_started = time.perf_counter()
+        previous_publication = cache.read_stale("publication", "snapshot")
+        seed_publication = None
+        try:
+            seeded = json.loads(SEED_PATH.read_text())
+            seed_publication = seeded.get("value", seeded)
+        except (OSError, json.JSONDecodeError):
+            pass
+        fundamental_fallbacks = _verified_fundamental_fallbacks(
+            [previous_publication, seed_publication]
+        )
         symbols = list(TICKERS) + list(BENCHMARKS)
         if progress:
             progress("loading_bars", 0, len(symbols))
@@ -621,7 +707,23 @@ def build_publication(force: bool = False, progress=None) -> dict:
             detail_candidates,
             progress=(lambda completed: progress("loading_fundamentals", completed, len(detail_candidates))) if progress else None,
         )
-        quotes.update(detailed_quotes)
+        missing_current_fundamentals = [
+            symbol
+            for symbol in detail_candidates
+            if not (
+                isinstance((detailed_quotes.get(symbol) or {}).get("float_shares"), (int, float))
+                and detailed_quotes[symbol]["float_shares"] > 0
+            )
+        ]
+        for symbol, detail in detailed_quotes.items():
+            quote = dict(quotes.get(symbol) or {})
+            quote.update({key: value for key, value in detail.items() if value is not None})
+            quotes[symbol] = quote
+        cached_fundamental_symbols = _merge_verified_fundamentals(
+            scored,
+            quotes,
+            fundamental_fallbacks,
+        )
         if progress:
             progress("loading_fundamentals", len(detail_candidates), len(detail_candidates))
         for row in scored:
@@ -645,6 +747,20 @@ def build_publication(force: bool = False, progress=None) -> dict:
         top20 = run_backtest(backtest_map, top_fraction=0.2, universe_symbols=backtest_universe)
 
         portfolio = build_portfolio(scored)
+        portfolio_tickers = {holding["ticker"] for holding in portfolio.get("holdings", [])}
+        portfolio_cached_fundamentals = sorted(
+            set(cached_fundamental_symbols) & portfolio_tickers
+        )
+        portfolio["fundamentals"] = {
+            "state": "cached" if portfolio_cached_fundamentals else "fresh",
+            "fallbackCount": len(portfolio_cached_fundamentals),
+            "fallbackSymbols": portfolio_cached_fundamentals,
+            "note": (
+                "Verified cached float-share metadata was reused for these holdings."
+                if portfolio_cached_fundamentals
+                else "All holding fundamentals came from the current provider response."
+            ),
+        }
 
         # Month-end cross-sectional ranks, cached for the stock detail page.
         rank_history = _rank_history(universe_map)
@@ -694,6 +810,14 @@ def build_publication(force: bool = False, progress=None) -> dict:
             warnings.append(
                 f"{len(symbol_failures)} symbol(s) unavailable from every provider: {', '.join(sorted(symbol_failures)[:8])}"
             )
+        if portfolio_cached_fundamentals:
+            warnings.append(
+                f"{len(portfolio_cached_fundamentals)} holding(s) reused verified cached float-share metadata"
+            )
+        if missing_current_fundamentals:
+            warnings.append(
+                f"{len(missing_current_fundamentals)} current float-share request(s) unavailable"
+            )
 
         payload = {
             "meta": {
@@ -722,6 +846,9 @@ def build_publication(force: bool = False, progress=None) -> dict:
                 "cache_state": cache_state,
                 "refresh_in_progress": False,
                 "scan_duration_seconds": round(time.perf_counter() - build_started, 1),
+                "portfolio_fundamentals_state": portfolio["fundamentals"]["state"],
+                "portfolio_fundamentals_cached_count": portfolio["fundamentals"]["fallbackCount"],
+                "portfolio_fundamentals_refresh_failures": len(missing_current_fundamentals),
                 "providers": registry.status(),
             },
             "universe": {
@@ -756,7 +883,11 @@ def build_publication(force: bool = False, progress=None) -> dict:
                     "asOf": as_of,
                     "scannedStocks": f"{scanned_count:,}",
                     "eligibleStocks": f"{len(stocks):,}",
-                    "portfolioStocks": f"{portfolio.get('summary', {}).get('totalHoldings', 0):,}",
+                    "portfolioStocks": (
+                        f"{portfolio.get('summary', {}).get('totalHoldings', 0):,}"
+                        if portfolio.get("available")
+                        else "—"
+                    ),
                 },
                 "topMomentum": [
                     {
@@ -805,7 +936,10 @@ def build_stock_detail(ticker: str) -> dict | None:
         try:
             seeded = json.loads(SEED_PATH.read_text())
             candidate = seeded.get("value", seeded)
-            if publication_is_current(candidate):
+            if (
+                candidate.get("meta", {}).get("universe_version") == UNIVERSE_VERSION
+                and candidate.get("stocks")
+            ):
                 publication = candidate
         except (OSError, json.JSONDecodeError):
             publication = None

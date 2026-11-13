@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import unittest
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -13,6 +13,7 @@ import pandas as pd
 
 from app.backtest import run_backtest
 from app.clock import NY, market_state
+from app.main import _loading_payload, _seed_payload
 from app.models import NormalizedBar
 from app.momentum import (
     SymbolSeries,
@@ -22,8 +23,14 @@ from app.momentum import (
     momentum_sparkline,
     momentum_score,
 )
-from app.portfolio import build_portfolio
-from app.snapshot import PUBLICATION_VERSION, UNIVERSE_VERSION, _performance_payload
+from app.portfolio import _rounded_sector_values, build_portfolio
+from app.snapshot import (
+    PUBLICATION_VERSION,
+    UNIVERSE_VERSION,
+    _merge_verified_fundamentals,
+    _performance_payload,
+    _verified_fundamental_fallbacks,
+)
 from app.universe import (
     CANDIDATE_TICKERS,
     EXPANDED_UNIVERSE,
@@ -465,8 +472,26 @@ class PortfolioWeightTests(unittest.TestCase):
             by_sector[row["sector"]] = by_sector.get(row["sector"], 0.0) + row["finalWeight"]
         for row in book["sectors"]:
             self.assertAlmostEqual(row["value"], by_sector[row["name"]], delta=0.05, msg=row["name"])
+        self.assertAlmostEqual(sum(row["value"] for row in book["sectors"]), 100.0, places=6)
         # Every holding sector appears in the donut, and nothing extra does.
         self.assertEqual({row["name"] for row in book["sectors"]}, set(by_sector))
+
+    def test_sector_rounding_preserves_the_total_without_adding_categories(self):
+        exact = {
+            "Technology": 35.0,
+            "Communication": 14.14,
+            "Healthcare": 12.51,
+            "Consumer Staples": 11.0,
+            "Energy": 13.1,
+            "Financials": 8.1,
+            "Industrials": 4.35,
+            "Materials": 1.0,
+            "Real Estate": 0.8,
+        }
+        rounded = _rounded_sector_values(exact)
+        self.assertEqual(set(rounded), set(exact))
+        self.assertAlmostEqual(sum(rounded.values()), 100.0, places=6)
+        self.assertLessEqual(max(rounded.values()), 35.0 + 1e-9)
 
     def test_raw_weight_formula_is_float_cap_times_score(self):
         scored = self._scored()
@@ -490,6 +515,136 @@ class PortfolioWeightTests(unittest.TestCase):
         book = build_portfolio(scored)
         self.assertIn(scored[3]["symbol"], book["excluded_no_market_cap"])
         self.assertNotIn(scored[3]["symbol"], {row["ticker"] for row in book["holdings"]})
+
+    def test_missing_momentum_scores_are_excluded_not_defaulted(self):
+        scored = self._scored(count=101)
+        scored[5]["score"] = None
+        book = build_portfolio(scored)
+        self.assertTrue(book["available"])
+        self.assertIn(scored[5]["symbol"], book["excluded_no_score"])
+        self.assertNotIn(scored[5]["symbol"], {row["ticker"] for row in book["holdings"]})
+        self.assertEqual(len(book["holdings"]), 100)
+
+    def test_api_portfolio_schema_matches_frontend_contract(self):
+        book = build_portfolio(self._scored(count=110))
+        self.assertTrue(book["available"])
+        for key in ("holdings", "sectors", "summary", "constraints", "validation", "weighting"):
+            self.assertIn(key, book)
+        for key in ("totalHoldings", "largestHolding", "topTenWeight", "investedCapital"):
+            self.assertIn(key, book["summary"])
+        for holding in book["holdings"]:
+            for key in (
+                "rank",
+                "ticker",
+                "company",
+                "sector",
+                "score",
+                "floatAdjustedMarketCapValue",
+                "rawWeight",
+                "finalWeight",
+            ):
+                self.assertIn(key, holding)
+
+    def test_selection_is_the_highest_ranked_hundred_names(self):
+        scored = self._scored(count=120)
+        book = build_portfolio(scored)
+        self.assertEqual(len(book["holdings"]), 100)
+        self.assertEqual([row["ticker"] for row in book["holdings"]], [row["symbol"] for row in scored[:100]])
+        self.assertEqual(book["summary"]["totalHoldings"], 100)
+
+    def test_summary_kpis_reconcile_with_final_holding_weights(self):
+        book = build_portfolio(self._scored(count=120))
+        weights = [row["finalWeight"] for row in book["holdings"]]
+        largest = max(book["holdings"], key=lambda row: row["finalWeight"])
+        expected_top_ten = round(sum(sorted(weights, reverse=True)[:10]), 1)
+        self.assertEqual(book["summary"]["largestHolding"]["ticker"], largest["ticker"])
+        self.assertAlmostEqual(book["summary"]["largestHolding"]["finalWeight"], largest["finalWeight"])
+        self.assertEqual(book["summary"]["topTenWeight"], expected_top_ten)
+        self.assertEqual(book["summary"]["investedCapital"], 100.0)
+
+
+class FundamentalFallbackTests(unittest.TestCase):
+    @staticmethod
+    def _stock(index, fetched_at="2026-11-12T12:00:00+00:00"):
+        return {
+            "ticker": f"S{index:03d}",
+            "floatShares": 10_000_000.0 + index * 100_000.0,
+            "marketCap": 50_000_000_000.0 + index * 1e9,
+            "marketCapFetchedAt": fetched_at,
+            "quoteSource": "yahoo",
+            "sourceLabel": "Yahoo Finance",
+        }
+
+    def test_recent_verified_float_shares_fill_only_missing_quotes(self):
+        now = datetime(2026, 11, 13, tzinfo=timezone.utc)
+        fallbacks = _verified_fundamental_fallbacks(
+            [{"stocks": [self._stock(0), self._stock(1)]}],
+            now=now,
+        )
+        scored = [
+            {"symbol": "S000", "score": 2.0},
+            {"symbol": "S001", "score": 1.5},
+            {"symbol": "S002", "score": 1.0},
+        ]
+        quotes = {
+            "S000": {"float_shares": 20_000_000.0, "market_cap": 90_000_000_000.0, "fetched_at": "2026-11-13T00:00:00+00:00"},
+            "S002": {},
+        }
+        used = _merge_verified_fundamentals(scored, quotes, fallbacks)
+        self.assertEqual(used, ["S001"])
+        self.assertEqual(quotes["S000"]["float_shares"], 20_000_000.0)
+        self.assertEqual(quotes["S001"]["float_shares"], 10_100_000.0)
+        self.assertIsNone(quotes["S002"].get("float_shares"))
+
+    def test_expired_fundamentals_are_not_reused(self):
+        fallbacks = _verified_fundamental_fallbacks(
+            [{"stocks": [self._stock(0, fetched_at="2026-09-01T00:00:00+00:00")]}],
+            now=datetime(2026, 11, 13, tzinfo=timezone.utc),
+        )
+        self.assertEqual(fallbacks, {})
+
+    def test_recovered_fundamentals_complete_the_live_failure_shape(self):
+        now = datetime(2026, 11, 13, tzinfo=timezone.utc)
+        stocks = [self._stock(index) for index in range(110)]
+        fallbacks = _verified_fundamental_fallbacks([{"stocks": stocks}], now=now)
+        sectors = ["Technology", "Healthcare", "Financials", "Energy", "Industrials", "Utilities"]
+        prices = [100.0 + index for index in range(110)]
+        scored = [
+            {
+                "symbol": row["ticker"],
+                "company": f"Company {index}",
+                "sector": sectors[index % len(sectors)],
+                "score": 1.0 + (index % 11) * 0.1,
+                "momentum_12_1": float(index),
+                "market_cap": None,
+                "float_market_cap": None,
+            }
+            for index, row in enumerate(stocks)
+        ]
+        quotes = {row["symbol"]: {} for row in scored}
+        self.assertEqual(len(_merge_verified_fundamentals(scored, quotes, fallbacks)), 110)
+        for row, price in zip(scored, prices):
+            row["float_market_cap"] = quotes[row["symbol"]]["float_shares"] * price
+
+        book = build_portfolio(scored)
+        self.assertTrue(book["available"])
+        self.assertEqual(book["summary"]["totalHoldings"], 100)
+        self.assertAlmostEqual(sum(row["finalWeight"] for row in book["holdings"]), 100.0, places=6)
+        self.assertTrue(all(row["passed"] for row in book["constraints"]))
+
+
+class ApiPayloadStateTests(unittest.TestCase):
+    def test_loading_payload_does_not_report_zero_holdings(self):
+        payload = _loading_payload()
+        self.assertEqual(payload["overview"]["snapshot"]["portfolioStocks"], "—")
+        self.assertFalse(payload["portfolio"]["available"])
+        self.assertEqual(payload["portfolio"]["reason"], "warming")
+        self.assertEqual(payload["portfolio"]["constraints"], [])
+
+    def test_verified_seed_remains_available_until_a_new_publication_finishes(self):
+        payload = _seed_payload()
+        self.assertIsNotNone(payload)
+        self.assertGreater(len(payload["stocks"]), 0)
 
 
 class PerformancePayloadTests(unittest.TestCase):
