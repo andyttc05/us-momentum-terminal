@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  ArrowDown,
+  ArrowUp,
   CalendarBlank,
   CaretRight,
+  CaretUpDown,
   ClockCounterClockwise,
-  Info,
   MagnifyingGlass,
   Stack,
   TrendUp,
 } from "@phosphor-icons/react";
-import { DashboardCard } from "./DashboardCard.jsx";
 import {
   DataState,
   Skeleton,
@@ -21,7 +22,15 @@ import { KpiCard } from "./KpiCard.jsx";
 import { Pagination } from "./Pagination.jsx";
 import { downloadCsvFile } from "../utils/csv.js";
 import { downloadWorkbookFile } from "../utils/exportFiles.js";
+import { stockPath } from "../router.jsx";
 import {
+  shouldOpenRow,
+  shouldRouteTickerClick,
+  stockLinkLabel,
+} from "../utils/rowNavigation.js";
+import {
+  DEFAULT_HOLDINGS_SORT,
+  HOLDINGS_SORT_FIELDS,
   HOLDINGS_STATUSES,
   PORTFOLIO_EVOLUTION_EVENTS_PAGE_SIZE,
   PORTFOLIO_EVOLUTION_HOLDINGS_PAGE_SIZE,
@@ -30,17 +39,29 @@ import {
   comparePortfolioEvent,
   eventsForYear,
   formatPortfolioDate,
+  formatHistoricalPortfolioWeight,
   formatTurnover,
+  formatWeightChange,
+  historicalPortfolioWeightAvailable,
   normalizePortfolioEvents,
   paginatePortfolioRows,
   portfolioEventYears,
   portfolioEvolutionFilename,
   resolveEventSelection,
+  sortPortfolioRows,
   summarizePortfolioEvents,
   visiblePortfolioRows,
+  weightChangeTone,
 } from "../utils/portfolioEvolution.js";
 
-const HOLDINGS_COLUMNS = 5;
+const HOLDINGS_COLUMNS = 6;
+
+function SortIcon({ active, direction }) {
+  if (!active) return <CaretUpDown size={14} weight="bold" aria-hidden="true" />;
+  return direction === "asc"
+    ? <ArrowUp size={14} weight="bold" aria-hidden="true" />
+    : <ArrowDown size={14} weight="bold" aria-hidden="true" />;
+}
 
 function HistoryEvent({
   event,
@@ -78,6 +99,7 @@ export function PortfolioEvolution({
   stocks = [],
   portfolios = {},
   state = "ready",
+  onSelectStock,
   onNotify,
 }) {
   const events = useMemo(() => normalizePortfolioEvents(block), [block]);
@@ -93,6 +115,7 @@ export function PortfolioEvolution({
   const [status, setStatus] = useState("all");
   const [query, setQuery] = useState("");
   const [holdingsPage, setHoldingsPage] = useState(1);
+  const [sort, setSort] = useState({ ...DEFAULT_HOLDINGS_SORT });
   const [exporting, setExporting] = useState(false);
 
   const selectedEvent = useMemo(
@@ -125,6 +148,10 @@ export function PortfolioEvolution({
     () => visiblePortfolioRows(comparable, status, query),
     [comparable, query, status],
   );
+  const orderedRows = useMemo(
+    () => sortPortfolioRows(filteredRows, sort),
+    [filteredRows, sort],
+  );
   const visibleYears = useMemo(() => eventsForYear(events, year), [events, year]);
   const history = useMemo(
     () => paginatePortfolioRows(
@@ -136,11 +163,11 @@ export function PortfolioEvolution({
   );
   const holdings = useMemo(
     () => paginatePortfolioRows(
-      filteredRows,
+      orderedRows,
       holdingsPage,
       PORTFOLIO_EVOLUTION_HOLDINGS_PAGE_SIZE,
     ),
-    [filteredRows, holdingsPage],
+    [holdingsPage, orderedRows],
   );
 
   useEffect(() => {
@@ -183,20 +210,27 @@ export function PortfolioEvolution({
     setHoldingsPage(1);
   }
 
+  function toggleSort(key) {
+    setSort((current) => current.key === key
+      ? { key, direction: current.direction === "asc" ? "desc" : "asc" }
+      : { key, direction: "asc" });
+    setHoldingsPage(1);
+  }
+
   function updateSearch(nextQuery) {
     setQuery(nextQuery);
     setHoldingsPage(1);
   }
 
   async function exportHoldings(format) {
-    if (!selectedEvent || !filteredRows.length || exporting) return;
+    if (!selectedEvent || !orderedRows.length || exporting) return;
     setExporting(true);
     try {
       const exportData = buildPortfolioEvolutionExportData({
         block,
         config,
         selectedEvent,
-        rows: filteredRows,
+        rows: orderedRows,
       });
       const filename = portfolioEvolutionFilename(config, selectedEvent, format);
       if (format === "csv") {
@@ -229,23 +263,12 @@ export function PortfolioEvolution({
     : "—";
 
   return (
-    <DashboardCard className="portfolio-evolution-card">
-      <section
-        className="portfolio-evolution"
-        aria-labelledby="portfolio-evolution-title"
-        data-state={state}
-        aria-busy={loading || undefined}
-      >
-        <header className="portfolio-evolution__header">
-          <span className="portfolio-evolution__header-icon" aria-hidden="true">
-            <Stack size={31} weight="regular" />
-          </span>
-          <div>
-            <h2 id="portfolio-evolution-title">Portfolio Evolution</h2>
-            <p>Explore historical rebalancing events and portfolio composition.</p>
-          </div>
-        </header>
-
+    <section
+      className="portfolio-evolution"
+      aria-label="Portfolio Evolution"
+      data-state={state}
+      aria-busy={loading || undefined}
+    >
         <div className="portfolio-evolution__kpis">
           <KpiCard
             label="Total Events"
@@ -294,7 +317,6 @@ export function PortfolioEvolution({
                   <ClockCounterClockwise size={22} weight="regular" aria-hidden="true" />
                   Rebalancing History
                 </h3>
-                <p>Select a rebalance event to view its holdings.</p>
               </div>
               <Dropdown
                 id="portfolio-evolution-year"
@@ -313,7 +335,7 @@ export function PortfolioEvolution({
             <div className="portfolio-evolution__events" aria-live="polite">
               {loading ? (
                 <div className="portfolio-evolution__event-skeletons" aria-hidden="true">
-                  {Array.from({ length: 4 }, (_, index) => (
+                  {Array.from({ length: PORTFOLIO_EVOLUTION_EVENTS_PAGE_SIZE }, (_, index) => (
                     <div className="portfolio-evolution__event-skeleton" key={index}>
                       <Skeleton width="45%" height="17px" />
                       <Skeleton width="66%" height="11px" />
@@ -357,16 +379,21 @@ export function PortfolioEvolution({
             <header className="portfolio-evolution__holdings-header">
               <div>
                 <h3 id="portfolio-evolution-holdings-title">
-                  <ClockCounterClockwise size={22} weight="regular" aria-hidden="true" />
+                  <Stack size={22} weight="regular" aria-hidden="true" />
                   Historical Holdings
                 </h3>
                 <div className="portfolio-evolution__selected-date">
-                  <strong>{selectedEvent ? formatPortfolioDate(selectedEvent.executionDate) : "No event selected"}</strong>
+                  <div className="portfolio-evolution__selected-date-primary">
+                    <strong>{selectedEvent ? formatPortfolioDate(selectedEvent.executionDate) : "No event selected"}</strong>
+                    {selectedEvent && (
+                      <span className="portfolio-evolution__holdings-count">
+                        {selectedEvent.count} Holdings
+                      </span>
+                    )}
+                  </div>
                   {selectedEvent && (
-                    <span>
+                    <span className="portfolio-evolution__signal-date">
                       Signal: {formatPortfolioDate(selectedEvent.signalDate)}
-                      <i aria-hidden="true" />
-                      {selectedEvent.count} Holdings
                     </span>
                   )}
                 </div>
@@ -398,7 +425,7 @@ export function PortfolioEvolution({
                     aria-pressed={status === value}
                     onClick={() => chooseStatus(value)}
                   >
-                    {label} ({comparison.counts[value]})
+                    {label}
                   </button>
                 ))}
               </div>
@@ -409,20 +436,42 @@ export function PortfolioEvolution({
                 <caption className="visually-hidden">
                   Holdings for {selectedEvent ? formatPortfolioDate(selectedEvent.executionDate) : "the selected event"}
                 </caption>
+                <colgroup>
+                  <col className="portfolio-evolution__col-rank" />
+                  <col className="portfolio-evolution__col-ticker" />
+                  <col className="portfolio-evolution__col-weight" />
+                  <col className="portfolio-evolution__col-change" />
+                  <col className="portfolio-evolution__col-status" />
+                </colgroup>
                 <thead>
                   <tr>
-                    <th scope="col">#</th>
-                    <th scope="col">Ticker</th>
-                    <th scope="col">Company</th>
-                    <th scope="col" className="is-number">
-                      {status === "removed" ? "Previous Weight" : "Target Weight"}
-                    </th>
-                    <th scope="col">Status</th>
+                    {HOLDINGS_SORT_FIELDS.map(({ key, label, slug }) => (
+                      <th
+                        key={key}
+                        scope="col"
+                        className={`portfolio-evolution__${slug}-heading`}
+                        aria-sort={sort.key === key
+                          ? (sort.direction === "asc" ? "ascending" : "descending")
+                          : "none"}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => toggleSort(key)}
+                          aria-label={`Sort by ${label}`}
+                        >
+                          <span>{label}</span>
+                          <SortIcon active={sort.key === key} direction={sort.direction} />
+                        </button>
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
-                    <TableSkeletonRows columns={HOLDINGS_COLUMNS} rows={10} />
+                    <TableSkeletonRows
+                      columns={HOLDINGS_COLUMNS}
+                      rows={PORTFOLIO_EVOLUTION_HOLDINGS_PAGE_SIZE}
+                    />
                   ) : unavailable ? (
                     <TableStateRow
                       columns={HOLDINGS_COLUMNS}
@@ -437,19 +486,53 @@ export function PortfolioEvolution({
                       title="No matching holdings"
                       detail={query ? `No holdings match “${query}”.` : `No ${status} holdings in this event.`}
                     />
-                  ) : holdings.rows.map((row) => (
-                    <tr key={`${row.status}-${row.ticker}`}>
-                      <td className="portfolio-evolution__sequence">{row.sequence}</td>
-                      <td className="portfolio-evolution__ticker">{row.ticker}</td>
-                      <td className="portfolio-evolution__company" title={row.company}>{row.company}</td>
-                      <td className="portfolio-evolution__weight">{formatTurnover(row.weight)}</td>
-                      <td>
-                        <span className={`portfolio-evolution__status is-${row.status}`}>
-                          {row.statusLabel}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                  ) : holdings.rows.map((row) => {
+                    const weightAvailable = historicalPortfolioWeightAvailable(row);
+                    return (
+                      <tr
+                        key={`${row.status}-${row.ticker}`}
+                        className="stock-row"
+                        onClick={(event) => {
+                          if (shouldOpenRow(event)) onSelectStock?.(row.ticker);
+                        }}
+                      >
+                        <td className="portfolio-evolution__sequence">{row.sequence}</td>
+                        <td className="portfolio-evolution__ticker" title={row.company}>
+                          <a
+                            className="portfolio-evolution__ticker-link"
+                            href={stockPath(row.ticker)}
+                            aria-label={stockLinkLabel(row.ticker)}
+                            onClick={(event) => {
+                              if (!shouldRouteTickerClick(event)) return;
+                              event.preventDefault();
+                              onSelectStock?.(row.ticker);
+                            }}
+                          >
+                            {row.ticker}
+                          </a>
+                        </td>
+                        <td
+                          className={`portfolio-evolution__weight${weightAvailable ? "" : " is-unavailable"}`}
+                          aria-label={weightAvailable
+                            ? undefined
+                            : "Historical portfolio weight unavailable"}
+                          title={weightAvailable
+                            ? undefined
+                            : "Historical point-in-time portfolio weight unavailable"}
+                        >
+                          {formatHistoricalPortfolioWeight(row)}
+                        </td>
+                        <td className={`portfolio-evolution__change is-${weightChangeTone(row.change)}`}>
+                          {formatWeightChange(row.change)}
+                        </td>
+                        <td className="portfolio-evolution__status-cell">
+                          <span className={`portfolio-evolution__status is-${row.status}`}>
+                            {row.statusLabel}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -465,15 +548,8 @@ export function PortfolioEvolution({
                 label="Historical holdings pagination"
               />
             )}
-
-            <p className="portfolio-evolution__method-note">
-              <Info size={14} weight="regular" aria-hidden="true" />
-              Historical weights use an equal-weight research proxy because point-in-time float-adjusted
-              market capitalisation is unavailable.
-            </p>
           </section>
         </div>
-      </section>
-    </DashboardCard>
+    </section>
   );
 }

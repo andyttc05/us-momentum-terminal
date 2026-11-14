@@ -666,9 +666,10 @@ def run_backtest(
     }
     sized_events = sum(1 for event in events if event["weighting_mode"] == "score-size")
     proxy_events = len(events) - sized_events
+    size_input = getattr(float_cap_lookup, "size_input", None)
     if sized_events and not proxy_events:
         weighting_label = (
-            f"score x (point-in-time float cap / median) ^ {market_cap_exponent:g} "
+            f"score x (point-in-time market cap / median) ^ {market_cap_exponent:g} "
             "with 9% stock and 35% sector-group caps"
         )
         live_weighting_tested = True
@@ -716,13 +717,14 @@ def run_backtest(
             "live_weighting_tested": live_weighting_tested,
             "sized_rebalances": sized_events,
             "proxy_rebalances": proxy_events,
+            "size_input": size_input,
             "signal_months": sorted(rebalance_set),
             "execution": "next available adjusted close",
             "transaction_cost_bps": transaction_cost_rate * 10_000,
             "slippage_bps": slippage_rate * 10_000,
             "risk_free_rate": RISK_FREE_RATE,
             "historical_capitalisation": (
-                "point-in-time float-adjusted market cap supplied per signal date"
+                (size_input or "point-in-time market cap supplied per signal date")
                 if sized_events
                 else "not available point-in-time"
             ),

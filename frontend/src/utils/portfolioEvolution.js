@@ -10,13 +10,14 @@ export const HOLDINGS_STATUSES = Object.freeze([
   Object.freeze({ value: "removed", label: "Removed" }),
 ]);
 
-export const PORTFOLIO_EVOLUTION_HOLDINGS_PAGE_SIZE = 10;
+export const PORTFOLIO_EVOLUTION_HOLDINGS_PAGE_SIZE = 5;
 export const PORTFOLIO_EVOLUTION_EVENTS_PAGE_SIZE = 5;
 
 const HOLDINGS_EXPORT_COLUMNS = [
   "Ticker",
   "Company",
   "Weight",
+  "Change (pp)",
   "Weight Basis",
   "Status",
   "Signal Date",
@@ -151,6 +152,24 @@ export function summarizePortfolioEvents(events = []) {
   };
 }
 
+/**
+ * Ticker -> weight for one event, used as the comparison basis for the next
+ * event. Only the event's own stored holdings are read; live portfolio weights
+ * never enter this map.
+ */
+function weightByTicker(event) {
+  const map = new Map();
+  for (const holding of event?.holdings ?? []) {
+    if (finite(holding.weight)) map.set(holding.ticker, holding.weight);
+  }
+  return map;
+}
+
+function changeFrom(weight, previousWeight) {
+  if (!finite(weight) || !finite(previousWeight)) return null;
+  return weight - previousWeight;
+}
+
 export function comparePortfolioEvent(events, selectedEvent) {
   const current = selectedEvent
     ? events.find((event) => event.id === selectedEvent.id) ?? null
@@ -169,7 +188,11 @@ export function comparePortfolioEvent(events, selectedEvent) {
       rowIndex,
       status: "initial",
       statusLabel: "Initial",
+      weightingMode: current.weightingMode ?? null,
       weightBasis: "Current Target Weight",
+      // No earlier snapshot exists, so there is nothing to compare against.
+      previousWeight: null,
+      change: null,
     }));
     return {
       currentRows,
@@ -179,18 +202,22 @@ export function comparePortfolioEvent(events, selectedEvent) {
   }
 
   const previous = events[index + 1] ?? null;
-  const previousTickers = new Set(
-    (previous?.holdings ?? []).map((holding) => holding.ticker),
-  );
+  const previousWeights = weightByTicker(previous);
+  const previousTickers = new Set(previousWeights.keys());
   const currentTickers = new Set(current.holdings.map((holding) => holding.ticker));
   const currentRows = current.holdings.map((holding, rowIndex) => {
     const retained = previousTickers.has(holding.ticker);
+    // A name that was not in the previous book entered at zero exposure.
+    const previousWeight = retained ? previousWeights.get(holding.ticker) : 0;
     return {
       ...holding,
       rowIndex,
       status: retained ? "retained" : "new",
       statusLabel: retained ? "Retained" : "New",
+      weightingMode: current.weightingMode ?? null,
       weightBasis: "Current Target Weight",
+      previousWeight: previous ? previousWeight : null,
+      change: previous ? changeFrom(holding.weight, previousWeight) : null,
     };
   });
   const removedRows = (previous?.holdings ?? [])
@@ -200,7 +227,11 @@ export function comparePortfolioEvent(events, selectedEvent) {
       rowIndex,
       status: "removed",
       statusLabel: "Removed",
+      weightingMode: previous?.weightingMode ?? null,
       weightBasis: "Previous Target Weight",
+      previousWeight: holding.weight,
+      // Exiting the book takes the full previous weight to zero.
+      change: changeFrom(0, holding.weight),
     }));
   return {
     currentRows,
@@ -307,6 +338,102 @@ export function formatTurnover(value) {
   return `${value.toFixed(2)}%`;
 }
 
+/**
+ * A historical row carries a real allocation whenever the event published one
+ * for that ticker. ``holdings_log[].holdings`` is a ticker -> percentage map, so
+ * an equal-weight research book still publishes genuine per-name percentages
+ * (1.00% for a 100-name book, 5.00% for a 20-name book). Those values are the
+ * event's own portfolio weights and must be displayed; only a row with no
+ * numeric weight at all is unavailable.
+ */
+export function historicalPortfolioWeightAvailable(row) {
+  if (!row) return false;
+  const weight = row.weight;
+  if (typeof weight === "number") return Number.isFinite(weight);
+  if (typeof weight === "string" && weight.trim()) return Number.isFinite(Number(weight));
+  return false;
+}
+
+export function formatHistoricalPortfolioWeight(row) {
+  return historicalPortfolioWeightAvailable(row)
+    ? `${Number(row.weight).toFixed(2)}%`
+    : "—";
+}
+
+/**
+ * Weight change in percentage points (not relative percentage change).
+ *
+ * ``7.41 - 6.18`` is ``+1.23 pp``; a stock that entered the book is measured
+ * from zero and one that left it is measured to zero. Nothing is inferred when
+ * either side is unknown, so an absent comparison stays unavailable.
+ */
+export function formatWeightChange(value) {
+  if (!finite(value)) return "—";
+  const rounded = Number(value.toFixed(2));
+  if (rounded === 0) return "0.00 pp";
+  const sign = rounded > 0 ? "+" : "\u2212";
+  return `${sign}${Math.abs(rounded).toFixed(2)} pp`;
+}
+
+export function weightChangeTone(value) {
+  if (!finite(value)) return "flat";
+  const rounded = Number(value.toFixed(2));
+  if (rounded > 0) return "positive";
+  if (rounded < 0) return "negative";
+  return "flat";
+}
+
+/**
+ * Sortable columns, in display order. ``rank`` is the event's own stored order
+ * (selection order), so clicking ``#`` restores the order the book was built in.
+ */
+export const HOLDINGS_SORT_FIELDS = Object.freeze([
+  Object.freeze({ key: "rank", label: "#", slug: "rank" }),
+  Object.freeze({ key: "ticker", label: "Ticker", slug: "ticker" }),
+  Object.freeze({ key: "weight", label: "Portfolio Weight", slug: "weight" }),
+  Object.freeze({ key: "change", label: "Change", slug: "change" }),
+  Object.freeze({ key: "status", label: "Status", slug: "status" }),
+]);
+
+/** The table opens on the largest position, like the Portfolio holdings table. */
+export const DEFAULT_HOLDINGS_SORT = Object.freeze({ key: "weight", direction: "desc" });
+
+const SORT_ACCESSORS = {
+  rank: (row) => row.rowIndex,
+  ticker: (row) => row.ticker,
+  weight: (row) => (historicalPortfolioWeightAvailable(row) ? Number(row.weight) : null),
+  change: (row) => (finite(row.change) ? row.change : null),
+  status: (row) => row.statusLabel,
+};
+
+/**
+ * Order the visible rows the way the Screener and Portfolio tables do.
+ *
+ * A missing value is unknown, not zero, so those rows stay last in both
+ * directions. Ties keep the filtered sequence, which makes repeated clicks
+ * reversible instead of arbitrary.
+ */
+export function sortPortfolioRows(rows, sort) {
+  const key = SORT_ACCESSORS[sort?.key] ? sort.key : "rank";
+  const accessor = SORT_ACCESSORS[key];
+  const direction = sort?.direction === "desc" ? -1 : 1;
+  return [...rows].sort((left, right) => {
+    const a = accessor(left);
+    const b = accessor(right);
+    const aMissing = a === null || a === undefined || a === "";
+    const bMissing = b === null || b === undefined || b === "";
+    if (aMissing || bMissing) {
+      if (aMissing && bMissing) return (left.sequence ?? 0) - (right.sequence ?? 0);
+      return aMissing ? 1 : -1;
+    }
+    const result = typeof a === "string"
+      ? a.localeCompare(b, undefined, { sensitivity: "base" })
+      : a - b;
+    if (result === 0) return (left.sequence ?? 0) - (right.sequence ?? 0);
+    return result * direction;
+  });
+}
+
 function weightingMethod(block, selectedEvent) {
   const mode = selectedEvent?.weightingMode ?? block?.methodology?.weighting_mode;
   if (mode === "equal-weight-proxy") return "Equal-weight research proxy";
@@ -335,6 +462,7 @@ export function buildPortfolioEvolutionExportData({
     row.ticker,
     row.company,
     row.weight,
+    finite(row.change) ? Number(row.change.toFixed(4)) : "",
     row.weightBasis,
     row.statusLabel,
     selectedEvent.signalDate,
@@ -360,8 +488,8 @@ export function buildPortfolioEvolutionExportData({
       {
         name: "Historical Holdings",
         rows: [HOLDINGS_EXPORT_COLUMNS, ...exportRows],
-        widths: [12, 36, 14, 25, 14, 14, 15],
-        formats: { 2: EXCEL_FORMAT.weight },
+        widths: [12, 36, 14, 14, 25, 14, 14, 15],
+        formats: { 2: EXCEL_FORMAT.weight, 3: EXCEL_FORMAT.changePp },
         autoFilter: true,
         freezeHeader: true,
       },

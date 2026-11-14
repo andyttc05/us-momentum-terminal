@@ -13,6 +13,8 @@ export const EXCEL_FORMAT = Object.freeze({
   number: "0.00",
   percent: '0.00"%"',
   weight: '0.0000"%"',
+  // Percentage points stay numeric so the column sorts and sums in Excel.
+  changePp: '0.00" pp"',
 });
 
 export function exportTimestamp(date = new Date()) {

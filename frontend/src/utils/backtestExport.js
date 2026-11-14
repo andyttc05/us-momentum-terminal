@@ -1,4 +1,4 @@
-import { calculateCumulativeSeries, periodKey } from "./backtestReport.js";
+import { calculateCumulativeSeries } from "./backtestReport.js";
 import { csvRow, downloadCsvFile } from "./csv.js";
 import { exportDateStamp, exportTimestamp, EXCEL_FORMAT } from "./exportFiles.js";
 import { rebalanceLabel } from "./rebalanceFrequency.js";
@@ -35,13 +35,12 @@ const REBALANCING_COLUMNS = [
 ];
 
 const CASH_FLOW_COLUMNS = [
-  "Date",
-  "Cash Inflow",
-  "Cash Outflow",
-  "Contributions",
-  "Dividends",
-  "Fees",
-  "Cash Balance",
+  "Scheduled Date",
+  "Actual Cash Inflow",
+  "Requested Cash Outflow",
+  "Actual Cash Outflow",
+  "Unpaid Cash Outflow",
+  "Ending Portfolio Balance",
 ];
 
 const SETTINGS_COLUMNS = ["Setting", "Value"];
@@ -87,65 +86,30 @@ function companySectorIndex(stocks = [], portfolios = {}) {
   return index;
 }
 
-function contributionDates(dates, config) {
-  if (!config.cashflowEnabled || !finite(config.contributionAmount) || config.contributionAmount <= 0) {
-    return [];
-  }
-  const matches = [];
-  let previousPeriod = periodKey(dates[0], config.contributionFrequency);
-  for (let index = 1; index < dates.length; index += 1) {
-    const currentPeriod = periodKey(dates[index], config.contributionFrequency);
-    if (currentPeriod !== previousPeriod) {
-      matches.push({ index, amount: config.contributionAmount });
-    }
-    previousPeriod = currentPeriod;
-  }
-  return matches;
-}
+function buildCashFlowRows(account) {
+  if (!account?.timeline?.length) return [];
+  const opening = account.timeline[0];
+  const rows = [[
+    opening.date,
+    account.initialCapital,
+    null,
+    null,
+    null,
+    opening.value,
+  ]];
 
-function buildCashFlowRows(window, config) {
-  const contributionEvents = contributionDates(window.dates, config);
-  const rowsByDate = new Map();
-  const initialDate = window.dates[0];
-  if (finite(config.initialCapital) && config.initialCapital > 0) {
-    rowsByDate.set(initialDate, {
-      date: initialDate,
-      inflow: config.initialCapital,
-      outflow: null,
-      contributions: config.initialCapital,
-      dividends: null,
-      fees: null,
-      balance: null,
-    });
-  }
-  contributionEvents.forEach(({ index, amount }) => {
-    const row = rowsByDate.get(window.dates[index]) ?? {
-      date: window.dates[index],
-      inflow: 0,
-      outflow: null,
-      contributions: 0,
-      dividends: null,
-      fees: null,
-      balance: null,
-    };
-    row.inflow = (row.inflow ?? 0) + amount;
-    row.contributions = (row.contributions ?? 0) + amount;
-    rowsByDate.set(window.dates[index], row);
-  });
-
-  // The model does not publish a separate dividend-cash ledger, fee ledger or
-  // end-of-day cash balance. Keep those cells blank instead of inventing them.
-  return [...rowsByDate.values()]
-    .sort((left, right) => left.date.localeCompare(right.date))
-    .map((row) => [
-      row.date,
-      row.inflow,
-      row.outflow,
-      row.contributions,
-      row.dividends,
-      row.fees,
-      row.balance,
+  account.cashflowEvents.forEach((event) => {
+    const outflow = event.direction === "outflow";
+    rows.push([
+      event.date,
+      outflow ? 0 : event.actualAmount,
+      outflow ? event.requestedAmount : null,
+      outflow ? event.actualAmount : null,
+      outflow ? event.unpaidAmount : null,
+      event.endingBalance,
     ]);
+  });
+  return rows;
 }
 
 function buildDailyRows(window, config) {
@@ -198,9 +162,10 @@ function buildRebalanceRows(block, stocks, portfolios) {
   return rows;
 }
 
-function buildSettingsRows({ block, config, meta, exportedAt }) {
+function buildSettingsRows({ block, config, account, meta, exportedAt }) {
+  const direction = config.cashflowDirection === "outflow" ? "outflow" : "inflow";
   const cashflow = config.cashflowEnabled
-    ? `Enabled; $${Number(config.contributionAmount).toLocaleString("en-US")} ${config.contributionFrequency}`
+    ? `Enabled; $${Number(config.contributionAmount).toLocaleString("en-US")} ${config.contributionFrequency} ${direction}`
     : "Disabled";
   return [
     ["Start Date", config.startDate],
@@ -209,10 +174,19 @@ function buildSettingsRows({ block, config, meta, exportedAt }) {
     ["Universe Selection", universeLabel(config.portfolio)],
     ["Rebalancing Frequency", rebalanceLabel(config.rebalanceFrequency)],
     ["Cashflow Settings", cashflow],
+    ["Cashflow Direction", config.cashflowEnabled ? (direction === "outflow" ? "Outflow" : "Inflow") : null],
     ["Contribution Amount", config.cashflowEnabled ? config.contributionAmount : null],
     ["Contribution Frequency", config.cashflowEnabled ? config.contributionFrequency : null],
     ["Reinvest Dividends", config.reinvestDividends ? "Yes" : "No"],
     ["Inflation Adjusted", config.inflationAdjusted ? "Yes" : "No"],
+    ["Final Portfolio Value", account.finalValue],
+    ["Total Cash Inflows", account.totalInflows],
+    ["Requested Cash Outflows", account.requestedOutflows],
+    ["Actual Cash Outflows", account.actualOutflows],
+    ["Unpaid Cash Outflows", account.unpaidOutflows],
+    ["Net Profit / Loss", account.netProfitLoss],
+    ["Money-Weighted Return / XIRR (%)", account.moneyWeightedReturnPct],
+    ["Time-Weighted Return (%)", account.timeWeightedReturnPct],
     ["Include YTD", config.includeYtd ? "Yes" : "No"],
     ["Data As Of", meta?.as_of ?? block?.end ?? null],
     ["Data Generated At", meta?.generated_at ?? null],
@@ -240,8 +214,14 @@ export function buildBacktestExportData({
   if (!window?.dates?.length || !window.strategy?.length) {
     throw new Error("No complete backtest window is available to export.");
   }
-  const { daily, drawdowns } = buildDailyRows(window, config);
-  const settings = buildSettingsRows({ block, config, meta, exportedAt });
+  const { daily, drawdowns, account } = buildDailyRows(window, config);
+  const settings = buildSettingsRows({
+    block,
+    config,
+    account: account.strategy,
+    meta,
+    exportedAt,
+  });
 
   const dailyRows = [DAILY_PERFORMANCE_COLUMNS, ...daily];
   const workbookSheets = [
@@ -282,15 +262,14 @@ export function buildBacktestExportData({
     },
     {
       name: "Cash Flows",
-      rows: [CASH_FLOW_COLUMNS, ...buildCashFlowRows(window, config)],
-      widths: [15, 16, 16, 18, 16, 14, 16],
+      rows: [CASH_FLOW_COLUMNS, ...buildCashFlowRows(account.strategy)],
+      widths: [17, 19, 22, 20, 20, 25],
       formats: {
         1: EXCEL_FORMAT.currency,
         2: EXCEL_FORMAT.currency,
         3: EXCEL_FORMAT.currency,
         4: EXCEL_FORMAT.currency,
         5: EXCEL_FORMAT.currency,
-        6: EXCEL_FORMAT.currency,
       },
       autoFilter: true,
       freezeHeader: true,

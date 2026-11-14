@@ -13,11 +13,12 @@ import {
   WarningCircle,
   Briefcase,
 } from "@phosphor-icons/react";
-import { DataState, Skeleton, TableSkeletonRows, TableStateRow } from "./components/DataState.jsx";
+import { TableSkeletonRows, TableStateRow } from "./components/DataState.jsx";
 import { DashboardCard } from "./components/DashboardCard.jsx";
 import { ExportMenu } from "./components/ExportMenu.jsx";
 import { KpiCard } from "./components/KpiCard.jsx";
 import { MascotDuo } from "./components/Mascot.jsx";
+import { NextRebalanceCard } from "./components/NextRebalanceCard.jsx";
 import { PageHeader } from "./components/PageHeader.jsx";
 import { Pagination } from "./components/Pagination.jsx";
 import { SectorAllocation } from "./components/SectorAllocation.jsx";
@@ -122,7 +123,15 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
   const [page, setPage] = useState(1);
   const [toast, setToast] = useState("");
   const [isExporting, setIsExporting] = useState(false);
-  const { data, error, meta, refresh, status, refreshing } = useMarket();
+  const {
+    data,
+    error,
+    meta,
+    refresh,
+    status,
+    refreshing,
+    strategyRebalanceFrequency,
+  } = useMarket();
   const { activeUniverse } = useUniverse();
   // Phones drop the rank column so the ticker can pin to the left edge without
   // an empty lane beside it. The rank stays on every holding and in the CSV
@@ -137,9 +146,10 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
   const targetHoldings = targetHoldingsForDataset(dataset, activeUniverse);
   const portfolioHoldings = portfolio?.holdings ?? [];
   const portfolioSectors = portfolio?.sectors ?? [];
-  const portfolioPreviewValidation = portfolio?.validation ?? { maximumHoldingWeight: 9 };
   const portfolioSummary = portfolio?.summary ?? null;
   const snapshot = dataset?.overview?.snapshot;
+  const publishedRebalanceFrequency = data?.backtest?.[activeUniverse]?.methodology?.rebalance_frequency;
+  const rebalanceFrequency = strategyRebalanceFrequency ?? publishedRebalanceFrequency;
   const portfolioState = getPortfolioState({
     portfolio,
     status,
@@ -181,10 +191,6 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
   const firstResult = visibleHoldings.length ? firstIndex + 1 : 0;
   const lastResult = Math.min(firstIndex + rowsPerPage, sortedHoldings.length);
 
-  const largestPositions = useMemo(
-    () => [...portfolioHoldings].sort((left, right) => right.finalWeight - left.finalWeight).slice(0, 5),
-    [portfolioHoldings],
-  );
   const constraintEvaluation = useMemo(
     () => evaluatePortfolioConstraints(portfolioHoldings, targetHoldings),
     [portfolioHoldings, targetHoldings],
@@ -283,41 +289,7 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
             />
           </DashboardCard>
 
-          <DashboardCard title="Stock Weight Distribution" className="portfolio-weight-card">
-            {portfolioReady ? (
-              <div className="portfolio-weight-list">
-              {largestPositions.map((holding) => (
-                <div className="portfolio-weight-row" key={holding.ticker}>
-                  <strong className="portfolio-weight-row__ticker">{holding.ticker}</strong>
-                  <div
-                    className="portfolio-weight-row__track"
-                    role="img"
-                    aria-label={`${holding.ticker}: ${displayPercent(holding.finalWeight)} of portfolio`}
-                  >
-                    <span style={{ width: `${(holding.finalWeight / portfolioPreviewValidation.maximumHoldingWeight) * 100}%` }} />
-                  </div>
-                  <strong className="portfolio-weight-row__value">{displayPercent(holding.finalWeight)}</strong>
-                </div>
-              ))}
-              </div>
-            ) : holdingsState === "loading" ? (
-              <div className="portfolio-weight-list" aria-hidden="true">
-                {Array.from({ length: 5 }, (_, index) => (
-                  <div className="portfolio-weight-row" key={index}>
-                    <Skeleton width="34px" height="13px" />
-                    <Skeleton height="25px" />
-                    <Skeleton width="42px" height="13px" style={{ justifySelf: "end" }} />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <DataState
-                state={holdingsState}
-                title={portfolioState.title}
-                detail={portfolioState.detail}
-              />
-            )}
-          </DashboardCard>
+          <NextRebalanceCard frequency={rebalanceFrequency} />
 
           <section className="dashboard-card portfolio-constraints" aria-labelledby="portfolio-constraints-title">
             <div className="dashboard-card__header">

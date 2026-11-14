@@ -4,6 +4,22 @@ function finite(value) {
   return typeof value === "number" && Number.isFinite(value);
 }
 
+function nonNegativeBalance(value) {
+  return finite(value) && value > 0 ? value : 0;
+}
+
+function marketFactor(previousNav, currentNav) {
+  if (
+    !finite(previousNav)
+    || !finite(currentNav)
+    || previousNav <= 0
+    || currentNav < 0
+  ) {
+    return 0;
+  }
+  return currentNav / previousNav;
+}
+
 function quarterFor(date) {
   return Math.ceil(Number(date.slice(5, 7)) / 3);
 }
@@ -86,9 +102,9 @@ export function calculatePeriodReturns({
 
 /**
  * Simulate an investor account from the existing strategy daily NAV stream.
- * Contributions are deposited at the close of the first trading observation in
- * each new period, so the contribution never receives that day's strategy
- * return. Time-weighted return remains independent of external cashflows.
+ * Cashflows are applied at the close of the first trading observation in each
+ * new period, so the amount never receives that day's strategy return.
+ * Time-weighted return remains independent of external cashflows.
  */
 export function simulateCashflows({
   dates,
@@ -97,6 +113,7 @@ export function simulateCashflows({
   contributionEnabled = false,
   contributionAmount = 1_000,
   contributionFrequency = "monthly",
+  cashflowDirection = "inflow",
   startsAtBacktestOrigin = false,
   purchasingPower = [],
 }) {
@@ -104,57 +121,127 @@ export function simulateCashflows({
     return {
       finalValue: null,
       initialCapital: null,
+      nominalInitialCapital: null,
+      totalInflows: null,
       totalContributions: null,
+      nominalTotalInflows: null,
+      nominalTotalContributions: null,
+      requestedOutflows: null,
+      actualOutflows: null,
+      unpaidOutflows: null,
+      netCashflows: null,
+      netProfitLoss: null,
       timeWeightedReturnPct: null,
       moneyWeightedReturnPct: null,
+      cashflowEvents: [],
       timeline: [],
+      investorFlows: [],
     };
   }
   const frequency = FREQUENCIES.includes(contributionFrequency) ? contributionFrequency : "monthly";
   const capital = finite(initialCapital) && initialCapital > 0 ? initialCapital : 10_000;
   const contribution = finite(contributionAmount) && contributionAmount > 0 ? contributionAmount : 0;
+  const direction = cashflowDirection === "outflow" ? "outflow" : "inflow";
   const powerAt = (index) => (
     finite(purchasingPower[index]) && purchasingPower[index] > 0
       ? purchasingPower[index]
       : 1
   );
-  const costRatio = startsAtBacktestOrigin ? strategy[0] / 100 : 1;
+  const costRatio = startsAtBacktestOrigin && finite(strategy[0]) && strategy[0] > 0
+    ? strategy[0] / 100
+    : startsAtBacktestOrigin ? 0 : 1;
   const initialCapitalReal = capital * powerAt(0);
-  let value = initialCapitalReal * costRatio;
-  let totalContributions = 0;
-  let nominalTotalContributions = 0;
+  let value = nonNegativeBalance(initialCapitalReal * costRatio);
+  let totalInflows = 0;
+  let nominalTotalInflows = 0;
+  let requestedOutflows = 0;
+  let nominalRequestedOutflows = 0;
+  let actualOutflows = 0;
+  let nominalActualOutflows = 0;
+  let unpaidOutflows = 0;
+  let nominalUnpaidOutflows = 0;
   const timeline = [{ date: dates[0], value }];
   const investorFlows = [{ date: dates[0], amount: -initialCapitalReal }];
+  const cashflowEvents = [];
 
   for (let index = 1; index < dates.length; index += 1) {
-    value *= strategy[index] / strategy[index - 1];
+    // Investment return is applied before the close cashflow. A zero balance
+    // therefore cannot compound or regain value from an index change.
+    value = nonNegativeBalance(value * marketFactor(strategy[index - 1], strategy[index]));
     if (
       contributionEnabled
       && contribution > 0
       && periodKey(dates[index], frequency) !== periodKey(dates[index - 1], frequency)
     ) {
-      const contributionReal = contribution * powerAt(index);
-      value += contributionReal;
-      totalContributions += contributionReal;
-      nominalTotalContributions += contribution;
-      investorFlows.push({ date: dates[index], amount: -contributionReal });
+      const power = powerAt(index);
+      const requestedReal = contribution * power;
+      let actualReal = requestedReal;
+      let unpaidReal = 0;
+
+      if (direction === "outflow") {
+        actualReal = Math.min(requestedReal, value);
+        unpaidReal = Math.max(0, requestedReal - actualReal);
+        value = nonNegativeBalance(value - actualReal);
+        requestedOutflows += requestedReal;
+        nominalRequestedOutflows += contribution;
+        actualOutflows += actualReal;
+        nominalActualOutflows += actualReal / power;
+        unpaidOutflows += unpaidReal;
+        nominalUnpaidOutflows += unpaidReal / power;
+        investorFlows.push({ date: dates[index], amount: actualReal });
+      } else {
+        value = nonNegativeBalance(value + actualReal);
+        totalInflows += actualReal;
+        nominalTotalInflows += contribution;
+        investorFlows.push({ date: dates[index], amount: -actualReal });
+      }
+
+      cashflowEvents.push({
+        date: dates[index],
+        direction,
+        requestedAmount: requestedReal,
+        actualAmount: actualReal,
+        unpaidAmount: unpaidReal,
+        endingBalance: value,
+      });
     }
     timeline.push({ date: dates[index], value });
   }
 
   investorFlows.push({ date: dates.at(-1), amount: value });
   const origin = startsAtBacktestOrigin ? 100 : strategy[0];
-  const timeWeightedReturnPct = (strategy.at(-1) / origin - 1) * 100;
+  const endingNav = strategy.at(-1);
+  const timeWeightedReturnPct = finite(origin) && origin > 0 && finite(endingNav) && endingNav >= 0
+    ? (endingNav / origin - 1) * 100
+    : null;
 
   return {
     finalValue: value,
     initialCapital: initialCapitalReal,
     nominalInitialCapital: capital,
-    totalContributions,
-    nominalTotalContributions,
+    totalInflows,
+    totalCashInflows: totalInflows,
+    // Legacy name retained as the signed net of actual external cashflows.
+    totalContributions: totalInflows - actualOutflows,
+    nominalTotalInflows,
+    nominalTotalContributions: nominalTotalInflows - nominalActualOutflows,
+    requestedOutflows,
+    totalOutflows: requestedOutflows,
+    totalCashOutflows: requestedOutflows,
+    actualOutflows,
+    unpaidOutflows,
+    totalUnpaidOutflows: unpaidOutflows,
+    nominalRequestedOutflows,
+    nominalActualOutflows,
+    nominalUnpaidOutflows,
+    netCashflows: totalInflows - actualOutflows,
+    netProfitLoss: value + actualOutflows - initialCapitalReal - totalInflows,
+    cashflowDirection: direction,
     timeWeightedReturnPct,
     moneyWeightedReturnPct: calculateXirr(investorFlows),
+    cashflowEvents,
     timeline,
+    investorFlows,
     inflationAdjusted: purchasingPower.length > 0,
   };
 }
@@ -183,12 +270,14 @@ export function calculateCumulativeSeries(window, config = {}) {
         contributionEnabled: config.cashflowEnabled,
         contributionAmount: config.contributionAmount,
         contributionFrequency: config.contributionFrequency,
+        cashflowDirection: config.cashflowDirection,
         startsAtBacktestOrigin: window.startsAtBacktestOrigin,
         purchasingPower: window.purchasingPower ?? [],
       });
       return [
         id,
         {
+          ...account,
           values: account.timeline.map((point) => point.value),
           returns: investmentPath.map((value) => finite(value) ? value - 100 : null),
         },
@@ -255,6 +344,7 @@ export function calculateBacktestReport(window, config) {
     contributionEnabled: config.cashflowEnabled,
     contributionAmount: config.contributionAmount,
     contributionFrequency: config.contributionFrequency,
+    cashflowDirection: config.cashflowDirection,
     startsAtBacktestOrigin: window.startsAtBacktestOrigin,
     purchasingPower: window.purchasingPower ?? [],
   });
@@ -264,7 +354,6 @@ export function calculateBacktestReport(window, config) {
 
   return {
     ...cashflow,
-    netProfitLoss: cashflow.finalValue - cashflow.initialCapital - cashflow.totalContributions,
     benchmarkReturnPct: benchmarkReturn,
     relativeToSpyPct: finite(benchmarkReturn)
       ? cashflow.timeWeightedReturnPct - benchmarkReturn

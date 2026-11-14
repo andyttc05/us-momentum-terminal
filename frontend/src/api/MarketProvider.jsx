@@ -2,6 +2,9 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { api, DATA_MODE } from "./client.js";
 import { hasMarketData } from "../utils/dataStatus.js";
 import {
+  isRebalanceFrequency,
+} from "../utils/rebalanceFrequency.js";
+import {
   readCachedPublication,
   readCachedStock,
   writeCachedPublication,
@@ -40,6 +43,10 @@ export function MarketProvider({ children }) {
   const [dataNotice, setDataNotice] = useState(null);
   const [dataOrigin, setDataOrigin] = useState(initialCache.current ? "browser-cache" : "network");
   const [browserCachedAt, setBrowserCachedAt] = useState(initialCache.current?.savedAt ?? null);
+  // A user-selected strategy frequency is app-wide configuration, not a page
+  // local draft. Portfolio reads it immediately while the Backtesting selector
+  // and completed runs remain the only controls that write it.
+  const [strategyRebalanceFrequency, setStrategyRebalanceFrequencyState] = useState(null);
   const mounted = useRef(true);
   const noticePending = useRef(true);
   const lastNoticeSignature = useRef("");
@@ -192,8 +199,15 @@ export function MarketProvider({ children }) {
     }
   }, [load, publishFinalNotice]);
 
+  const setStrategyRebalanceFrequency = useCallback((value) => {
+    if (!isRebalanceFrequency(value)) return false;
+    setStrategyRebalanceFrequencyState(value);
+    return true;
+  }, []);
+
   const runBacktest = useCallback(async (config) => {
     const frequency = config.rebalance_frequency || "semiannual";
+    setStrategyRebalanceFrequency(frequency);
     const publication = dataRef.current;
     const snapshotBlock = publication?.backtest?.[config.portfolio];
     if (STATIC_MODE) {
@@ -214,7 +228,7 @@ export function MarketProvider({ children }) {
       }
     }
     return api.backtest(config);
-  }, []);
+  }, [setStrategyRebalanceFrequency]);
 
   const value = useMemo(
     () => ({
@@ -232,6 +246,8 @@ export function MarketProvider({ children }) {
       refresh,
       runBacktest,
       selectProvider,
+      strategyRebalanceFrequency,
+      setStrategyRebalanceFrequency,
       reload: load,
     }),
     [
@@ -246,6 +262,8 @@ export function MarketProvider({ children }) {
       refreshing,
       runBacktest,
       selectProvider,
+      setStrategyRebalanceFrequency,
+      strategyRebalanceFrequency,
       status,
     ],
   );

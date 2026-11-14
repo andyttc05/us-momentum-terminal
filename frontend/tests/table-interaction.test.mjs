@@ -7,6 +7,7 @@ import { isInteractiveTarget, shouldOpenRow, shouldRouteTickerClick, stockLinkLa
 const source = (path) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), "utf8");
 const screenerPage = source("../src/ScreenerPage.jsx");
 const portfolioPage = source("../src/PortfolioPage.jsx");
+const portfolioEvolutionPage = source("../src/components/PortfolioEvolution.jsx");
 const tablesCss = source("../src/styles/tables.css");
 const stylesIndex = source("../src/styles.css");
 const router = source("../src/router.jsx");
@@ -56,8 +57,8 @@ test("the link label names the destination stock", () => {
   assert.equal(stockLinkLabel(undefined), "Open  stock analysis");
 });
 
-test("both tables render the same row link", () => {
-  for (const page of [screenerPage, portfolioPage]) {
+test("all interactive stock tables render the same row link", () => {
+  for (const page of [screenerPage, portfolioPage, portfolioEvolutionPage]) {
     assert.match(page, /className="stock-row"/);
     assert.match(page, /shouldOpenRow\(event\)/);
     assert.match(page, /shouldRouteTickerClick\(event\)/);
@@ -70,17 +71,38 @@ test("both tables render the same row link", () => {
   assert.match(router, /export function stockPath\(ticker\)/);
   assert.doesNotMatch(screenerPage, /\/stock\//);
   assert.doesNotMatch(portfolioPage, /\/stock\//);
+  assert.doesNotMatch(portfolioEvolutionPage, /\/stock\//);
 });
 
-test("the shared table layer owns row feedback for both tables", () => {
-  assert.match(tablesCss, /\.stock-row \{ cursor: pointer; \}/);
+test("the shared table layer owns row feedback for every stock table", () => {
+  assert.match(tablesCss, /\.stock-row \{\s*cursor: pointer;\s*transition: background-color 160ms ease;/);
   assert.match(tablesCss, /@media \(hover: hover\) and \(pointer: fine\) \{\s*\.stock-row:hover \{ background: #FCFAF7; \}/);
   assert.match(tablesCss, /\.stock-row:focus-within \{ background: #FCFAF7; \}/);
+  assert.match(tablesCss, /\.portfolio-evolution__holdings-table \.stock-row:hover \{ background: transparent; \}/);
   // ...and it loads after the page sheets so those rules win.
   const order = [...stylesIndex.matchAll(/styles\/([\w-]+)\.css/g)].map((match) => match[1]);
   assert.equal(order.at(-1), "tables");
   assert.ok(order.indexOf("tables") > order.indexOf("screener"));
   assert.ok(order.indexOf("tables") > order.indexOf("portfolio"));
+});
+
+test("all three tables share the exact ticker hover and focus treatment", () => {
+  assert.match(
+    tablesCss,
+    /\.stock-row \.stock-ticker-link,\s*\.stock-row \.portfolio-ticker-link,\s*\.stock-row \.portfolio-evolution__ticker-link \{[\s\S]*?color: inherit;[\s\S]*?text-decoration: none;[\s\S]*?transition: color 160ms ease;/,
+  );
+  assert.match(
+    tablesCss,
+    /@media \(hover: hover\) and \(pointer: fine\) \{[\s\S]*?\.stock-row \.stock-ticker-link:hover,[\s\S]*?\.stock-row \.portfolio-ticker-link:hover,[\s\S]*?\.stock-row \.portfolio-evolution__ticker-link:hover \{ color: #8D6500; \}/,
+  );
+  assert.match(
+    tablesCss,
+    /\.stock-row \.portfolio-evolution__ticker-link:focus-visible \{[\s\S]*?outline: 2px solid #D7AB2E;/,
+  );
+  assert.doesNotMatch(
+    tablesCss,
+    /\.portfolio-evolution__ticker-link:hover \{[^}]*(?:background|font-weight|transform):/,
+  );
 });
 
 test("each heading is aligned with the values it labels", () => {

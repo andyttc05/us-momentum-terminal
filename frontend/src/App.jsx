@@ -36,7 +36,7 @@ function Shell() {
       />
       <ScreenerPage isActive={page === "screener"} onSelectStock={openStock} />
       <PortfolioPage hidden={page !== "portfolio"} onSelectStock={openStock} />
-      <BacktestingPage hidden={page !== "backtesting"} />
+      <BacktestingPage hidden={page !== "backtesting"} onSelectStock={openStock} />
 
       {page === "stock-analysis" && (
         <StockAnalysisPage

@@ -353,6 +353,36 @@ class YahooProvider(_BatchMixin, ProviderAdapter):
         return snapshot
 
 
+def share_history(symbol: str, start: str, end: str) -> list[list] | None:
+    """Point-in-time share-count observations for one symbol.
+
+    Yahoo publishes the share count that was in effect on each observation
+    date. This is the only historical size input the project can obtain, so it
+    is returned as reported (never restated for later splits) and the caller
+    pairs it with the price of the same date. ``None`` means the provider has
+    no series for the symbol, which must stay distinguishable from a fetch
+    failure so coverage gaps are reported instead of silently filled.
+    """
+    yf = _import_yfinance()
+    _LIMITER.acquire()
+    try:
+        series = yf.Ticker(symbol).get_shares_full(start=start, end=end)
+    except Exception:  # noqa: BLE001 - provider failures surface as no data
+        return None
+    if series is None or len(series) == 0:
+        return None
+    points: list[list] = []
+    for stamp, value in series.items():
+        try:
+            count = int(value)
+        except (TypeError, ValueError):
+            continue
+        if count <= 0:
+            continue
+        points.append([stamp.strftime("%Y-%m-%d"), count])
+    return points or None
+
+
 def cache_ttl() -> int:
     """Bars go stale quickly while the market is open, slowly once it is closed."""
     from ..clock import market_state  # local import avoids a cycle

@@ -87,6 +87,7 @@ const DEFAULT_CONFIG = {
   cashflowEnabled: true,
   contributionAmount: "1000",
   contributionFrequency: "monthly",
+  cashflowDirection: "inflow",
   rebalanceFrequency: DEFAULT_REBALANCE_FREQUENCY,
   reinvestDividends: true,
   inflationAdjusted: false,
@@ -704,6 +705,18 @@ function AnnualReturnTable({ rows = [], includeYtd, state = "ready" }) {
 }
 
 function PerformanceSummary({ report, reportWindow, metrics, config, state = "ready" }) {
+  const cashflowDirection = config?.cashflowDirection === "outflow" ? "outflow" : "inflow";
+  const cashflowLabel = config?.cashflowEnabled
+    ? cashflowDirection === "outflow" ? "Actual Withdrawals" : "Total Cash Inflows"
+    : "Net Cashflows";
+  const cashflowValue = report
+    ? formatMoney(config?.cashflowEnabled
+      ? cashflowDirection === "outflow" ? report.actualOutflows : report.totalInflows
+      : report.netCashflows)
+    : "—";
+  const unpaidDetail = report?.unpaidOutflows > 0
+    ? `${formatMoney(report.requestedOutflows)} requested · ${formatMoney(report.unpaidOutflows)} unpaid`
+    : null;
   const settings = [
     { label: "Initial Capital", value: report ? formatMoney(report.initialCapital) : "—", icon: Bank },
     { label: "Reinvest Dividends", value: config ? (config.reinvestDividends ? "Yes" : "No") : "—", icon: TrendUp },
@@ -737,13 +750,13 @@ function PerformanceSummary({ report, reportWindow, metrics, config, state = "re
       label: "Time-Weighted Return",
       value: formatPercent(report?.timeWeightedReturnPct, 2),
       tone: valueTone(report?.timeWeightedReturnPct),
-      tip: "Daily portfolio growth linked across external contributions. Cashflow timing does not change this return.",
+      tip: "Daily portfolio growth linked across external cashflows. Cashflow timing does not change this return.",
     },
     {
       label: "Money-Weighted Return / XIRR",
       value: formatPercent(report?.moneyWeightedReturnPct, 2),
       tone: valueTone(report?.moneyWeightedReturnPct),
-      tip: "The annualised rate that makes the dated initial investment, contributions and ending account value net to zero.",
+      tip: "The annualised rate that makes the dated initial investment, cashflows and ending account value net to zero.",
     },
     {
       label: "vs. SPY (Total Return)",
@@ -765,12 +778,15 @@ function PerformanceSummary({ report, reportWindow, metrics, config, state = "re
             </strong>
           </div>
           <div className="backtest-summary-tile">
-            <span className="backtest-summary-tile__label"><Coins size={18} aria-hidden="true" />Total Contributions</span>
+            <span className="backtest-summary-tile__label"><Coins size={18} aria-hidden="true" />{cashflowLabel}</span>
             <strong>
               {state === "loading"
                 ? <Skeleton width="64%" height="0.65em" />
-                : report ? formatMoney(report.totalContributions) : "—"}
+                : cashflowValue}
             </strong>
+            {state === "ready" && unpaidDetail && (
+              <span className="backtest-summary-tile__detail">{unpaidDetail}</span>
+            )}
           </div>
         </div>
         <div className="backtest-summary-settings" aria-label="Investment settings">
@@ -810,7 +826,8 @@ function PerformanceSummary({ report, reportWindow, metrics, config, state = "re
 }
 
 function AdvancedSettings({ open, onToggle, draft, updateDraft, amountErrors }) {
-  const summary = `${formatMoney(Number(draft.initialCapital))} initial${draft.cashflowEnabled ? ` · ${formatMoney(Number(draft.contributionAmount))} ${draft.contributionFrequency}` : " · No contributions"} · Reinvest: ${draft.reinvestDividends ? "On" : "Off"} · Rebalance: ${rebalanceSummaryLabel(draft.rebalanceFrequency)}`;
+  const cashflowDirection = draft.cashflowDirection === "outflow" ? "outflow" : "inflow";
+  const summary = `${formatMoney(Number(draft.initialCapital))} initial${draft.cashflowEnabled ? ` · ${formatMoney(Number(draft.contributionAmount))} ${draft.contributionFrequency} ${cashflowDirection}` : " · No cashflows"} · Reinvest: ${draft.reinvestDividends ? "On" : "Off"} · Rebalance: ${rebalanceSummaryLabel(draft.rebalanceFrequency)}`;
   return (
     <section className="backtest-advanced" data-open={open || undefined}>
       <button className="backtest-advanced__toggle" type="button" aria-expanded={open} onClick={onToggle}>
@@ -821,42 +838,72 @@ function AdvancedSettings({ open, onToggle, draft, updateDraft, amountErrors }) 
       <div className="backtest-advanced__reveal" aria-hidden={!open} inert={!open}>
         <div className="backtest-advanced__inner">
           <div className="backtest-advanced__grid">
-            <div className="backtest-advanced__column">
-              <SettingsCard
-                title="Initial Capital"
-                icon={Coins}
-                className="backtest-capital-card"
-                action={(
-                  <CurrencyInput
-                    className="backtest-capital-field"
-                    id="backtest-initial-capital"
-                    value={draft.initialCapital}
-                    onChange={(value) => updateDraft({ initialCapital: value })}
-                    ariaLabel="Initial capital in US dollars"
-                    invalid={Boolean(amountErrors.initialCapital)}
-                  />
-                )}
-              />
+            <SettingsCard
+              title="Initial Capital"
+              icon={Coins}
+              className="backtest-capital-card backtest-advanced__initial"
+              action={(
+                <CurrencyInput
+                  className="backtest-capital-field"
+                  id="backtest-initial-capital"
+                  value={draft.initialCapital}
+                  onChange={(value) => updateDraft({ initialCapital: value })}
+                  ariaLabel="Initial capital in US dollars"
+                  invalid={Boolean(amountErrors.initialCapital)}
+                />
+              )}
+            />
 
-              <SettingsCard
-                title="Cashflows"
-                icon={Coins}
-                description="Add external contributions at the close of the first trading day in each period."
-                className="backtest-cashflow-card"
-                action={(
-                  <Toggle
-                    label="Cashflows"
-                    checked={draft.cashflowEnabled}
-                    onChange={(checked) => updateDraft({ cashflowEnabled: checked })}
-                  />
-                )}
+            <SettingsRow
+              title="Reinvest Dividends"
+              description="Adjusted closes already include dividend reinvestment, so no dividend cash amount is added again."
+              icon={TrendUp}
+              className="backtest-advanced__reinvest"
+            >
+              <Toggle
+                label="Reinvest Dividends"
+                checked={draft.reinvestDividends}
+                onChange={(checked) => updateDraft({ reinvestDividends: checked })}
+              />
+            </SettingsRow>
+
+            <SettingsCard
+              title="Cashflows"
+              icon={Coins}
+              description="Add or withdraw external cashflows at the close of the first trading day in each period."
+              className="backtest-cashflow-card backtest-advanced__cashflows"
+              action={(
+                <Toggle
+                  label="Cashflows"
+                  checked={draft.cashflowEnabled}
+                  onChange={(checked) => updateDraft({ cashflowEnabled: checked })}
+                />
+              )}
+            >
+              <div
+                className="backtest-cashflow-controls"
+                data-open={draft.cashflowEnabled || undefined}
+                aria-hidden={!draft.cashflowEnabled}
+                inert={!draft.cashflowEnabled}
               >
-                <div
-                  className="backtest-cashflow-fields settings-form-grid"
-                  data-open={draft.cashflowEnabled || undefined}
-                  aria-hidden={!draft.cashflowEnabled}
-                  inert={!draft.cashflowEnabled}
-                >
+                <div className="backtest-cashflow-direction" role="group" aria-label="Cashflow direction">
+                  {["inflow", "outflow"].map((direction) => {
+                    const selected = cashflowDirection === direction;
+                    return (
+                      <button
+                        key={direction}
+                        type="button"
+                        className="backtest-cashflow-direction__segment"
+                        data-direction={direction}
+                        aria-pressed={selected}
+                        onClick={() => updateDraft({ cashflowDirection: direction })}
+                      >
+                        {direction === "inflow" ? "Inflow" : "Outflow"}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="backtest-cashflow-fields">
                   <label htmlFor="backtest-contribution-amount">Contribution Amount</label>
                   <CurrencyInput
                     id="backtest-contribution-amount"
@@ -878,21 +925,10 @@ function AdvancedSettings({ open, onToggle, draft, updateDraft, amountErrors }) 
                     ariaLabel="Contribution frequency"
                   />
                 </div>
-              </SettingsCard>
-            </div>
+              </div>
+            </SettingsCard>
 
-            <div className="backtest-advanced__column backtest-advanced__settings">
-              <SettingsRow
-                title="Reinvest Dividends"
-                description="Adjusted closes already include dividend reinvestment, so no dividend cash amount is added again."
-                icon={TrendUp}
-              >
-                <Toggle
-                  label="Reinvest Dividends"
-                  checked={draft.reinvestDividends}
-                  onChange={(checked) => updateDraft({ reinvestDividends: checked })}
-                />
-              </SettingsRow>
+            <div className="backtest-advanced__lower-settings">
               <SettingsRow
                 title="Inflation Adjusted"
                 description="Convert nominal values and returns into real terms using dated US CPI-U observations."
@@ -938,8 +974,16 @@ function AdvancedSettings({ open, onToggle, draft, updateDraft, amountErrors }) 
   );
 }
 
-export function BacktestingPage({ hidden = false }) {
-  const { data, refresh, status, error, refreshing, runBacktest: executeBacktest } = useMarket();
+export function BacktestingPage({ hidden = false, onSelectStock }) {
+  const {
+    data,
+    refresh,
+    status,
+    error,
+    refreshing,
+    runBacktest: executeBacktest,
+    setStrategyRebalanceFrequency,
+  } = useMarket();
   const { universe, selectUniverse, activeUniverse, activateUniverse } = useUniverse();
   const [draft, setDraft] = useState(DEFAULT_CONFIG);
   const [submittedConfig, setSubmittedConfig] = useState(null);
@@ -998,6 +1042,9 @@ export function BacktestingPage({ hidden = false }) {
 
   function updateDraft(patch) {
     setDraft((current) => ({ ...current, ...patch }));
+    if (patch.rebalanceFrequency) {
+      setStrategyRebalanceFrequency(patch.rebalanceFrequency);
+    }
     if ("startDate" in patch || "endDate" in patch) setValidationTouched(true);
     if ("initialCapital" in patch || "contributionAmount" in patch) setValidationTouched(true);
   }
@@ -1502,6 +1549,7 @@ export function BacktestingPage({ hidden = false }) {
             stocks={data?.stocks ?? []}
             portfolios={data?.portfolios ?? {}}
             state={resultsReady ? "ready" : resultsState}
+            onSelectStock={onSelectStock}
             onNotify={({ message, kind = "updated", durationMs, id }) => {
               showNotification(
                 message,

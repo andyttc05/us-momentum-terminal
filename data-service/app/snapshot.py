@@ -27,6 +27,7 @@ from .backtest import (
 )
 from .clock import market_state
 from .config import SEED_PATH, settings
+from . import size_history
 from .macro import load_cpi
 from .models import (
     NormalizedBar,
@@ -72,7 +73,7 @@ PERFORMANCE_PERIODS = ("1Y", "3Y", "5Y", "All")
 SERIES_COLORS = {"strategy": "#FFC83D", "spy": "#69A5F5", "spmo": "#AA8BF2"}
 SUPPORTED_EXCHANGES = {"NYSE", "NASDAQ", "NYSE American"}
 UNIVERSE_VERSION = "2026-11-12-live200-v2"
-PUBLICATION_VERSION = "2026-11-14-sqrt-float-cap-v11"
+PUBLICATION_VERSION = "2026-11-14-pit-sized-v12"
 # The two published universes. Every page reads one of these datasets; there is
 # no third "20%" variant and no page-local selection.
 DATASET_UNIVERSES = ("top100", "top20")
@@ -389,6 +390,8 @@ def run_historical_backtest(
         "end": end,
         "sector_by_symbol": sector_by_symbol,
     }
+    size_history.ensure_share_history(universe_set, end=end)
+    options["float_cap_lookup"] = size_history.market_cap_lookup(series_map)
     if portfolio == "top20":
         result = run_backtest(series_map, top_n=20, **options)
     else:
@@ -1082,17 +1085,38 @@ def build_publication(force: bool = False, progress=None) -> dict:
             for symbol in backtest_universe
             if symbol in MEMBER_BY_TICKER
         }
+        # Every rebalance is sized from the share count that was in effect on
+        # its signal date, so the published book is the weighted portfolio the
+        # Portfolio page describes rather than an equal-weight research proxy.
+        if progress:
+            progress("loading_share_history", 0, len(backtest_universe))
+        series_end = max(
+            (series.latest_date for series in backtest_map.values() if series.latest_date),
+            default="",
+        )
+        size_history.ensure_share_history(
+            backtest_universe,
+            end=series_end,
+            progress=(
+                (lambda completed, total: progress("loading_share_history", completed, total))
+                if progress
+                else None
+            ),
+        )
+        float_cap_lookup = size_history.market_cap_lookup(backtest_map)
         top100 = run_backtest(
             backtest_map,
             top_n=100,
             universe_symbols=backtest_universe,
             sector_by_symbol=backtest_sectors,
+            float_cap_lookup=float_cap_lookup,
         )
         top20 = run_backtest(
             backtest_map,
             top_n=20,
             universe_symbols=backtest_universe,
             sector_by_symbol=backtest_sectors,
+            float_cap_lookup=float_cap_lookup,
         )
         backtest_schedules = {
             "top100": {"semiannual": top100},
@@ -1112,6 +1136,7 @@ def build_publication(force: bool = False, progress=None) -> dict:
                     rebalance_frequency=frequency,
                     start=top100["start"],
                     end=top100["end"],
+                    float_cap_lookup=float_cap_lookup,
                     **selection,
                 )
 

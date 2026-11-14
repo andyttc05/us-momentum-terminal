@@ -1,10 +1,30 @@
 export const DEFAULT_REBALANCE_FREQUENCY = "semiannual";
 
 export const REBALANCE_OPTIONS = [
-  { value: "monthly", label: "Monthly (Every Month)", summary: "Monthly" },
-  { value: "quarterly", label: "Quarterly (Mar / Jun / Sep / Dec)", summary: "Quarterly" },
-  { value: "semiannual", label: "Semiannual (Mar / Sep)", summary: "Semiannual" },
-  { value: "annual", label: "Annual (September)", summary: "Annual" },
+  {
+    value: "monthly",
+    label: "Monthly (Every Month)",
+    summary: "Monthly",
+    signalMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+  },
+  {
+    value: "quarterly",
+    label: "Quarterly (Mar / Jun / Sep / Dec)",
+    summary: "Quarterly",
+    signalMonths: [3, 6, 9, 12],
+  },
+  {
+    value: "semiannual",
+    label: "Semiannual (Mar / Sep)",
+    summary: "Semiannual",
+    signalMonths: [3, 9],
+  },
+  {
+    value: "annual",
+    label: "Annual (September)",
+    summary: "Annual",
+    signalMonths: [9],
+  },
 ];
 
 export function isRebalanceFrequency(value) {

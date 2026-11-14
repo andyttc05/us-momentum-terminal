@@ -1,116 +1,108 @@
-# Portfolio Evolution Design QA
+# Rebalancing History Edge and Ticker Interaction QA
 
 ## Comparison Target
 
-- Source visual truth: `docs/screenshots/portfolio-evolution-reference.png`
+- Reference edge detail 1: `docs/screenshots/rebalancing-history-edge-reference-1.png`
+- Reference edge detail 2: `docs/screenshots/rebalancing-history-edge-reference-2.png`
+- Combined comparison: `docs/screenshots/rebalancing-history-qa-comparison.png`
 - Desktop implementation: `docs/screenshots/portfolio-evolution-desktop.png`
 - Mobile implementation: `docs/screenshots/portfolio-evolution-mobile.png`
-- Full-view comparison: `docs/screenshots/portfolio-evolution-qa-comparison.png`
-- Focused panel comparison: `docs/screenshots/portfolio-evolution-qa-focus.png`
 - Desktop viewport: 1440 x 1000 CSS px, 1x capture
 - Mobile viewport: 390 x 844 CSS px, 1x capture
-- Compared state: Top 20, Semiannual, latest event October 1, 2026, holdings view
-- Source dimensions: 1774 x 887 px
-- Desktop implementation dimensions: 1185 x 945 px (the section inside a 1440 px page)
-- Mobile implementation dimensions: 358 x 1933 px (the section inside a 390 px page)
-- Normalization: the source was scaled to the 1185 px implementation width, centered on
-  `#F7F3EE`, and padded to the implementation height before side-by-side review.
+- Reference dimensions: 152 x 134 px and 1912 x 140 px
+- Desktop section dimensions: 1185 x 708 px
+- Mobile section dimensions: 358 x 1552 px
 
-The source concept shows a different sample dataset (100 holdings at 1.45% each). The
-implementation was evaluated against the required real Top 20 data: 20 holdings at 5.00%,
-13 New, 7 Retained, and 13 Removed. Those data differences are expected and mandated by the
-task, not design drift.
+The reference crops isolate the visual defects: an oversized rounded row edge and a visible
+white gap between a white row and the yellow selected row. The implementation moves all clipping,
+rounding, and outer framing to one list container.
 
 ## Findings
 
 No actionable P0, P1, or P2 findings remain.
 
-- [P3] Methodology note wraps to two lines at 1440 px.
-  Location: Historical Holdings footer.
-  Evidence: the source concept omits the note; the implementation must show it and wraps it
-  once in the narrower, data-dominant right panel.
-  Impact: none on comprehension or task completion; the note remains visually secondary.
-  Fix if desired later: shorten the sentence without changing its meaning.
+## Continuous List
 
-## Fidelity Review
+- The event list is one 1px bordered container with a 14px radius and `overflow: hidden`.
+- All five rows measure exactly 78px high.
+- Adjacent-row gaps measure exactly `0px`.
+- Every row is square (`border-radius: 0`) and has no shadow.
+- Rows two through five share one straight 1px top separator.
+- Every row reserves the same 4px left border; selection changes only its colour.
+- The selected row uses a full-row `rgb(255, 245, 213)` fill and `#EDB900` accent.
+- Selection changes did not alter row height or border width.
+- The outer container alone clips the first and last row corners.
 
-- Fonts and typography: Nunito Sans is inherited from the application. Card titles, table
-  headings, KPI values, metadata, and table rows follow the existing Backtesting hierarchy.
-  The desktop history subtitle now stays on one line at the final panel proportion.
-- Spacing and layout: KPI cards are equal-width and equal-height. The desktop master-detail
-  split measures approximately 39.5% / 60.5%, with equal panel height and a 16 px gap.
-  The holdings table shows ten rows at desktop density.
-- Colors and visual tokens: the section uses only existing yellow, blue, lavender, mint, pink,
-  surface, line, positive, and negative tokens. Selected and status states are distinct
-  without heavy borders or shadows.
-- Image and asset fidelity: the existing organic mascot component is reused unchanged in the
-  KPI accents. All icons come from the existing Phosphor icon package. No replacement mascot,
-  custom illustration, or decorative CSS art was introduced.
-- Icons: Stack, history, calendar, turnover, search, export, status, and pagination icons align
-  with the existing Phosphor family and control weights.
-- Copy and content: actual event dates, signal dates, holdings counts, weights, turnover, and
-  status labels are derived from the published event history. No rank, share quantity,
-  execution price, or dollar transaction cost is fabricated.
-- Responsive behavior: at 1280 and 1440 px the matrix remains side by side and the table fits
-  without horizontal scrolling. At 1240 px and below it stacks cleanly. The 1024 px tablet view
-  shows the full table. At 390 px there is no document overflow; the table has controlled
-  internal scrolling (`304 px` viewport over `620 px` content), and search, filters, export,
-  event rows, and pagination retain touch-sized controls.
-- Accessibility: event buttons expose selected state, filters expose pressed state, table
-  headings are semantic, search has a visible label, export retains its keyboard menu behavior,
-  and focus treatments use the application field language.
+Measured before and after changing the selected event:
 
-## Comparison History
+```text
+row count:     5 before, 5 after
+row height:    78px before, 78px after
+border-left:   4px before, 4px after
+vertical gaps: 0px before, 0px after
+```
 
-1. Initial desktop comparison found the four-row history page left a large unused column
-   beside the ten-row holdings table. The history page was changed to the allowed five-row
-   density. Post-fix evidence: `portfolio-evolution-desktop.png`.
-2. Initial mobile review found the shared KPI media rule hid the required supporting text.
-   A section-scoped override restored the event breakdown, scheduled-turnover label, and signal
-   date. Post-fix evidence: `portfolio-evolution-mobile.png`.
-3. Initial 1024 px review forced the holdings table to scroll in the two-column layout. The
-   stacking breakpoint was moved to 1240 px; at 1024 px the table now fits all required columns.
-   At 1280 px and above the matrix remains two-column. Post-fix evidence:
-   `portfolio-evolution-qa-comparison.png`.
-4. Mobile filters and pagination were below the intended touch target. They were raised to
-   44 px, and the search text was set to 16 px to prevent mobile focus zoom. Measurements were
-   rechecked at 390 px with no overflow and every control contained in its panel.
+At 390px, the list remains 334px wide, all rows remain 78px high, and the document width remains
+390px.
 
-## Browser Verification
+## Hover and Focus
 
-- Browser-rendered page: local Backtesting page against the published static snapshot.
-- Desktop and mobile screenshots are saved at the paths above.
-- Primary interactions tested:
-  - switched from Top 100 to Top 20 and ran the backtest;
-  - selected different event dates;
-  - filtered All, New, Retained, and Removed;
-  - confirmed removed rows use `Previous Weight`;
-  - searched by company/ticker;
-  - verified event changes reset search, filter, and holdings page;
-  - filtered history by year;
-  - downloaded the complete 20-row Top 20 CSV;
-  - downloaded the two-sheet Top 20 Excel workbook;
-  - verified the export filenames include universe, schedule, and execution date.
-- Console check: no errors or warnings were captured during the final browser pass.
+The loaded CSSOM contains:
 
-## Open Questions
+```css
+.portfolio-evolution__event:hover:not(.is-selected) {
+  background: var(--color-surface-soft);
+}
+```
 
-None. The remaining visual differences are intentional adaptations to the existing US Momentum
-Terminal design system and the actual published Top 20 dataset.
+No hover rule changes borders, padding, dimensions, or shadow. Keyboard focus uses an inset yellow
+outline, which remains inside the rounded and clipped list container.
+
+The browser automation surface does not expose a pointer-move primitive. The hover selector and
+cascade were verified in the rendered page, while selected and unselected row geometry was
+measured directly from the DOM.
+
+## Ticker Interaction
+
+One shared `tables.css` rule now governs Screener, Portfolio, and Historical Holdings tickers:
+
+- inherited black text;
+- transparent background;
+- no underline;
+- `transition: color 160ms ease`;
+- hover text `#8D6500`;
+- 2px `#D7AB2E` keyboard focus outline.
+
+All three live tables were inspected. Their ticker links reported the same inherited colour,
+transparent background, no underline, and 160ms color transition. The loaded CSSOM contains the
+shared `#8D6500` hover rule. Clicking MU in Historical Holdings opened MU Stock Analysis, and
+Browser Back returned to Backtesting.
+
+## Functional and Responsive Verification
+
+- Event selection, year filtering, turnover, signal dates, and pagination remain functional.
+- The list remains continuous in desktop and mobile layouts.
+- Mobile pagination was constrained so 20-page result sets no longer widen the document.
+- Existing row and ticker navigation remain keyboard accessible.
+- Browser console reports no errors or warnings.
+
+## Test Results
+
+- Frontend unit tests: **278 passed**
+- Production build: **passed**
+- Sites tests: **4 passed**
+- The build reports a non-blocking bundle-size warning above 500kB.
 
 ## Implementation Checklist
 
-- Keep Portfolio Evolution directly below Performance Summary.
-- Preserve the existing mascot and all current Backtesting sections.
-- Keep the five-row history and ten-row holdings pagination contract.
-- Preserve the actual event-derived KPI and comparison calculations.
-- Preserve complete filtered exports across all pages.
-- Re-run unit tests, production build, Sites tests, and deployed-page smoke checks after any
-  future styling change.
+- Keep clipping and rounding on the list container.
+- Keep all rows square, 78px high, and flush together.
+- Keep a single horizontal separator between rows.
+- Keep the reserved 4px selection accent track.
+- Keep ticker hover/focus rules in the shared table stylesheet.
 
 ## Follow-up Polish
 
-- Consider shortening the historical weighting note if it begins to intrude on table density at
-  smaller desktop widths.
+- None required before acceptance.
 
 final result: passed
