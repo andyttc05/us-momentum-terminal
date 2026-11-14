@@ -12,6 +12,81 @@ function maxNonNegative(value) {
   return finite(value) && value > 0 ? value : 0;
 }
 
+/**
+ * Peak-to-date drawdown for any wealth series, in percent.
+ *
+ * The peak starts at zero rather than at the first observation so an account
+ * that opens with capital cannot report a drawdown against a partial first
+ * point. Used for account balances; the investment drawdown uses the same
+ * definition applied to the unitized NAV.
+ */
+export function drawdownFromValues(values) {
+  let peak = 0;
+  return values.map((value) => {
+    if (!finite(value)) return null;
+    peak = Math.max(peak, value);
+    return peak > 0 ? (value / peak - 1) * 100 : 0;
+  });
+}
+
+/**
+ * Describe a drawdown series: the maximum, and the dates it ran between.
+ *
+ * `peakDate` is the high-water mark, `troughDate` the lowest point after it,
+ * and `recoveryDate` the first observation back at the peak (null when the
+ * series never recovers inside the window).
+ */
+export function analyzeDrawdown(values, dates) {
+  const series = drawdownFromValues(Array.isArray(values) ? values : []);
+  const dated = Array.isArray(dates) ? dates : [];
+  const result = {
+    series,
+    maxDrawdown: 0,
+    peakIndex: null,
+    peakDate: null,
+    troughIndex: null,
+    troughDate: null,
+    recoveryIndex: null,
+    recoveryDate: null,
+  };
+  if (!series.length) return result;
+
+  let runningPeak = 0;
+  let runningPeakIndex = 0;
+  let deepest = 0;
+  let deepestPeakIndex = 0;
+  let deepestTroughIndex = null;
+  series.forEach((value, index) => {
+    if (!finite(value)) return;
+    const level = values[index];
+    if (finite(level) && level >= runningPeak) {
+      runningPeak = level;
+      runningPeakIndex = index;
+    }
+    if (value < deepest) {
+      deepest = value;
+      deepestPeakIndex = runningPeakIndex;
+      deepestTroughIndex = index;
+    }
+  });
+  result.maxDrawdown = deepest;
+  if (deepestTroughIndex == null) return result;
+
+  result.peakIndex = deepestPeakIndex;
+  result.peakDate = dated[deepestPeakIndex] ?? null;
+  result.troughIndex = deepestTroughIndex;
+  result.troughDate = dated[deepestTroughIndex] ?? null;
+  const peakLevel = values[deepestPeakIndex];
+  for (let index = deepestTroughIndex + 1; index < values.length; index += 1) {
+    if (finite(values[index]) && finite(peakLevel) && values[index] >= peakLevel) {
+      result.recoveryIndex = index;
+      result.recoveryDate = dated[index] ?? null;
+      break;
+    }
+  }
+  return result;
+}
+
 function quarterFor(date) {
   return Math.ceil(Number(date.slice(5, 7)) / 3);
 }
@@ -87,6 +162,12 @@ export function normalizeBackendCashflowAccounts(payload, config, dates) {
     }
     const totalInflows = Number(account.total_inflows ?? 0);
     const actualOutflows = Number(account.actual_outflows ?? 0);
+    const balances = account.balances.map(Number);
+    const twrValues = (account.twr_values ?? []).map(Number);
+    const balanceDrawdown = Array.isArray(account.balance_drawdown)
+      && account.balance_drawdown.length === dates.length
+      ? account.balance_drawdown.map(Number)
+      : drawdownFromValues(balances);
     return {
       finalValue: Number(account.final_value),
       initialCapital: Number(account.initial_capital),
@@ -138,9 +219,11 @@ export function normalizeBackendCashflowAccounts(payload, config, dates) {
         amount: Number(flow.amount),
       })),
       dailyReturns: (account.daily_returns ?? []).map(Number),
-      twrValues: (account.twr_values ?? []).map(Number),
-      values: account.balances.map(Number),
-      returns: (account.twr_values ?? []).map(Number),
+      twrValues,
+      balanceDrawdown,
+      maxBalanceDrawdownPct: balanceDrawdown.length ? Math.min(...balanceDrawdown) : null,
+      values: balances,
+      returns: twrValues,
       inflationAdjusted: false,
     };
   };
@@ -237,6 +320,7 @@ export function simulateCashflows({
   cashflowDirection = "inflow",
   startsAtBacktestOrigin = false,
   purchasingPower = [],
+  manualEvents = null,
 }) {
   if (!Array.isArray(dates) || !Array.isArray(strategy) || dates.length < 2 || dates.length !== strategy.length) {
     return {
@@ -260,6 +344,10 @@ export function simulateCashflows({
       grossInvestedCapital: null,
       dailyReturns: [],
       twrValues: [],
+      values: [],
+      returns: [],
+      balanceDrawdown: [],
+      maxBalanceDrawdownPct: null,
       cashflowEvents: [],
       timeline: [],
       investorFlows: [],
@@ -302,11 +390,30 @@ export function simulateCashflows({
   }];
   const investorFlows = [{ date: dates[0], amount: -initialCapitalReal }];
   const cashflowEvents = [];
-  const scheduled = cashflowSchedule(dates, {
-    enabled: contributionEnabled,
-    amount: contribution,
-    frequency,
-  });
+  // Explicit dated events exist for diagnostics and for the accounting tests;
+  // the scheduled path is the one the UI drives. Amounts on manual events are
+  // already in base-date dollars, so they are never scaled again.
+  const scheduled = Array.isArray(manualEvents) && manualEvents.length
+    ? manualEvents
+      .map((event) => {
+        const index = Number(event?.index);
+        const amount = Number(event?.amount);
+        if (!Number.isInteger(index) || index <= 0 || index >= dates.length) return null;
+        if (!finite(amount) || amount <= 0) return null;
+        return {
+          index,
+          date: dates[index],
+          requestedAmount: amount,
+          direction: event?.direction === "outflow" ? "outflow" : "inflow",
+          explicit: true,
+        };
+      })
+      .filter(Boolean)
+    : cashflowSchedule(dates, {
+      enabled: contributionEnabled,
+      amount: contribution,
+      frequency,
+    });
   const scheduleByIndex = new Map(scheduled.map((event) => [event.index, event]));
 
   for (let index = 1; index < dates.length; index += 1) {
@@ -327,13 +434,14 @@ export function simulateCashflows({
     value = nonNegativeBalance(holdingsValue + availableCash);
     const scheduledEvent = scheduleByIndex.get(index);
     if (scheduledEvent) {
-      const power = powerAt(index);
-      const requestedReal = contribution * power;
+      const power = scheduledEvent.explicit ? 1 : powerAt(index);
+      const requestedReal = scheduledEvent.requestedAmount * power;
+      const eventDirection = scheduledEvent.direction ?? direction;
       let actualReal = requestedReal;
       let unpaidReal = 0;
       const balanceBefore = value;
 
-      if (direction === "outflow") {
+      if (eventDirection === "outflow") {
         actualReal = Math.min(requestedReal, value);
         unpaidReal = Math.max(0, requestedReal - actualReal);
         const cashUsed = Math.min(availableCash, actualReal);
@@ -353,7 +461,7 @@ export function simulateCashflows({
           holdingsValue = 0;
         }
         requestedOutflows += requestedReal;
-        nominalRequestedOutflows += contribution;
+        nominalRequestedOutflows += scheduledEvent.requestedAmount;
         actualOutflows += actualReal;
         nominalActualOutflows += actualReal / power;
         unpaidOutflows += unpaidReal;
@@ -368,13 +476,13 @@ export function simulateCashflows({
         }
         value = nonNegativeBalance(holdingsValue + availableCash);
         totalInflows += actualReal;
-        nominalTotalInflows += contribution;
+        nominalTotalInflows += scheduledEvent.requestedAmount;
         investorFlows.push({ date: dates[index], amount: -actualReal });
       }
 
       cashflowEvents.push({
         date: dates[index],
-        direction,
+        direction: eventDirection,
         requestedAmount: requestedReal,
         actualAmount: actualReal,
         unpaidAmount: unpaidReal,
@@ -415,6 +523,10 @@ export function simulateCashflows({
   ));
   const endingHoldingsValue = timeline.at(-1).holdingsValue;
   const endingCash = timeline.at(-1).availableCash;
+  // The account balance drawdown follows the money the investor actually owns.
+  // It therefore moves on an executed withdrawal, which the unitized-NAV
+  // investment drawdown deliberately does not.
+  const balanceDrawdown = drawdownFromValues(timeline.map((point) => point.value));
 
   return {
     finalValue: value,
@@ -441,7 +553,9 @@ export function simulateCashflows({
     endingCash,
     remainingUnits: units,
     grossInvestedCapital: initialCapitalReal + totalInflows,
-    cashflowDirection: direction,
+    cashflowDirection: new Set(scheduled.map((event) => event.direction ?? direction)).size > 1
+      ? "mixed"
+      : direction,
     timeWeightedReturnPct,
     moneyWeightedReturnPct: calculateXirr(investorFlows),
     cashflowEvents,
@@ -449,16 +563,44 @@ export function simulateCashflows({
     investorFlows,
     dailyReturns,
     twrValues,
+    values: timeline.map((point) => point.value),
+    returns: twrValues,
+    balanceDrawdown,
+    maxBalanceDrawdownPct: balanceDrawdown.length ? Math.min(...balanceDrawdown) : null,
     inflationAdjusted: purchasingPower.length > 0,
   };
 }
 
+const PORTFOLIO_IDS = ["strategy", "spy", "spmo"];
+
+function withDerivedSeries(account) {
+  const values = account.values?.length
+    ? account.values
+    : (account.timeline ?? []).map((point) => point.value);
+  const returns = account.returns?.length ? account.returns : (account.twrValues ?? []);
+  const balanceDrawdown = account.balanceDrawdown?.length
+    ? account.balanceDrawdown
+    : drawdownFromValues(values);
+  return {
+    ...account,
+    values,
+    returns,
+    balanceDrawdown,
+    maxBalanceDrawdownPct: balanceDrawdown.length ? Math.min(...balanceDrawdown) : null,
+  };
+}
+
 /**
- * Build the exact dated account balances shown by the cumulative-return
- * tooltip. Every series uses the same opening capital, contribution schedule,
- * entry timing and purchasing-power basis; only its investment path differs.
+ * Single source of truth for the account simulation.
+ *
+ * Strategy, SPY and SPMO are simulated from the same requested external
+ * cashflow schedule, the same opening capital and the same effective dates.
+ * Only the investment NAV differs. When the Python service has already
+ * published accounts for exactly this configuration they are reused verbatim;
+ * the local engine only runs when there is no authoritative payload (for
+ * example the inflation-adjusted view, which the service does not simulate).
  */
-export function calculateCumulativeSeries(window, config = {}, backendAccounts = null) {
+export function buildPortfolioAccounts(window, config = {}, backendAccounts = null) {
   if (!window || !Array.isArray(window.dates)) return {};
   const authoritative = normalizeBackendCashflowAccounts(
     backendAccounts,
@@ -466,16 +608,16 @@ export function calculateCumulativeSeries(window, config = {}, backendAccounts =
     window.dates,
   );
   return Object.fromEntries(
-    ["strategy", "spy", "spmo"].map((id) => {
+    PORTFOLIO_IDS.map((id) => {
       const investmentPath = window[id];
       if (
         !Array.isArray(investmentPath)
         || investmentPath.length !== window.dates.length
         || investmentPath.length < 2
       ) {
-        return [id, { values: [], returns: [] }];
+        return [id, null];
       }
-      if (authoritative?.[id]) return [id, authoritative[id]];
+      if (authoritative?.[id]) return [id, withDerivedSeries(authoritative[id])];
       const account = simulateCashflows({
         dates: window.dates,
         strategy: investmentPath,
@@ -489,17 +631,55 @@ export function calculateCumulativeSeries(window, config = {}, backendAccounts =
         startsAtBacktestOrigin: id === "strategy" && window.startsAtBacktestOrigin,
         purchasingPower: window.purchasingPower ?? [],
       });
-      return [
-        id,
-        {
-          ...account,
-          values: account.timeline.map((point) => point.value),
-          returns: account.twrValues,
-        },
-      ];
+      return [id, withDerivedSeries(account)];
     }),
   );
 }
+
+/**
+ * Dated account balances for every portfolio. Kept for callers that only need
+ * the chart series; it delegates to the same simulation as the report.
+ */
+export function calculateCumulativeSeries(window, config = {}, backendAccounts = null) {
+  const accounts = buildPortfolioAccounts(window, config, backendAccounts);
+  return Object.fromEntries(
+    Object.entries(accounts).map(([id, account]) => [
+      id,
+      account ?? { values: [], returns: [] },
+    ]),
+  );
+}
+
+/**
+ * Slice one simulated account to the visible chart window and rebase its
+ * cumulative TWR to the first visible observation.
+ *
+ * A range filter changes what is visible, never how the account was run: the
+ * balance series keeps the money the investor actually held, so a 1Y view of a
+ * five-year account still shows the real balance instead of restarting the
+ * simulation with fresh capital one year ago.
+ */
+export function sliceAccountSeries(account, startIndex, endIndex = null) {
+  const values = account?.values;
+  if (!Array.isArray(values) || !values.length) return { values: [], returns: [] };
+  const from = Math.max(0, Math.min(Number(startIndex) || 0, values.length - 1));
+  const to = Math.max(
+    from,
+    Math.min(endIndex == null ? values.length - 1 : Number(endIndex), values.length - 1),
+  );
+  const baseReturn = account.returns?.[from];
+  const baseFactor = finite(baseReturn) ? 1 + baseReturn / 100 : null;
+  const returns = (account.returns ?? []).slice(from, to + 1).map((value) => {
+    if (!finite(value)) return null;
+    if (!finite(baseFactor) || baseFactor <= 0) return value;
+    return ((1 + value / 100) / baseFactor - 1) * 100;
+  });
+  return {
+    values: values.slice(from, to + 1),
+    returns,
+  };
+}
+
 
 /** Solve XIRR from dated investor cashflows using a bounded bisection search. */
 export function calculateXirr(cashflows) {
@@ -550,33 +730,35 @@ export function calculateXirr(cashflows) {
   return ((low + high) / 2) * 100;
 }
 
-export function calculateBacktestReport(window, config, backendAccounts = null) {
-  if (!window) return null;
-  const authoritative = normalizeBackendCashflowAccounts(
-    backendAccounts,
-    config,
-    window.dates,
-  );
-  const cashflow = authoritative?.strategy ?? simulateCashflows({
-    dates: window.dates,
-    strategy: window.strategy,
-    initialCapital: config.initialCapital,
-    contributionEnabled: config.cashflowEnabled,
-    contributionAmount: config.contributionAmount,
-    contributionFrequency: config.contributionFrequency,
-    cashflowDirection: config.cashflowDirection,
-    startsAtBacktestOrigin: window.startsAtBacktestOrigin,
-    purchasingPower: window.purchasingPower ?? [],
-  });
+/**
+ * Build every backtesting result from one account simulation.
+ *
+ * The report, the KPI cards, the cumulative chart, the drawdown chart and the
+ * exports all read this object, so a cashflow can never be applied on one path
+ * and ignored on another.
+ */
+export function buildBacktestAnalysis(window, config = {}, backendAccounts = null) {
+  if (!window?.dates?.length) return null;
+  const accounts = buildPortfolioAccounts(window, config, backendAccounts);
+  const strategy = accounts.strategy;
+  if (!strategy) return null;
   const benchmarkReturn = window.spy?.length
     ? (window.spy.at(-1) / window.spy[0] - 1) * 100
     : null;
 
   return {
-    ...cashflow,
+    // Flat account fields (`finalValue`, `netProfitLoss`, ...) so every card
+    // reads the same numbers, plus the structured views below.
+    ...strategy,
+    accounts,
+    strategy,
+    // Account-balance drawdown: the money the investor actually holds. It
+    // moves on an executed withdrawal, which the unitized-NAV investment
+    // drawdown deliberately does not.
+    accountDrawdown: analyzeDrawdown(strategy.values, window.dates),
     benchmarkReturnPct: benchmarkReturn,
-    relativeToSpyPct: finite(benchmarkReturn)
-      ? cashflow.timeWeightedReturnPct - benchmarkReturn
+    relativeToSpyPct: finite(benchmarkReturn) && finite(strategy.timeWeightedReturnPct)
+      ? strategy.timeWeightedReturnPct - benchmarkReturn
       : null,
     annualRows: calculatePeriodReturns({ ...window, frequency: "annual" }),
     quarterlyRows: calculatePeriodReturns({ ...window, frequency: "quarterly" }),
@@ -584,6 +766,114 @@ export function calculateBacktestReport(window, config, backendAccounts = null) 
     inflation: window.inflation ?? null,
   };
 }
+
+export function calculateBacktestReport(window, config, backendAccounts = null) {
+  return buildBacktestAnalysis(window, config, backendAccounts);
+}
+
+const AUDIT_TOLERANCE = 1e-6;
+
+function near(first, second) {
+  return Math.abs(first - second) <= AUDIT_TOLERANCE;
+}
+
+/**
+ * Verify the accounting identities every simulated account must satisfy.
+ *
+ * Returns a list of human-readable violations. Shared by the test suite so the
+ * browser engine and the Python service are held to the same contract.
+ */
+export function auditAccount(account, dates = []) {
+  const problems = [];
+  if (!account) return ["account is missing"];
+  const timeline = Array.isArray(account.timeline) ? account.timeline : [];
+  const values = Array.isArray(account.values) && account.values.length
+    ? account.values
+    : timeline.map((point) => point.value);
+  if (!values.length) return ["account has no balances"];
+  if (timeline.length && timeline.length !== values.length) {
+    problems.push(`timeline has ${timeline.length} points but ${values.length} balances`);
+  }
+  values.forEach((value, index) => {
+    if (!finite(value)) problems.push(`balance[${index}] is not finite`);
+    else if (value < -AUDIT_TOLERANCE) problems.push(`balance[${index}] is negative`);
+  });
+  timeline.forEach((point, index) => {
+    const label = point.date ?? `#${index}`;
+    if (!finite(point.value) || point.value < -AUDIT_TOLERANCE) {
+      problems.push(`${label}: balance is missing or negative`);
+    }
+    if (!finite(point.holdingsValue) || point.holdingsValue < -AUDIT_TOLERANCE) {
+      problems.push(`${label}: holdings value is missing or negative`);
+    }
+    if (!finite(point.availableCash) || point.availableCash < -AUDIT_TOLERANCE) {
+      problems.push(`${label}: available cash is missing or negative`);
+    }
+    if (!finite(point.units) || point.units < -AUDIT_TOLERANCE) {
+      problems.push(`${label}: units are missing or negative`);
+    }
+    if (finite(point.holdingsValue) && finite(point.availableCash) && finite(point.value)
+      && !near(point.value, point.holdingsValue + point.availableCash)) {
+      problems.push(`${label}: balance != holdings value + available cash`);
+    }
+  });
+
+  const initialCapital = Number(account.initialCapital ?? 0);
+  const totalInflows = Number(account.totalInflows ?? 0);
+  const actualOutflows = Number(account.actualOutflows ?? 0);
+  const endingBalance = values.at(-1);
+  const grossInvested = initialCapital + totalInflows;
+  if (finite(account.finalValue) && !near(account.finalValue, endingBalance)) {
+    problems.push("finalValue does not equal the last balance");
+  }
+  if (finite(account.grossInvestedCapital) && !near(account.grossInvestedCapital, grossInvested)) {
+    problems.push("grossInvestedCapital != initial capital + total inflows");
+  }
+  if (finite(account.netProfitLoss)
+    && !near(account.netProfitLoss, endingBalance + actualOutflows - grossInvested)) {
+    problems.push("netProfitLoss != ending balance + actual outflows - initial capital - inflows");
+  }
+  if (finite(account.unpaidOutflows) && account.unpaidOutflows < -AUDIT_TOLERANCE) {
+    problems.push("unpaid outflows are negative");
+  }
+
+  const dateIndex = new Map(dates.map((date, index) => [date, index]));
+  (account.cashflowEvents ?? []).forEach((event) => {
+    const label = event.date ?? "event";
+    const requested = Number(event.requestedAmount ?? 0);
+    const actual = Number(event.actualAmount ?? 0);
+    const unpaid = Number(event.unpaidAmount ?? 0);
+    const before = Number(event.balanceBefore ?? 0);
+    const after = Number(event.endingBalance ?? 0);
+    if (actual < -AUDIT_TOLERANCE) problems.push(`${label}: executed amount is negative`);
+    if (unpaid < -AUDIT_TOLERANCE) problems.push(`${label}: unpaid amount is negative`);
+    if (!near(actual + unpaid, requested)) problems.push(`${label}: actual + unpaid != requested`);
+    if (event.direction === "outflow" && actual > before + AUDIT_TOLERANCE) {
+      problems.push(`${label}: executed more than the available balance`);
+    }
+    const expectedAfter = event.direction === "outflow"
+      ? Math.max(0, before - actual)
+      : before + actual;
+    if (!near(after, expectedAfter)) {
+      problems.push(`${label}: ending balance != expected post-event balance`);
+    }
+    const index = dateIndex.get(label);
+    if (index != null && finite(values[index]) && !near(values[index], after)) {
+      problems.push(`${label}: event balance does not match the timeline`);
+    }
+    if (event.direction === "inflow" && unpaid > AUDIT_TOLERANCE) {
+      problems.push(`${label}: an inflow cannot be unpaid`);
+    }
+  });
+
+  ["timeWeightedReturnPct", "moneyWeightedReturnPct"].forEach((key) => {
+    const value = account[key];
+    if (value != null && !finite(value)) problems.push(`${key} is not finite`);
+  });
+
+  return problems;
+}
+
 
 function cpiAtDate(observations, date) {
   let low = 0;

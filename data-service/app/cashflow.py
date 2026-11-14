@@ -202,13 +202,22 @@ def simulate_account(
 
     for index, (stamp, nav_value) in enumerate(zip(stamps, values)):
         nav = float(nav_value)
-        if index:
+        usable = math.isfinite(nav) and nav > 0
+        if index and not usable:
             # Units of the total-return wealth index stay constant through
             # market moves; the NAV already contains the investment return.
-            if not math.isfinite(nav) or nav <= 0:
-                units = 0.0
+            # An unusable close makes the holding worthless rather than leaving
+            # stale units that would reappear on the next valid observation.
+            units = 0.0
+        if cash > 0 and usable:
+            # Cash received while no usable close existed is invested at the
+            # first usable close, so it never earns the return it missed. This
+            # is the only way an account holds cash, and it is why a later
+            # inflow can restart investment after a depletion.
+            units += cash / nav
+            cash = 0.0
 
-        holdings = max(0.0, units * nav) if math.isfinite(nav) and nav > 0 else 0.0
+        holdings = max(0.0, units * nav) if usable else 0.0
         if holdings <= 0:
             units = 0.0
         cash = max(0.0, cash)
@@ -277,6 +286,17 @@ def simulate_account(
         for index in range(1, len(values))
         if values[index - 1] > 0 and values[index] >= 0
     ]
+    # Account-balance drawdown is a separate measurement from the unitized-NAV
+    # (investment) drawdown: it follows the money the investor actually owns, so
+    # an executed withdrawal shows up here as a fall in the balance even though
+    # it is not an investment loss.
+    running_peak = 0.0
+    balance_drawdown: list[float] = []
+    for balance in balances:
+        running_peak = max(running_peak, balance)
+        balance_drawdown.append(
+            (balance / running_peak - 1.0) * 100.0 if running_peak > 0 else 0.0
+        )
     gross_invested = float(initial_capital) + total_inflows
     return {
         "initial_capital": float(initial_capital),
@@ -298,6 +318,8 @@ def simulate_account(
         "cash_values": cash_values,
         "units": units_values,
         "twr_values": twr_values,
+        "balance_drawdown": balance_drawdown,
+        "max_balance_drawdown_pct": min(balance_drawdown) if balance_drawdown else 0.0,
         "daily_returns": daily_twr,
         "events": events,
         "investor_flows": investor_flows,
@@ -359,3 +381,130 @@ def simulate_accounts(
         },
         "accounts": accounts,
     }
+
+
+AUDIT_TOLERANCE = 1e-6
+
+
+def audit_account(result: dict, dates: Iterable | None = None) -> list[str]:
+    """Verify the accounting identities one simulated account must satisfy.
+
+    Returns human-readable violations; an empty list means the account is
+    internally consistent. The test suite calls this for every scenario so a
+    regression in the simulation cannot ship silently. ``dates`` is optional and
+    only used to cross-check each cash-flow event against the timeline.
+    """
+    problems: list[str] = []
+
+    def numeric(name: str) -> list[float]:
+        series = result.get(name)
+        if not isinstance(series, list) or not series:
+            problems.append(f"{name} is missing or empty")
+            return []
+        cleaned: list[float] = []
+        for index, value in enumerate(series):
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                problems.append(f"{name}[{index}] is not numeric: {value!r}")
+                cleaned.append(0.0)
+            elif not math.isfinite(float(value)):
+                problems.append(f"{name}[{index}] is not finite: {value!r}")
+                cleaned.append(0.0)
+            else:
+                cleaned.append(float(value))
+        return cleaned
+
+    balances = numeric("balances")
+    holdings = numeric("holdings_values")
+    cash = numeric("cash_values")
+    units = numeric("units")
+    if not balances:
+        return problems
+
+    for name, series in (
+        ("holdings_values", holdings),
+        ("cash_values", cash),
+        ("units", units),
+    ):
+        if len(series) != len(balances):
+            problems.append(
+                f"{name} has {len(series)} observations but balances has {len(balances)}"
+            )
+
+    for label, series in (
+        ("balance", balances),
+        ("holdings", holdings),
+        ("cash", cash),
+    ):
+        for index, value in enumerate(series):
+            if value < -AUDIT_TOLERANCE:
+                problems.append(f"{label}[{index}] is negative: {value!r}")
+    for index, value in enumerate(units):
+        if value < -AUDIT_TOLERANCE:
+            problems.append(f"units[{index}] is negative: {value!r}")
+
+    pair_count = min(len(balances), len(holdings), len(cash))
+    for index in range(pair_count):
+        if abs(balances[index] - (holdings[index] + cash[index])) > AUDIT_TOLERANCE:
+            problems.append(
+                f"balance[{index}] {balances[index]!r} != holdings + cash "
+                f"{holdings[index] + cash[index]!r}"
+            )
+
+    ending_balance = balances[-1]
+    if abs(float(result.get("final_value", math.nan)) - ending_balance) > AUDIT_TOLERANCE:
+        problems.append("final_value does not equal the last balance")
+    if abs(float(result.get("ending_holdings_value", math.nan)) - holdings[-1]) > AUDIT_TOLERANCE:
+        problems.append("ending_holdings_value does not equal the last holdings value")
+    if abs(float(result.get("ending_cash", math.nan)) - cash[-1]) > AUDIT_TOLERANCE:
+        problems.append("ending_cash does not equal the last cash value")
+
+    initial_capital = float(result.get("initial_capital", 0.0))
+    total_inflows = float(result.get("total_inflows", 0.0))
+    actual_outflows = float(result.get("actual_outflows", 0.0))
+    gross_invested = initial_capital + total_inflows
+    if abs(float(result.get("gross_invested_capital", math.nan)) - gross_invested) > AUDIT_TOLERANCE:
+        problems.append("gross_invested_capital != initial capital + total inflows")
+    expected_profit = ending_balance + actual_outflows - gross_invested
+    if abs(float(result.get("net_profit_loss", math.nan)) - expected_profit) > AUDIT_TOLERANCE:
+        problems.append(
+            "net_profit_loss != ending balance + actual outflows - initial capital - inflows"
+        )
+
+    date_index = {
+        _date_string(value): index for index, value in enumerate(dates or [])
+    }
+    for event in result.get("events") or []:
+        requested = float(event.get("requested_amount", 0.0))
+        actual = float(event.get("actual_amount", 0.0))
+        unpaid = float(event.get("unpaid_amount", 0.0))
+        before = float(event.get("balance_before", 0.0))
+        after = float(event.get("balance_after", 0.0))
+        direction = "outflow" if event.get("direction") == "outflow" else "inflow"
+        if actual < -AUDIT_TOLERANCE:
+            problems.append(f"{event.get('date')}: executed amount is negative")
+        if unpaid < -AUDIT_TOLERANCE:
+            problems.append(f"{event.get('date')}: unpaid amount is negative")
+        if abs((actual + unpaid) - requested) > AUDIT_TOLERANCE:
+            problems.append(f"{event.get('date')}: actual + unpaid != requested")
+        if actual > before + AUDIT_TOLERANCE and direction == "outflow":
+            problems.append(f"{event.get('date')}: executed more than the available balance")
+        if after < -AUDIT_TOLERANCE:
+            problems.append(f"{event.get('date')}: balance after the event is negative")
+        expected_after = (
+            max(0.0, before - actual) if direction == "outflow" else before + actual
+        )
+        if abs(after - expected_after) > AUDIT_TOLERANCE:
+            problems.append(f"{event.get('date')}: balance after != expected post-event balance")
+        index = date_index.get(str(event.get("date"))[:10])
+        if index is not None and abs(balances[index] - after) > AUDIT_TOLERANCE:
+            problems.append(f"{event.get('date')}: event balance does not match the timeline")
+        if direction == "inflow" and unpaid > AUDIT_TOLERANCE:
+            problems.append(f"{event.get('date')}: an inflow cannot be unpaid")
+
+    for name in ("time_weighted_return_pct", "money_weighted_return_pct"):
+        value = result.get(name)
+        if value is not None and not math.isfinite(float(value)):
+            problems.append(f"{name} is not finite: {value!r}")
+
+    return problems
+

@@ -40,10 +40,11 @@ import {
 } from "./utils/backtestExport.js";
 import { computeWindowMetrics, formatBacktestDuration } from "./utils/backtestMetrics.js";
 import {
+  analyzeDrawdown,
   applyInflationAdjustment,
-  calculateBacktestReport,
-  calculateCumulativeSeries,
+  buildBacktestAnalysis,
   getBacktestAvailability,
+  sliceAccountSeries,
 } from "./utils/backtestReport.js";
 import { buildDrawdownScale } from "./utils/drawdownScale.js";
 import { resolveYearLabelPositions } from "./utils/yearAxis.js";
@@ -71,6 +72,13 @@ import {
 import { UNIVERSE_OPTIONS } from "./utils/universeState.js";
 
 const RANGES = ["1Y", "3Y", "5Y", "All"];
+// The two cumulative-chart views are different measurements, not skins:
+// "value" plots the cashflow-inclusive account balance, "return" plots the
+// flow-neutral unitized TWR.
+const CHART_VIEWS = [
+  { id: "value", label: "Portfolio Value" },
+  { id: "return", label: "Cumulative Return" },
+];
 const SERIES = [
   { id: "strategy", name: "Strategy", color: "#FFC83D" },
   { id: "spy", name: "SPY", color: "#69A5F5" },
@@ -142,6 +150,17 @@ function formatTooltipMoney(value) {
     }).format(value);
   }
   return formatMoney(value);
+}
+
+function formatAxisMoney(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "—";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    notation: "compact",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: Math.abs(value) >= 100_000 ? 0 : 1,
+  }).format(value);
 }
 
 function formatDate(isoDate) {
@@ -235,10 +254,43 @@ function wealthPosition(value, scale, top, plotHeight, logScale) {
   return top + (maximum - Math.log10(1 + value / 100)) / (maximum - minimum) * plotHeight;
 }
 
-function CumulativeTooltip({ window, index, width, seriesValues }) {
+/**
+ * Dollar ticks for the account-balance view. The step is chosen so the plot
+ * keeps roughly four gridlines whatever the account size, and the axis never
+ * starts below zero because an account balance cannot be negative.
+ */
+function moneyScale(low, high) {
+  const span = Math.max(high - low, 1);
+  const magnitude = 10 ** Math.floor(Math.log10(span / 4));
+  const normalized = span / 4 / magnitude;
+  const step = (
+    normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 2.5 ? 2.5 : normalized <= 5 ? 5 : 10
+  ) * magnitude;
+  const max = Math.ceil(high / step) * step;
+  const min = Math.max(0, Math.floor(low / step) * step);
+  const ticks = [];
+  for (let value = min; value <= max + step * 0.01; value += step) ticks.push(value);
+  return { min, max: Math.max(max, min + step), ticks: ticks.length ? ticks : [min] };
+}
+
+function valuePosition(value, scale, top, plotHeight, logScale) {
+  if (!logScale) {
+    return top + (scale.max - value) / (scale.max - scale.min) * plotHeight;
+  }
+  // A dollar axis can be logged directly; the floor keeps a depleted account
+  // (balance 0) on the chart instead of taking log(0).
+  const minimum = Math.max(scale.min, 1);
+  const maximum = Math.max(scale.max, minimum * 10);
+  const clamped = Math.max(value, minimum);
+  return top
+    + (Math.log10(maximum) - Math.log10(clamped))
+    / (Math.log10(maximum) - Math.log10(minimum)) * plotHeight;
+}
+
+function CumulativeTooltip({ dates, index, width, seriesValues }) {
   return (
     <div className="backtest-chart-tooltip" role="tooltip" style={{ width }}>
-      <span className="backtest-chart-tooltip__date">{formatDate(window.dates[index])}</span>
+      <span className="backtest-chart-tooltip__date">{formatDate(dates[index])}</span>
       {SERIES.map((series) => {
         const values = seriesValues?.[series.id];
         const portfolioValue = values?.values?.[index];
@@ -274,7 +326,7 @@ function LogScaleToggle({ checked, onChange }) {
   );
 }
 
-function CumulativeChart({ window, range, logScale, seriesValues, onLogUnavailable }) {
+function CumulativeChart({ dates, range, view, logScale, seriesValues, onLogUnavailable }) {
   const [boxRef, box] = useElementSize();
   const [selectedIndex, setSelectedIndex] = useState(null);
   const [tooltipSide, setTooltipSide] = useState(null);
@@ -285,34 +337,45 @@ function CumulativeChart({ window, range, logScale, seriesValues, onLogUnavailab
   const height = Math.round(box.height);
   const ready = width > 0 && height > 0;
   const compact = width > 0 && width < 560;
+  // The dollar view needs a wider label gutter because "$1.24M" is longer
+  // than "+363.7%".
+  const isPercent = view !== "value";
   const left = compact ? 42 : 54;
   const top = 30;
-  const labelGutter = compact ? 82 : 126;
+  const labelGutter = (compact ? 82 : 126) + (isPercent ? 0 : 22);
   const plotWidth = Math.max(80, width - left - labelGutter);
   const plotHeight = Math.max(80, height - top - (compact ? 30 : 34));
 
   const computedSeries = SERIES
-    .filter((series) => window[series.id]?.length)
-    .map((series) => ({
-      ...series,
-      values: seriesValues?.[series.id]?.returns?.length === window[series.id].length
-        ? seriesValues[series.id].returns
-        : window[series.id].map((value) => value - 100),
-    }));
+    .map((series) => {
+      const entry = seriesValues?.[series.id];
+      const values = isPercent ? entry?.returns : entry?.values;
+      return { ...series, values: Array.isArray(values) ? values : [] };
+    })
+    .filter((series) => series.values.length === dates.length);
 
   useEffect(() => {
     setSelectedIndex(null);
     setTooltipSide(null);
     movementOriginX.current = Number.NaN;
     tooltipSideRef.current = null;
-  }, [range, window.dates.length]);
-  const allValues = computedSeries.flatMap((series) => series.values);
-  const high = Math.max(10, ...allValues);
-  const low = Math.min(0, ...allValues);
-  const scale = cumulativeScale(high, low);
-  const logAvailable = allValues.every((value) => value > -100);
+  }, [range, view, dates.length]);
+
+  const allValues = computedSeries
+    .flatMap((series) => series.values)
+    .filter((value) => typeof value === "number" && Number.isFinite(value));
+  const high = isPercent ? Math.max(10, ...allValues) : Math.max(0, ...allValues);
+  const low = isPercent ? Math.min(0, ...allValues) : Math.min(high, ...allValues);
+  const scale = isPercent ? cumulativeScale(high, low) : moneyScale(low, high);
+  const logAvailable = allValues.length > 0
+    && allValues.every((value) => (isPercent ? value > -100 : value > 0));
   const renderedLogScale = logScale && logAvailable;
-  const yForValue = (value) => wealthPosition(value, scale, top, plotHeight, renderedLogScale);
+  const yForValue = (value) => (
+    isPercent
+      ? wealthPosition(value, scale, top, plotHeight, renderedLogScale)
+      : valuePosition(value, scale, top, plotHeight, renderedLogScale)
+  );
+  const axisLabel = (tick) => (isPercent ? `${tick}%` : formatAxisMoney(tick));
   useEffect(() => {
     if (logScale && !logAvailable) onLogUnavailable?.();
   }, [logAvailable, logScale, onLogUnavailable]);
@@ -326,11 +389,14 @@ function CumulativeChart({ window, range, logScale, seriesValues, onLogUnavailab
   // Same collision-safe treatment as the drawdown chart, with this chart's own
   // spacing. The helper clamps to the plot edges, so labels need no extra clamp.
   const labelPositions = resolveYearLabelPositions(
-    window.dates,
+    dates,
     left,
     plotWidth,
     compact ? 66 : 48,
   );
+  const pillWidth = compact ? (isPercent ? 70 : 84) : (isPercent ? 91 : 112);
+  const pillOffset = compact ? 9 : 14;
+  const pillCenter = pillOffset + pillWidth / 2;
   const endLabels = computedSeries
     .map((series) => ({ series, point: pointsFor(series.values).at(-1) }))
     .sort((a, b) => a.point.y - b.point.y);
@@ -346,8 +412,11 @@ function CumulativeChart({ window, range, logScale, seriesValues, onLogUnavailab
     endLabels.forEach((item) => { item.labelY -= overflow; });
   }
 
-  const selectedPoint = selectedIndex == null ? null : pointsFor(computedSeries[0].values)[selectedIndex];
-  const labelBoundary = left + plotWidth + (compact ? 9 : 14);
+  const leadValues = computedSeries[0]?.values ?? [];
+  const selectedPoint = selectedIndex == null || !leadValues.length
+    ? null
+    : pointsFor(leadValues)[selectedIndex];
+  const labelBoundary = left + plotWidth + pillOffset;
   const tooltipGap = compact ? 14 : CHART_TOOLTIP_GAP;
   const tooltipMargin = compact ? 8 : CHART_TOOLTIP_MARGIN;
   const tooltipWidth = compact
@@ -395,7 +464,7 @@ function CumulativeChart({ window, range, logScale, seriesValues, onLogUnavailab
 
   function selectAt(clientX) {
     const rect = boxRef.current?.getBoundingClientRect();
-    if (!rect) return;
+    if (!rect || !leadValues.length) return;
     const x = Math.min(Math.max(clientX - rect.left, left), left + plotWidth);
     const nextSide = sideForMovement({
       pointerX: x,
@@ -405,7 +474,7 @@ function CumulativeChart({ window, range, logScale, seriesValues, onLogUnavailab
     movementOriginX.current = nextSide.movementOriginX;
     tooltipSideRef.current = nextSide.side;
     setTooltipSide(nextSide.side);
-    setSelectedIndex(nearestObservationIndex(pointsFor(window.strategy.map((value) => value - 100)), x));
+    setSelectedIndex(nearestObservationIndex(pointsFor(leadValues), x));
   }
 
   function handleLeave(event) {
@@ -418,13 +487,15 @@ function CumulativeChart({ window, range, logScale, seriesValues, onLogUnavailab
 
   return (
     <div className="backtest-chart-frame" ref={boxRef}>
-      {ready && (
+      {ready && computedSeries.length > 0 && (
         <svg
           className="backtest-chart-svg"
           viewBox={`0 0 ${width} ${height}`}
           preserveAspectRatio="xMidYMid meet"
           role="img"
-          aria-label={`${range} cumulative return comparison for strategy, SPY and SPMO`}
+          aria-label={isPercent
+            ? `${range} cumulative return comparison for strategy, SPY and SPMO`
+            : `${range} account balance comparison for strategy, SPY and SPMO`}
           onPointerMove={(event) => {
             if (event.pointerType !== "touch" && event.pointerType !== "pen") selectAt(event.clientX);
           }}
@@ -444,7 +515,7 @@ function CumulativeChart({ window, range, logScale, seriesValues, onLogUnavailab
             return (
               <g key={tick}>
                 <line x1={left} x2={left + plotWidth} y1={y} y2={y} className="backtest-gridline" />
-                <text x={left - 9} y={y + 4} textAnchor="end" className="backtest-axis-label">{tick}%</text>
+                <text x={left - 9} y={y + 4} textAnchor="end" className="backtest-axis-label">{axisLabel(tick)}</text>
               </g>
             );
           })}
@@ -478,22 +549,22 @@ function CumulativeChart({ window, range, logScale, seriesValues, onLogUnavailab
           {endLabels.map(({ series, point, labelY }) => (
             <g key={`${series.id}-end`} data-testid={`backtest-final-label-${series.id}`}>
               <circle cx={point.x} cy={point.y} r="4.5" className={`backtest-endpoint backtest-endpoint--${series.id}`} />
-              <path d={`M ${point.x + 7} ${point.y} L ${point.x + (compact ? 9 : 14)} ${labelY}`} className={`backtest-leader backtest-leader--${series.id}`} />
+              <path d={`M ${point.x + 7} ${point.y} L ${point.x + pillOffset} ${labelY}`} className={`backtest-leader backtest-leader--${series.id}`} />
               <rect
-                x={point.x + (compact ? 9 : 14)}
+                x={point.x + pillOffset}
                 y={labelY - (compact ? 10 : 12)}
-                width={compact ? 70 : 91}
+                width={pillWidth}
                 height={compact ? 20 : 24}
                 rx={compact ? 10 : 12}
                 className={`backtest-value-pill backtest-value-pill--${series.id}`}
               />
               <text
-                x={point.x + (compact ? 44 : 59.5)}
+                x={point.x + pillCenter}
                 y={labelY}
                 dominantBaseline="central"
                 textAnchor="middle"
                 className={`backtest-value-label${compact ? " backtest-value-label--compact" : ""}`}
-              >{formatPercent(series.values.at(-1))}</text>
+              >{isPercent ? formatPercent(series.values.at(-1)) : formatTooltipMoney(series.values.at(-1))}</text>
             </g>
           ))}
         </svg>
@@ -506,7 +577,7 @@ function CumulativeChart({ window, range, logScale, seriesValues, onLogUnavailab
           data-testid="backtest-cumulative-tooltip"
         >
           <CumulativeTooltip
-            window={window}
+            dates={dates}
             index={selectedIndex}
             width={tooltipWidth}
             seriesValues={seriesValues}
@@ -516,7 +587,7 @@ function CumulativeChart({ window, range, logScale, seriesValues, onLogUnavailab
     </div>
   );
 }
-function DrawdownChart({ window }) {
+function DrawdownChart({ dates, values, basis }) {
   const [boxRef, box] = useElementSize();
   const [selectedIndex, setSelectedIndex] = useState(null);
   const [tooltipRef, tooltipSize] = useChartTooltipSize();
@@ -528,16 +599,15 @@ function DrawdownChart({ window }) {
   const top = 30;
   const plotWidth = Math.max(80, width - left - 18);
   const plotHeight = Math.max(90, height - top - 34);
-  const scale = buildDrawdownScale(window.drawdown);
+  const scale = buildDrawdownScale(values);
   const low = Math.min(scale.min, -1);
-  const values = window.drawdown;
   // Calendar-time x-axis: every point sits at its real date, each calendar year
   // owns one equal-width segment, and a partial first year simply starts part
   // way into its segment. Falls back to index spacing only if no date parses.
-  const axis = createCalendarScale(window.dates, left, plotWidth);
+  const axis = createCalendarScale(dates, left, plotWidth);
   let previousX = axis ? axis.innerLeft : left;
   const points = values.map((value, index) => {
-    const x = axis?.xForDate(window.dates[index]) ?? previousX;
+    const x = axis?.xForDate(dates[index]) ?? previousX;
     previousX = x;
     return {
       x,
@@ -576,7 +646,7 @@ function DrawdownChart({ window }) {
 
   useEffect(() => {
     setSelectedIndex(null);
-  }, [window.dates.length, window.dates[0]]);
+  }, [dates.length, dates[0], basis]);
 
   function selectAt(clientX) {
     const rect = boxRef.current?.getBoundingClientRect();
@@ -587,14 +657,16 @@ function DrawdownChart({ window }) {
 
   return (
     <div className="backtest-chart-frame backtest-drawdown-frame" ref={boxRef}>
-      <span className="backtest-axis-caption">Drawdown (%)</span>
+      <span className="backtest-axis-caption">
+        {basis === "account" ? "Account balance drawdown (%)" : "Investment drawdown (%)"}
+      </span>
       {ready && (
         <svg
           className="backtest-chart-svg"
           viewBox={`0 0 ${width} ${height}`}
           preserveAspectRatio="xMidYMid meet"
           role="img"
-          aria-label={`Strategy drawdown, maximum ${formatPercent(values[maxIndex])} on ${formatDate(window.dates[maxIndex])}`}
+          aria-label={`${basis === "account" ? "Account balance" : "Investment"} drawdown, maximum ${formatPercent(values[maxIndex])} on ${formatDate(dates[maxIndex])}`}
           onPointerMove={(event) => {
             if (event.pointerType !== "touch" && event.pointerType !== "pen") selectAt(event.clientX);
           }}
@@ -645,7 +717,7 @@ function DrawdownChart({ window }) {
             ref={tooltipRef}
             style={{ width: tooltipWidth }}
           >
-            <span className="backtest-chart-tooltip__date">{formatDate(window.dates[selectedIndex])}</span>
+            <span className="backtest-chart-tooltip__date">{formatDate(dates[selectedIndex])}</span>
             <strong className="backtest-chart-tooltip__drawdown">{formatPercent(values[selectedIndex], 2)}</strong>
           </div>
         </div>
@@ -702,6 +774,9 @@ function AnnualReturnTable({ rows = [], includeYtd, state = "ready" }) {
           </tbody>
         </table>
       </div>
+      <p className="backtest-table-note">
+        Flow-neutral time-weighted returns: deposits and withdrawals are excluded.
+      </p>
     </DashboardCard>
   );
 }
@@ -751,6 +826,9 @@ function MonthlyReturnTable({ rows = [], state = "ready" }) {
           </tbody>
         </table>
       </div>
+      <p className="backtest-table-note">
+        Flow-neutral time-weighted returns: deposits and withdrawals are excluded.
+      </p>
     </DashboardCard>
   );
 }
@@ -808,6 +886,24 @@ function PerformanceSummary({ report, reportWindow, metrics, config, state = "re
       value: formatPercent(report?.moneyWeightedReturnPct, 2),
       tone: valueTone(report?.moneyWeightedReturnPct),
       tip: "The annualised rate that makes the dated initial investment, cashflows and ending account value net to zero.",
+    },
+    {
+      label: "Net Profit / Loss",
+      value: report ? formatMoney(report.netProfitLoss) : "—",
+      tone: valueTone(report?.netProfitLoss),
+      tip: "Ending balance plus actual withdrawals, minus initial capital and actual deposits. Unpaid withdrawals are excluded because they never left the account.",
+    },
+    {
+      label: "Investment Max Drawdown",
+      value: formatPercent(metrics?.maxDrawdown),
+      tone: valueTone(metrics?.maxDrawdown),
+      tip: "Peak-to-trough decline of the unitized total-return NAV. Deposits and withdrawals cannot create or mask this loss.",
+    },
+    {
+      label: "Account Max Drawdown",
+      value: formatPercent(report?.accountDrawdown?.maxDrawdown),
+      tone: valueTone(report?.accountDrawdown?.maxDrawdown),
+      tip: "Peak-to-trough decline of the actual account balance, including executed withdrawals. This is a cashflow view, not a market-loss measure.",
     },
     {
       label: "vs. SPY (Total Return)",
@@ -1118,6 +1214,10 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
   const [customRun, setCustomRun] = useState(null);
   const [range, setRange] = useState("All");
   const [logScale, setLogScale] = useState(false);
+  // The default view is the money the investor actually holds, because that is
+  // what the cashflow configuration changes.
+  const [chartView, setChartView] = useState("value");
+  const [drawdownBasis, setDrawdownBasis] = useState("investment");
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -1317,14 +1417,43 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
     },
     [cpi, nominalChartWindow, submittedConfig?.inflationAdjusted],
   );
-  const cumulativeSeries = useMemo(
-    () => calculateCumulativeSeries(
-      chartWindow,
-      submittedConfig,
-      submittedConfig?.inflationAdjusted ? null : resultBlock?.cashflowAccounts,
-    ),
-    [chartWindow, resultBlock, submittedConfig],
+  const analysis = useMemo(
+    () => (reportWindow && submittedConfig
+      ? buildBacktestAnalysis(
+        reportWindow,
+        submittedConfig,
+        submittedConfig.inflationAdjusted ? null : resultBlock?.cashflowAccounts,
+      )
+      : null),
+    [reportWindow, resultBlock, submittedConfig],
   );
+  // One analysis drives every card, chart and export. `report` is the same
+  // object so no consumer can accidentally read a second calculation path.
+  const report = analysis;
+  const chartBounds = useMemo(() => {
+    if (!reportWindow?.dates?.length || !chartWindow?.dates?.length) return null;
+    const position = new Map(reportWindow.dates.map((date, index) => [date, index]));
+    const start = position.get(chartWindow.dates[0]);
+    const end = position.get(chartWindow.dates.at(-1));
+    return start == null || end == null ? null : { start, end };
+  }, [chartWindow, reportWindow]);
+  // A range filter changes what is visible, not how the account was run: the
+  // series are sliced out of the single simulation instead of being re-simulated
+  // on a shorter window with fresh opening capital.
+  const chartSeries = useMemo(() => {
+    if (!analysis || !chartBounds) return {};
+    return Object.fromEntries(
+      ["strategy", "spy", "spmo"].map((id) => {
+        const account = analysis.accounts?.[id];
+        return [
+          id,
+          account
+            ? sliceAccountSeries(account, chartBounds.start, chartBounds.end)
+            : { values: [], returns: [] },
+        ];
+      }),
+    );
+  }, [analysis, chartBounds]);
   const metrics = useMemo(
     () => computeWindowMetrics(
       reportWindow,
@@ -1334,16 +1463,34 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
     ),
     [reportWindow, resultBlock, submittedConfig?.inflationAdjusted, submittedConfig?.reinvestDividends],
   );
-  const report = useMemo(
-    () => reportWindow && submittedConfig
-      ? calculateBacktestReport(
-        reportWindow,
-        submittedConfig,
-        submittedConfig.inflationAdjusted ? null : resultBlock?.cashflowAccounts,
-      )
-      : null,
-    [reportWindow, resultBlock, submittedConfig],
+  // Investment drawdown is the unitized-NAV measurement; the account-balance
+  // variant is published by the shared simulation.
+  const investmentDrawdown = useMemo(
+    () => (reportWindow ? analyzeDrawdown(reportWindow.strategy, reportWindow.dates) : null),
+    [reportWindow],
   );
+  const drawdownView = useMemo(() => {
+    if (drawdownBasis === "account") {
+      return {
+        basis: "account",
+        series: analysis?.accountDrawdown?.series ?? [],
+        peakDate: analysis?.accountDrawdown?.peakDate ?? null,
+        troughDate: analysis?.accountDrawdown?.troughDate ?? null,
+        recoveryDate: analysis?.accountDrawdown?.recoveryDate ?? null,
+        max: analysis?.accountDrawdown?.maxDrawdown ?? null,
+      };
+    }
+    return {
+      basis: "investment",
+      series: investmentDrawdown?.series ?? [],
+      peakDate: investmentDrawdown?.peakDate ?? null,
+      troughDate: investmentDrawdown?.troughDate ?? null,
+      recoveryDate: investmentDrawdown?.recoveryDate ?? null,
+      max: Number.isFinite(metrics?.maxDrawdown)
+        ? metrics.maxDrawdown
+        : investmentDrawdown?.maxDrawdown ?? null,
+    };
+  }, [analysis, drawdownBasis, investmentDrawdown, metrics]);
   const resultsReady = Boolean(report && reportWindow && chartWindow);
   const resultsState = isRunning
     ? "loading"
@@ -1353,6 +1500,13 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
         ? "loading"
         : sourceState;
   const resultsLoading = !resultsReady && resultsState === "loading";
+  // With cashflows enabled the primary performance figure is the investor's own
+  // money-weighted return; the flow-neutral TWR stays one click away in the
+  // KPI detail and in the Performance Summary.
+  const cashflowPrimary = Boolean(submittedConfig?.cashflowEnabled);
+  const headlineReturn = cashflowPrimary
+    ? report?.moneyWeightedReturnPct
+    : report?.timeWeightedReturnPct ?? metrics.totalReturn;
   // Pending universe/rebalance changes only update the draft. They never raise
   // a notification: feedback belongs to Run Backtest and its real outcome.
 
@@ -1591,9 +1745,12 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
             />
             <KpiCard
               loading={resultsLoading}
-              label="Total Return"
-              value={formatPercent(report?.timeWeightedReturnPct ?? metrics.totalReturn)}
-              valueTone={valueTone(report?.timeWeightedReturnPct ?? metrics.totalReturn)}
+              label={cashflowPrimary ? "Investor Return" : "Total Return"}
+              detail={cashflowPrimary && report && !resultsLoading
+                ? `XIRR · TWR ${formatPercent(report.timeWeightedReturnPct)}`
+                : undefined}
+              value={formatPercent(headlineReturn)}
+              valueTone={valueTone(headlineReturn)}
               icon={Stack}
               tint="mint"
               mascotVariant="mint"
@@ -1602,10 +1759,20 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
           </section>
 
           <DashboardCard
-            title="Cumulative Return"
+            title="Portfolio Performance"
             className="backtest-cumulative-card"
             action={(
               <div className="backtest-chart-controls">
+                <div className="period-control backtest-view-control" role="group" aria-label="Chart view">
+                  {CHART_VIEWS.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      aria-pressed={chartView === item.id}
+                      onClick={() => setChartView(item.id)}
+                    >{item.label}</button>
+                  ))}
+                </div>
                 <LogScaleToggle checked={logScale} onChange={setLogScale} />
                 <div className="period-control backtest-range-control" role="group" aria-label="Chart time range">
                   {RANGES.map((item) => (
@@ -1628,15 +1795,16 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
                 </span>
               ))}
             </div>
-            {chartWindow ? (
+            {chartWindow && chartSeries.strategy?.values.length ? (
               <CumulativeChart
-                window={chartWindow}
+                dates={chartWindow.dates}
                 range={range}
+                view={chartView}
                 logScale={logScale}
-                seriesValues={cumulativeSeries}
+                seriesValues={chartSeries}
                 onLogUnavailable={() => {
                   setLogScale(false);
-                  showNotification("Log scale unavailable for this return window", "error", 4200, "log-scale");
+                  showNotification("Log scale unavailable for this window", "error", 4200, "log-scale");
                 }}
               />
             ) : (
@@ -1655,10 +1823,43 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
             <DashboardCard
               title="Drawdown"
               className="backtest-drawdown-card"
-              action={<span className="backtest-max-drawdown">Max {formatPercent(metrics.maxDrawdown)}</span>}
+              action={(
+                <div className="backtest-drawdown-controls">
+                  <div className="period-control backtest-drawdown-control" role="group" aria-label="Drawdown basis">
+                    <button
+                      type="button"
+                      aria-pressed={drawdownBasis === "investment"}
+                      onClick={() => setDrawdownBasis("investment")}
+                    >Investment</button>
+                    <button
+                      type="button"
+                      aria-pressed={drawdownBasis === "account"}
+                      onClick={() => setDrawdownBasis("account")}
+                    >Account</button>
+                  </div>
+                  <span className="backtest-max-drawdown">Max {formatPercent(drawdownView.max)}</span>
+                </div>
+              )}
             >
-              {reportWindow ? (
-                <DrawdownChart window={reportWindow} />
+              {reportWindow && drawdownView.series.length ? (
+                <>
+                  <DrawdownChart
+                    dates={reportWindow.dates}
+                    values={drawdownView.series}
+                    basis={drawdownView.basis}
+                  />
+                  <p className="backtest-drawdown-meta">
+                    {drawdownView.peakDate
+                      ? [
+                        `Max ${formatPercent(drawdownView.max)}`,
+                        `${drawdownView.peakDate} → ${drawdownView.troughDate}`,
+                        drawdownView.recoveryDate
+                          ? `recovered ${drawdownView.recoveryDate}`
+                          : "not recovered",
+                      ].join(" · ")
+                      : "No drawdown inside this window."}
+                  </p>
+                </>
               ) : (
                 <ChartState
                   state={resultsState}

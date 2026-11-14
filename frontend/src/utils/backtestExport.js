@@ -1,5 +1,5 @@
 import { computeWindowMetrics } from "./backtestMetrics.js";
-import { calculateCumulativeSeries, calculatePeriodReturns } from "./backtestReport.js";
+import { buildBacktestAnalysis } from "./backtestReport.js";
 import { csvRow, downloadCsvFile } from "./csv.js";
 import { exportDateStamp, exportTimestamp, EXCEL_FORMAT } from "./exportFiles.js";
 import { rebalanceLabel } from "./rebalanceFrequency.js";
@@ -24,6 +24,14 @@ const DRAWDOWN_COLUMNS = [
   "Strategy Drawdown (%)",
   "SPY Drawdown (%)",
   "SPMO Drawdown (%)",
+  "Strategy Account Balance Drawdown (%)",
+];
+
+const ANNUAL_RETURN_COLUMNS = [
+  "Year",
+  "Strategy Return (%)",
+  "SPY Return (%)",
+  "SPMO Return (%)",
 ];
 
 const ACCOUNT_BALANCE_COLUMNS = [
@@ -146,9 +154,10 @@ function buildCashFlowRows(account) {
   return rows;
 }
 
-function buildDailyRows(window, config, backendAccounts = null) {
-  const account = calculateCumulativeSeries(window, config, backendAccounts);
+function buildDailyRows(window, analysis) {
+  const account = analysis.accounts;
   const strategyDrawdown = drawdown(window.strategy);
+  const accountDrawdown = analysis.accountDrawdown?.series ?? [];
   const spyDrawdown = drawdown(window.spy);
   const spmoDrawdown = drawdown(window.spmo);
   const rows = window.dates.map((date, index) => [
@@ -172,6 +181,7 @@ function buildDailyRows(window, config, backendAccounts = null) {
       strategyDrawdown[index],
       spyDrawdown[index],
       spmoDrawdown[index],
+      accountDrawdown[index] ?? null,
     ]),
     account,
   };
@@ -194,6 +204,15 @@ function buildRebalanceRows(block, stocks, portfolios) {
     });
   });
   return rows;
+}
+
+function buildAnnualReturnRows(rows) {
+  return rows.map((row) => [
+    row.key,
+    finite(row.strategy) ? row.strategy : null,
+    finite(row.spy) ? row.spy : null,
+    finite(row.spmo) ? row.spmo : null,
+  ]);
 }
 
 function buildMonthlyReturnRows(rows) {
@@ -230,7 +249,8 @@ function buildPerformanceSummaryRows(metrics, account) {
     ["Total Return", metrics.totalReturn, "%"],
     ["CAGR", metrics.cagr, "%"],
     ["Annualized Volatility", metrics.annualizedVolatility, "%"],
-    ["Maximum Drawdown", metrics.maxDrawdown, "%"],
+    ["Maximum Drawdown (Investment NAV)", metrics.maxDrawdown, "%"],
+    ["Maximum Drawdown (Account Balance)", account.maxBalanceDrawdownPct, "%"],
     ["Sharpe Ratio (0% risk-free)", metrics.sharpe, "ratio"],
     ["Sortino Ratio (0% risk-free)", metrics.sortino, "ratio"],
     ["Time-Weighted Return", account.timeWeightedReturnPct, "%"],
@@ -310,11 +330,15 @@ export function buildBacktestExportData({
   if (!window?.dates?.length || !window.strategy?.length) {
     throw new Error("No complete backtest window is available to export.");
   }
-  const { daily, drawdowns, account } = buildDailyRows(
+  // One analysis object feeds every sheet, exactly like the page. The export
+  // can therefore never disagree with the numbers on screen.
+  const analysis = buildBacktestAnalysis(
     window,
     config,
     config?.inflationAdjusted ? null : block?.cashflowAccounts,
   );
+  if (!analysis) throw new Error("No account simulation is available to export.");
+  const { daily, drawdowns, account } = buildDailyRows(window, analysis);
   const metrics = computeWindowMetrics(
     window,
     window.fullWindow
@@ -323,10 +347,8 @@ export function buildBacktestExportData({
       ? block?.metrics ?? null
       : null,
   );
-  const monthlyReturns = calculatePeriodReturns({
-    ...window,
-    frequency: "monthly",
-  });
+  const monthlyReturns = analysis.monthlyRows;
+  const annualReturns = analysis.annualRows;
   const settings = buildSettingsRows({
     block,
     config,
@@ -359,8 +381,13 @@ export function buildBacktestExportData({
     {
       name: "Drawdown",
       rows: [DRAWDOWN_COLUMNS, ...drawdowns],
-      widths: [12, 24, 18, 18],
-      formats: { 1: EXCEL_FORMAT.percent, 2: EXCEL_FORMAT.percent, 3: EXCEL_FORMAT.percent },
+      widths: [12, 24, 18, 18, 34],
+      formats: {
+        1: EXCEL_FORMAT.percent,
+        2: EXCEL_FORMAT.percent,
+        3: EXCEL_FORMAT.percent,
+        4: EXCEL_FORMAT.percent,
+      },
       autoFilter: true,
       freezeHeader: true,
     },
@@ -382,6 +409,14 @@ export function buildBacktestExportData({
         11: EXCEL_FORMAT.currency,
         12: EXCEL_FORMAT.number,
       },
+      autoFilter: true,
+      freezeHeader: true,
+    },
+    {
+      name: "Annual Returns",
+      rows: [ANNUAL_RETURN_COLUMNS, ...buildAnnualReturnRows(annualReturns)],
+      widths: [14, 19, 15, 15],
+      formats: { 1: EXCEL_FORMAT.percent, 2: EXCEL_FORMAT.percent, 3: EXCEL_FORMAT.percent },
       autoFilter: true,
       freezeHeader: true,
     },

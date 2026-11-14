@@ -138,6 +138,7 @@ test("Backtesting CSV and workbook retain every configured trading date", async 
       "Daily Performance",
       "Drawdown",
       "Account Balances",
+      "Annual Returns",
       "Monthly Returns",
       "Rebalancing History",
       "Cash Flows",
@@ -148,7 +149,7 @@ test("Backtesting CSV and workbook retain every configured trading date", async 
   );
   assert.equal(data.workbookSheets[0].rows.length, block.dates.length + 1);
   assert.equal(
-    data.workbookSheets[4].rows.length,
+    data.workbookSheets.find((sheet) => sheet.name === "Rebalancing History").rows.length,
     block.rebalance_log.reduce((sum, event) => sum + Object.keys(event.holdings).length, 0) + 1,
   );
   const accountSheet = data.workbookSheets.find((sheet) => sheet.name === "Account Balances");

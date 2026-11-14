@@ -195,8 +195,8 @@ test("a very narrow axis thins labels instead of crowding them", () => {
 test("the drawdown chart plots dates, not indexes", () => {
   const drawdown = page.slice(page.indexOf("function DrawdownChart"), page.indexOf("function AnnualReturnTable"));
 
-  assert.match(drawdown, /createCalendarScale\(window\.dates, left, plotWidth\)/);
-  assert.match(drawdown, /xForDate\(window\.dates\[index\]\)/);
+  assert.match(drawdown, /createCalendarScale\(dates, left, plotWidth\)/);
+  assert.match(drawdown, /xForDate\(dates\[index\]\)/);
   // The filled area must follow the same coordinates as the line.
   assert.match(drawdown, /points\.at\(-1\)\.x\} \$\{top\} L \$\{points\[0\]\.x\}/);
   assert.match(drawdown, /visibleYearTicks\(axis\.ticks, axis\.segmentWidth, yearLabelGap\(compact\)\)/);

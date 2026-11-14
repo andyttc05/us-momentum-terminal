@@ -88,7 +88,7 @@ test("the cumulative chart still nudges labels instead of dropping them", () => 
   // this helper, and the earlier 2019 fix has to survive there.
   const cumulative = functionSource(page, "CumulativeChart");
 
-  assert.match(cumulative, /resolveYearLabelPositions\(\s*window\.dates,\s*left,\s*plotWidth,\s*compact \? 66 : 48/);
+  assert.match(cumulative, /resolveYearLabelPositions\(\s*dates,\s*left,\s*plotWidth,\s*compact \? 66 : 48/);
   // The legacy collision filter dropped the label instead of moving it.
   assert.doesNotMatch(cumulative, /item\.x - list\[index - 1\]\.x >=/);
   assert.doesNotMatch(cumulative, /index === list\.length - 1/);

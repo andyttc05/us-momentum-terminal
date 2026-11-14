@@ -10,6 +10,11 @@ The cash-flow implementation is now part of the Python backtest result. Strategy
 the same requested schedule but maintain independent units, cash, balances and investor cash flows.
 The previously frontend-only overlay has been retained only as an equivalent static-range fallback.
 
+A second pass corrected the *reporting* layer on top of that engine. One `buildBacktestAnalysis()`
+object now feeds every KPI card, chart, table and export, the performance chart gained an explicit
+cashflow-inclusive dollar view, and risk statistics are separated into investment (unitized NAV) and
+account-balance measurements.
+
 All audited cash-flow calculations pass their automated tests. The remaining limitations are about
 the granularity of the underlying return index and transaction treatment, not account identity or
 negative-balance behavior.
@@ -29,6 +34,21 @@ negative-balance behavior.
    flows, but the dependency was wrong for a cash-flow-aware page.
 5. **Chart and export values were derived from the raw return path.** They happened to avoid flow
    jumps, but did not explicitly consume the account TWR series returned by the engine.
+
+The reporting pass found four further defects:
+
+6. **The performance chart had no account-value view.** It plotted a percentage series only, so the
+   configured deposits and withdrawals changed the End Balance card but were invisible in the chart.
+   The only dollar figures were tooltip text.
+7. **A chart range filter re-ran the simulation.** Selecting `1Y` built a new window and restarted the
+   account with full opening capital one year ago, so the chart showed a different investor than the
+   KPI cards above it.
+8. **Maximum drawdown and the drawdown chart used one basis only.** The unitized-NAV (investment)
+   drawdown was correct, but there was no account-balance drawdown, and nothing stated which basis a
+   displayed number used.
+9. **The headline return card answered the wrong question when cashflows were enabled.** It showed
+   the flow-neutral TWR while the rest of the page reported the investor's account, so a saver making
+   monthly deposits could not see their own money-weighted result without opening a secondary table.
 
 ## Accounting Methodology
 
@@ -95,6 +115,85 @@ Net P&L = ending value + actual outflows − initial capital − deposits
 
 Unpaid outflows never enter investor distributions or XIRR.
 
+## Single Analysis Path
+
+`frontend/src/utils/backtestReport.js` exposes one builder, `buildBacktestAnalysis(window, config,
+backendAccounts)`. It simulates Strategy, SPY and SPMO once and returns:
+
+- the three account contracts (balances, holdings, cash, units, TWR, drawdown and events);
+- the investor totals, net P&L, TWR and XIRR;
+- the investment drawdown series and the account-balance drawdown series;
+- the annual, quarterly and monthly flow-neutral return rows.
+
+Every consumer reads that object:
+
+| Consumer | Reads |
+| --- | --- |
+| KPI cards | `finalValue`, `initialCapital`, `moneyWeightedReturnPct`, `timeWeightedReturnPct` |
+| Performance Summary and Risk tiles | the same fields plus `metrics.benchmarkRelative` |
+| Performance chart | `accounts[id].values` or `accounts[id].returns`, sliced by range |
+| Drawdown chart and badge | `accountDrawdown` / the unitized NAV drawdown |
+| Annual and monthly tables | `annualRows`, `monthlyRows` |
+| CSV and workbook | the same object rebuilt from the same window and configuration |
+
+`calculateBacktestReport()` is now an alias returning the same object, so legacy callers cannot
+silently compute a second answer.
+
+The Python service stays authoritative whenever it publishes accounts for exactly the submitted
+configuration. The browser engine is a byte-compatible fallback for cases the service cannot cover
+(the inflation-adjusted view) and is pinned to the Python numbers by a mirrored test table.
+
+## Drawdown and Risk Measurement
+
+Two measurements are published and labelled separately.
+
+### Investment drawdown (standard risk metric)
+
+```text
+drawdown(t) = NAV(t) / running peak of NAV − 1
+```
+
+Use for Maximum Drawdown, the drawdown chart's default basis, volatility, Sharpe, Sortino, beta,
+correlation, tracking error and the information ratio. Because it is computed on the unitized
+total-return NAV, a deposit cannot mask a loss and a withdrawal cannot manufacture one.
+
+### Account-balance drawdown (cashflow view)
+
+```text
+drawdown(t) = balance(t) / running peak of balance − 1
+```
+
+Use for the `Account` basis of the same chart and for the "Account Max Drawdown" tile. An executed
+withdrawal appears here as a fall in the balance, which is the intended meaning: it tracks the money
+the investor actually owns, not market losses.
+
+Both bases report the maximum, the peak date, the trough date and the recovery date. The two numbers
+usually differ: with monthly deposits the balance is propped up, so the balance drawdown is typically
+shallower than the NAV drawdown over the same episode.
+
+## Chart Presentation
+
+The performance card offers two views over the same simulation.
+
+| View | Series | Axis |
+| --- | --- | --- |
+| Portfolio Value | account balance in dollars | currency |
+| Cumulative Return | unitized TWR, rebased to the first visible observation | percent |
+
+Rules:
+
+- Both views read the three account contracts; neither falls back to the raw NAV.
+- The range filter slices the single simulation. A `1Y` dollar view shows the balance the investor
+  actually held one year ago, not fresh opening capital.
+- The percentage view rebases to the first visible point with `(1 + r_t) / (1 + r_0) − 1`, which is
+  the exact unitized ratio and therefore still flow-neutral.
+- The tooltip always shows both the balance and the TWR for the hovered date.
+- Log scale is offered in both views and is automatically withdrawn when a value is non-positive
+  (a depleted account at `$0`).
+
+Annual and monthly tables stay flow-neutral and say so in a caption under each table: a monthly
+percentage that silently included deposits would be meaningless as investment performance.
+
 ## Benchmark Simulation
 
 Strategy, SPY and SPMO each use:
@@ -126,16 +225,17 @@ actual and unpaid amounts are recorded separately for each account.
 ## UI and Reporting Integration
 
 - `POST /api/backtest` accepts initial capital and complete inflow/outflow configuration.
-- The Python response includes independent account ledgers for Strategy, SPY and SPMO.
+- The Python response includes independent account ledgers for Strategy, SPY and SPMO, each with a
+  `balance_drawdown` series and `max_balance_drawdown_pct`.
 - For the exact submitted full window, the UI consumes the Python balances, units, TWR and XIRR.
-- A narrowed chart window uses the same unit-account algorithm in the browser from the published
-  return series.
-- The Cumulative Return line consumes account TWR values, while the tooltip shows each account's actual
-  balance and TWR.
-- The Total Return KPI now reads the selected window's TWR.
-- The workbook adds an Account Balances sheet containing balance, holdings value, cash and units for
-  all three accounts.
-- The existing Cash Flows sheet contains requested, actual and unpaid strategy withdrawals.
+- The browser engine runs only when no authoritative payload matches the submitted configuration
+  (the inflation-adjusted view), and produces the same contract.
+- The headline return card reads the investor's XIRR whenever cashflows are enabled and shows the
+  flow-neutral TWR beneath it; with cashflows disabled it reads the TWR directly.
+- The Performance Summary carries TWR, XIRR, Net P&L and both drawdown bases as separate tiles.
+- The workbook adds an Annual Returns sheet, an Account Balances sheet, and a strategy
+  account-balance drawdown column alongside the NAV drawdown columns.
+- The Cash Flows sheet contains requested, actual and unpaid strategy withdrawals.
 
 ## Automated Evidence
 
@@ -155,43 +255,76 @@ Python cash-flow tests cover:
 - chart TWR values and balance identities;
 - cash-flow-aware rebalancing and the no-flow baseline.
 
-Frontend tests cover:
+`data-service/tests/test_cashflow_accounting.py` and `frontend/tests/backtest-accounting.test.mjs`
+assert the same hand-calculated scenario table in both engines:
 
-- backend account normalization and consumption;
-- mismatch fallback to the deterministic local account;
-- strategy-only entry cost;
-- full-capital benchmark start;
-- all cash-flow floor and XIRR cases;
-- chart TWR source;
-- Account Balances and Cash Flows exports.
+| # | Scenario | Shared expectation |
+| --- | --- | --- |
+| 1 | Flat market, no flows | `$10,000`, TWR `0`, drawdown `0` |
+| 2 | Flat market, monthly inflows | `$12,000`, MWR `0` |
+| 3 | Flat market, monthly outflows | `$8,000`, MWR `0` |
+| 4 | Rising market, inflows | `12,000 → 13,200 → 14,200 → 15,620`, TWR `+33.1%` |
+| 5 | Rising market, outflows | `11,000 → 10,000 → 11,000`, TWR `+33.1%` |
+| 6 | Falling market, inflows | `10,000 → 9,000 → 9,000`, TWR `−27.1%` |
+| 7 | Falling market, outflows | `… → 5,580`, TWR `−27.1%` |
+| 8 | Crash with withdrawals | actual `5,000`, unpaid `7,000`, balance `0` |
+| 9 | Withdrawal above balance | capped, shortfall recorded |
+| 10 | Exact depletion | balance, units, cash all `0` |
+| 11 | Inflow after depletion | `0 → 5,000 → 5,500`, TWR `+10%` |
+| 12 | Identical schedules | same dates and amounts on all three accounts |
+| 13 | Different NAVs | same flows, different balances |
+| 14 | TWR under a large deposit | identical to the no-flow TWR series |
+| 15 | Flow timing | same TWR, different XIRR |
+| 16 | Investment drawdown | `−30%` from the NAV, unaffected by a deposit |
+| 17 | Account drawdown | follows the balance, includes the withdrawal |
+| 18 | Inflation-adjusted flows | scaled once, in base-date dollars |
+| 19 | Narrowed window | sliced balances, rebased TWR |
+| 20 | Annual and monthly rows | flow-neutral and identical to the page's rows |
+
+The critical case (initial `$10,000` → `$12,000` → withdraw `$12,000`) is asserted in both suites:
+executed `$12,000`, unpaid `$0`, ending balance `$0`, zero units, TWR `+20%`, XIRR from the two dated
+flows, and account drawdown `−100%`.
+
+Frontend tests additionally cover:
+
+- backend account normalization and consumption, and mismatch fallback to the local account;
+- strategy-only entry cost and full-capital benchmark start;
+- both chart views reading their own series, and the view/range/drawdown controls;
+- the account-drawdown caption and the account-balance export column;
+- Account Balances, Annual Returns and Cash Flows exports.
 
 ## Manual Verification
 
-The local application was exercised against the live FastAPI engine:
+The local application was exercised against the local FastAPI engine (publication through
+2026-11-13) at 1440×1100.
 
 | Scenario | Result |
 | --- | --- |
-| Cash flows disabled | End balance `$54,056`; Net Cashflow `$0`; TWR `+440.6%` |
-| Monthly `$1,000` inflow | End balance `$329,570`; deposits `$103,000`; XIRR `+22.13%` |
-| Monthly `$20,000` outflow | End `$0`; actual withdrawals `$10,577`; unpaid `$2,049,423`; TWR `+440.6%` |
+| Monthly `$1,000` inflow, default window | Start `$10,000`, End `$312,963`, Investor Return `+21.1%`, TWR `+406.1%` |
+| Same run, Portfolio Value view | Currency axis `$0 … $400K`; end labels `$312,963` / `$288,730` / `$237,304` |
+| Same run, Cumulative Return view | Percent axis `0 … 500%`; end labels `+406.6%` / `+325.1%` / `+233.2%` |
+| Same run, `1Y` range (value) | Axis `$150K … $350K`; the balance is the real one, not restarting at `$10,000` |
+| Same run, `1Y` range (return) | Axis `−10% … 40%`; end labels `+17.2%` / `+13.5%` / `+13.4%` (rebased) |
+| Drawdown, Investment basis | Max `−32.1%`, `2020-02-19 → 2020-03-23`, recovered `2020-07-06` |
+| Drawdown, Account basis | Max `−30.3%`, `2020-02-19 → 2020-03-23`, recovered `2020-05-20` |
+| Monthly `$1,000` outflow, re-run | End `$0` on all three accounts, Investor Return `+21.4%`, TWR `+416.5%` |
 
-The workbook downloaded from the inflow run contained nine sheets. Account Balances showed:
+Hover tooltip at 2026-06-26, compared against the published account simulation:
 
 ```text
-Strategy start: $9,990 holdings, $0 cash, 100 units
-SPY start:     $10,000 holdings, $0 cash, 100 units
-SPMO start:    $10,000 holdings, $0 cash, 100 units
+tooltip:  Strategy $309,890 (+17.9%)   SPY $223,936 (+9.4%)   SPMO $330,668 (+31.9%)
+snapshot: Strategy $309,889.86         SPY $223,936.44        SPMO $330,668.00
 ```
 
-Every sampled balance equals holdings value plus available cash. Strategy and benchmark cash-flow
-dates matched down to the day.
+The tooltip balances are the simulated balances to the cent; the percentages are the unitized TWR
+rebased to the visible range.
 
 ## Test and Build Evidence
 
 ```text
 npm test
-138 Python tests passed
-286 frontend tests passed
+162 Python tests passed
+309 frontend tests passed
 
 npm run test:sites
 4 tests passed
@@ -238,6 +371,15 @@ outflow run.
   configured 10 bps transaction cost and slippage.
 - Inflation-adjusted mode uses the frontend real-dollar account path because CPI publication dates
   are a display-time alignment concern. Its account identity and non-negative floor remain tested.
+- Account-balance drawdown is sampled at the close *after* each external flow, so a deposit that
+  arrives mid-decline can lift the balance above its previous high-water mark and reduce the recorded
+  balance drawdown. That is a property of the measurement, not a defect; the investment drawdown
+  remains the risk metric for that reason.
+- Annual and monthly tables intentionally report flow-neutral returns. They are not account growth
+  rates, and the caption under each table says so.
+- Deployments that serve a publication generated before this change will compute
+  `balance_drawdown` in the browser from the published balances; the values agree, but the field is
+  absent from the JSON until the next publication is generated.
 - Historical survivorship, point-in-time float shares, sector history and delisting returns remain
   the limitations documented in the broader quantitative audit.
 - Production deployment is restricted by repository environment rules to protected branches; the

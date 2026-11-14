@@ -13,8 +13,10 @@ const kpiSection = page.slice(sectionStart, sectionEnd);
 
 test("the backtest summary has exactly four KPI cards in the required order", () => {
   assert.ok(sectionStart >= 0 && sectionEnd > sectionStart);
-  const labels = [...kpiSection.matchAll(/<KpiCard\b[\s\S]*?label="([^"]+)"/g)].map((match) => match[1]);
-  assert.deepEqual(labels, ["Start Balance", "End Balance", "Duration", "Total Return"]);
+  const labels = [...kpiSection.matchAll(/(?<!aria-)label="([^"]+)"/g)].map((match) => match[1]);
+  assert.deepEqual(labels, ["Start Balance", "End Balance", "Duration"]);
+  // The fourth card names the investor-level measurement when cashflows are on.
+  assert.match(kpiSection, /label=\{cashflowPrimary \? "Investor Return" : "Total Return"\}/);
   assert.equal((kpiSection.match(/<KpiCard\b/g) ?? []).length, 4);
 });
 
@@ -31,7 +33,7 @@ test("duration uses the effective report dates and CAGR is no longer a top KPI",
     /label="Duration"[\s\S]*?value=\{formatBacktestDuration\(reportWindow\?\.dates\?\.\[0\], reportWindow\?\.dates\?\.at\(-1\)\)\}/,
   );
   assert.doesNotMatch(kpiSection, /label="CAGR"/);
-  assert.match(kpiSection, /label="Total Return"[\s\S]*?value=\{formatPercent\(report\?\.timeWeightedReturnPct \?\? metrics\.totalReturn\)\}/);
+  assert.match(kpiSection, /value=\{formatPercent\(headlineReturn\)\}/);
   assert.doesNotMatch(kpiSection, /Profit \/ Loss|Sharpe Ratio/);
 });
 
@@ -51,7 +53,7 @@ test("monetary balances stay neutral while performance figures keep their tone",
     kpiSection.indexOf("<KpiCard", kpiSection.indexOf('label="Duration"')),
   );
   assert.doesNotMatch(durationCard, /valueTone=/);
-  assert.match(kpiSection, /label="Total Return"[\s\S]*?valueTone=\{valueTone\(report\?\.timeWeightedReturnPct \?\? metrics\.totalReturn\)\}/);
+  assert.match(kpiSection, /valueTone=\{valueTone\(headlineReturn\)\}/);
 });
 
 test("Performance Summary renders all six requested metrics once in compact tiles", () => {

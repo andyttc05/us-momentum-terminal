@@ -13,12 +13,21 @@ test("the cumulative chart uses the approved concise legend labels", () => {
   assert.doesNotMatch(page, /US Momentum Strategy/);
 });
 
-test("the cumulative line consumes account TWR values rather than raw balances", () => {
-  assert.match(
-    page,
-    /values: seriesValues\?\.\[series\.id\]\?\.returns\?\.length === window\[series\.id\]\.length/,
-  );
-  assert.match(page, /seriesValues\[series\.id\]\.returns/);
+test("each chart view plots its own account series, never the raw NAV", () => {
+  // The dollar view reads the simulated account balance; the percentage view
+  // reads the unitized TWR. Both come from the same simulation.
+  assert.match(page, /const values = isPercent \? entry\?\.returns : entry\?\.values;/);
+  assert.match(page, /\.filter\(\(series\) => series\.values\.length === dates\.length\)/);
+  assert.doesNotMatch(page, /window\[series\.id\]\.map\(\(value\) => value - 100\)/);
+  assert.match(page, /valuePosition\(value, scale, top, plotHeight, renderedLogScale\)/);
+  assert.match(page, /wealthPosition\(value, scale, top, plotHeight, renderedLogScale\)/);
+});
+
+test("the chart offers both views and defaults to the account balance", () => {
+  assert.match(page, /\{ id: "value", label: "Portfolio Value" \}/);
+  assert.match(page, /\{ id: "return", label: "Cumulative Return" \}/);
+  assert.match(page, /const \[chartView, setChartView\] = useState\("value"\);/);
+  assert.match(page, /role="group" aria-label="Chart view"/);
 });
 
 test("the plot has no redundant cumulative-return caption", () => {
@@ -72,6 +81,6 @@ test("the tooltip is offset from the crosshair and never covers the end labels",
   );
   assert.match(tooltip, /export const CHART_TOOLTIP_GAP = 24;/);
   assert.match(tooltip, /export const CHART_TOOLTIP_MARGIN = 12;/);
-  assert.match(page, /const labelBoundary = left \+ plotWidth \+ \(compact \? 9 : 14\);/);
+  assert.match(page, /const labelBoundary = left \+ plotWidth \+ pillOffset;/);
   assert.match(page, /rightBoundary: labelBoundary/);
 });
