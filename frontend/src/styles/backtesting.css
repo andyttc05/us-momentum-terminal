@@ -586,19 +586,14 @@
   flex-wrap: wrap;
   gap: 14px;
 }
-.backtest-drawdown-controls {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.backtest-drawdown-control { padding: 3px; }
-.backtest-drawdown-control button {
+/* Two-word view labels need room, and the segmented pill is the same control
+   used for the date range so the header keeps one visual language. */
+.backtest-view-control { padding: 3px; }
+.backtest-view-control button {
   min-width: 0;
-  min-height: 28px;
-  padding-inline: 11px;
-  font-size: 0.72rem;
+  min-height: 31px;
+  padding-inline: 13px;
+  font-size: 0.78rem;
 }
 .backtest-log-toggle {
   display: inline-flex;
@@ -664,17 +659,6 @@
   padding-inline: 14px;
 }
 .backtest-drawdown-frame { height: 186px; min-height: 186px; flex-basis: 186px; }
-/* The drawdown episode is stated once, under the chart, instead of being
-   repeated in every hover tooltip. */
-.backtest-drawdown-meta {
-  margin: 4px 0 0;
-  color: var(--color-text-muted);
-  font-size: 0.62rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.35;
-  letter-spacing: 0.01em;
-}
 .backtest-max-drawdown {
   display: inline-flex;
   min-height: 28px;
@@ -716,16 +700,6 @@
 .backtest-table-scroll::-webkit-scrollbar-thumb {
   border-radius: var(--radius-pill);
   background: #D8D1C8;
-}
-/* Names the measurement under a returns table so an annual percentage is never
-   mistaken for account growth that includes contributions. */
-.backtest-table-note {
-  margin: 7px 0 0;
-  color: var(--color-text-muted);
-  font-size: 0.62rem;
-  font-weight: 700;
-  line-height: 1.35;
-  letter-spacing: 0.01em;
 }
 .backtest-annual-table {
   width: 100%;

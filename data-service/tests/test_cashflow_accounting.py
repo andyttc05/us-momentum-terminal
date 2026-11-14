@@ -128,9 +128,12 @@ class AccountScenarioTests(unittest.TestCase):
         nav = [100.0, 50.0, 50.0, 25.0, 25.0, 12.5]
         result = run(nav, direction="outflow", amount=6_000.0)
         self.assertEqual(result["balances"][:3], [10_000.0, 5_000.0, 0.0])
-        self.assertEqual(result["requested_outflows"], 12_000.0)
+        # Only the withdrawal that closed the account is recorded; later
+        # requests are not re-issued against a $0 balance.
+        self.assertEqual(result["requested_outflows"], 6_000.0)
         self.assertEqual(result["actual_outflows"], 5_000.0)
-        self.assertEqual(result["unpaid_outflows"], 7_000.0)
+        self.assertEqual(result["unpaid_outflows"], 1_000.0)
+        self.assertTrue(result["fully_depleted"])
         self.assertEqual(result["final_value"], 0.0)
         # A 50% loss is the investment drawdown; the depletion is the account one.
         self.assertAlmostEqual(result["max_balance_drawdown_pct"], -100.0, places=6)
@@ -138,9 +141,9 @@ class AccountScenarioTests(unittest.TestCase):
 
     def test_09_outflow_exceeding_the_available_balance(self):
         result = run(FLAT, direction="outflow", amount=12_000.0)
-        self.assertEqual(result["requested_outflows"], 24_000.0)
+        self.assertEqual(result["requested_outflows"], 12_000.0)
         self.assertEqual(result["actual_outflows"], 10_000.0)
-        self.assertEqual(result["unpaid_outflows"], 14_000.0)
+        self.assertEqual(result["unpaid_outflows"], 2_000.0)
         self.assertEqual(result["final_value"], 0.0)
         first_event = result["events"][0]
         self.assertEqual(first_event["requested_amount"], 12_000.0)
@@ -150,10 +153,10 @@ class AccountScenarioTests(unittest.TestCase):
 
     def test_10_exact_account_depletion(self):
         result = run(FLAT, direction="outflow", amount=10_000.0)
-        self.assertEqual(result["requested_outflows"], 20_000.0)
+        self.assertEqual(result["requested_outflows"], 10_000.0)
         self.assertEqual(result["actual_outflows"], 10_000.0)
-        # The later request cannot be funded, so it is recorded as unpaid.
-        self.assertEqual(result["unpaid_outflows"], 10_000.0)
+        self.assertEqual(result["unpaid_outflows"], 0.0)
+        self.assertTrue(result["fully_depleted"])
         self.assertEqual(result["final_value"], 0.0)
         self.assertAlmostEqual(result["remaining_units"], 0.0, places=9)
         self.assertEqual(result["ending_holdings_value"], 0.0)
@@ -343,6 +346,41 @@ class CriticalScenarioTests(unittest.TestCase):
         self.assertAlmostEqual(self.result["max_balance_drawdown_pct"], -100.0, places=6)
         self.assertEqual(audit_account(self.result, ["2020-01-02", "2020-02-03", "2020-03-02",
                                                      "2020-04-01", "2020-05-01"]), [])
+
+
+class ClosedAccountTests(unittest.TestCase):
+    """A $0 balance is not asked for money again."""
+
+    def test_withdrawal_requests_stop_at_depletion(self):
+        result = run(FLAT, direction="outflow", amount=6_000.0)
+        self.assertEqual(
+            [
+                (event["date"], event["actual_amount"], event["unpaid_amount"])
+                for event in result["events"]
+            ],
+            [("2020-02-03", 6_000.0, 0.0), ("2020-03-02", 4_000.0, 2_000.0)],
+        )
+        self.assertEqual(result["requested_outflows"], 12_000.0)
+        self.assertEqual(result["actual_outflows"], 10_000.0)
+        self.assertEqual(result["unpaid_outflows"], 2_000.0)
+        self.assertTrue(result["fully_depleted"])
+        self.assertEqual(result["balances"][4:], [0.0, 0.0])
+
+    def test_an_inflow_after_depletion_reopens_the_account(self):
+        result = simulate_account(
+            DATES[:5],
+            [100.0] * 5,
+            initial_capital=10_000.0,
+            manual_events=[
+                {"index": 1, "amount": 10_000.0, "direction": "outflow"},
+                {"index": 2, "amount": 5_000.0, "direction": "inflow"},
+                {"index": 3, "amount": 2_000.0, "direction": "outflow"},
+            ],
+            twr_origin=100.0,
+        )
+        self.assertEqual(result["balances"], [10_000.0, 0.0, 5_000.0, 3_000.0, 3_000.0])
+        self.assertFalse(result["fully_depleted"])
+        self.assertEqual(audit_account(result, DATES[:5]), [])
 
 
 class ReturnOnCapitalTests(unittest.TestCase):

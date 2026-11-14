@@ -47,6 +47,7 @@ import {
   sliceAccountSeries,
 } from "./utils/backtestReport.js";
 import { buildDrawdownScale } from "./utils/drawdownScale.js";
+import { buildWealthScale, canLogScale, wealthPosition } from "./utils/wealthScale.js";
 import { resolveYearLabelPositions } from "./utils/yearAxis.js";
 import {
   createCalendarScale,
@@ -72,6 +73,12 @@ import {
 import { UNIVERSE_OPTIONS } from "./utils/universeState.js";
 
 const RANGES = ["1Y", "3Y", "5Y", "All"];
+// Two ways to read the same simulation: the balance the account holds, or the
+// return that balance has earned against everything committed so far.
+const CHART_VIEWS = [
+  { id: "value", label: "Portfolio Value" },
+  { id: "capital", label: "Return on Capital" },
+];
 const SERIES = [
   { id: "strategy", name: "Strategy", color: "#FFC83D" },
   { id: "spy", name: "SPY", color: "#69A5F5" },
@@ -227,36 +234,25 @@ function buildWindow(block, startDate, endDate, range = "All", reinvestDividends
 }
 
 /**
- * Dollar ticks for the account-balance view. The step is chosen so the plot
- * keeps roughly four gridlines whatever the account size, and the axis never
- * starts below zero because an account balance cannot be negative.
+ * Zero-anchored percentage axis that also admits losses, so a return-on-capital
+ * line can dip below zero without being clipped.
  */
-function moneyScale(low, high) {
-  const span = Math.max(high - low, 1);
-  const magnitude = 10 ** Math.floor(Math.log10(span / 4));
-  const normalized = span / 4 / magnitude;
-  const step = (
-    normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 2.5 ? 2.5 : normalized <= 5 ? 5 : 10
-  ) * magnitude;
+function percentScale(values) {
+  const clean = values.filter((value) => typeof value === "number" && Number.isFinite(value));
+  if (!clean.length) return { min: 0, max: 10, ticks: [0, 10] };
+  const high = Math.max(10, ...clean);
+  const low = Math.min(0, ...clean);
+  const span = Math.max(high - low, 10);
+  const magnitude = 10 ** Math.floor(Math.log10(span / 5));
+  const normalized = span / 5 / magnitude;
+  const step = (normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10) * magnitude;
   const max = Math.ceil(high / step) * step;
-  const min = Math.max(0, Math.floor(low / step) * step);
+  const min = low < 0 ? Math.floor(low / step) * step : 0;
   const ticks = [];
-  for (let value = min; value <= max + step * 0.01; value += step) ticks.push(value);
-  return { min, max: Math.max(max, min + step), ticks: ticks.length ? ticks : [min] };
-}
-
-function valuePosition(value, scale, top, plotHeight, logScale) {
-  if (!logScale) {
-    return top + (scale.max - value) / (scale.max - scale.min) * plotHeight;
+  for (let value = min; value <= max + step * 0.01; value += step) {
+    ticks.push(Number(value.toFixed(6)));
   }
-  // A dollar axis can be logged directly; the floor keeps a depleted account
-  // (balance 0) on the chart instead of taking log(0).
-  const minimum = Math.max(scale.min, 1);
-  const maximum = Math.max(scale.max, minimum * 10);
-  const clamped = Math.max(value, minimum);
-  return top
-    + (Math.log10(maximum) - Math.log10(clamped))
-    / (Math.log10(maximum) - Math.log10(minimum)) * plotHeight;
+  return { min, max, ticks };
 }
 
 function CumulativeTooltip({ dates, index, width, seriesValues }) {
@@ -298,7 +294,7 @@ function LogScaleToggle({ checked, onChange }) {
   );
 }
 
-function CumulativeChart({ dates, range, logScale, seriesValues, onLogUnavailable }) {
+function CumulativeChart({ dates, range, view, logScale, seriesValues, onLogUnavailable }) {
   const [boxRef, box] = useElementSize();
   const [selectedIndex, setSelectedIndex] = useState(null);
   const [tooltipSide, setTooltipSide] = useState(null);
@@ -309,16 +305,18 @@ function CumulativeChart({ dates, range, logScale, seriesValues, onLogUnavailabl
   const height = Math.round(box.height);
   const ready = width > 0 && height > 0;
   const compact = width > 0 && width < 560;
+  const isPercent = view === "capital";
   const left = compact ? 42 : 54;
   const top = 30;
-  // The value pills are wider than a percentage would be.
-  const labelGutter = (compact ? 82 : 126) + 22;
+  // Dollar pills are wider than a percentage would be.
+  const labelGutter = (compact ? 82 : 126) + (isPercent ? 0 : 22);
   const plotWidth = Math.max(80, width - left - labelGutter);
   const plotHeight = Math.max(80, height - top - (compact ? 30 : 34));
 
   const computedSeries = SERIES
     .map((series) => {
-      const values = seriesValues?.[series.id]?.values;
+      const entry = seriesValues?.[series.id];
+      const values = isPercent ? entry?.capitalReturns : entry?.values;
       return { ...series, values: Array.isArray(values) ? values : [] };
     })
     .filter((series) => series.values.length === dates.length);
@@ -328,17 +326,23 @@ function CumulativeChart({ dates, range, logScale, seriesValues, onLogUnavailabl
     setTooltipSide(null);
     movementOriginX.current = Number.NaN;
     tooltipSideRef.current = null;
-  }, [range, dates.length]);
+  }, [range, view, dates.length]);
 
   const allValues = computedSeries
     .flatMap((series) => series.values)
     .filter((value) => typeof value === "number" && Number.isFinite(value));
-  const high = Math.max(0, ...allValues);
-  const low = Math.min(high, ...allValues);
-  const scale = moneyScale(low, high);
-  const logAvailable = allValues.length > 0 && allValues.every((value) => value > 0);
+  // A log axis only makes sense for positive dollar balances; a percentage view
+  // can be negative, so it always uses the linear scale.
+  const logAvailable = !isPercent && canLogScale(allValues);
   const renderedLogScale = logScale && logAvailable;
-  const yForValue = (value) => valuePosition(value, scale, top, plotHeight, renderedLogScale);
+  const scale = isPercent
+    ? percentScale(allValues)
+    : buildWealthScale(allValues, { log: renderedLogScale });
+  const yForValue = (value) => (
+    isPercent
+      ? top + (scale.max - value) / (scale.max - scale.min) * plotHeight
+      : wealthPosition(value, scale, top, plotHeight)
+  );
   useEffect(() => {
     if (logScale && !logAvailable) onLogUnavailable?.();
   }, [logAvailable, logScale, onLogUnavailable]);
@@ -355,7 +359,7 @@ function CumulativeChart({ dates, range, logScale, seriesValues, onLogUnavailabl
     plotWidth,
     compact ? 66 : 48,
   );
-  const pillWidth = compact ? 84 : 112;
+  const pillWidth = compact ? (isPercent ? 70 : 84) : (isPercent ? 91 : 112);
   const pillOffset = compact ? 9 : 14;
   const pillCenter = pillOffset + pillWidth / 2;
   const endLabels = computedSeries
@@ -454,7 +458,9 @@ function CumulativeChart({ dates, range, logScale, seriesValues, onLogUnavailabl
           viewBox={`0 0 ${width} ${height}`}
           preserveAspectRatio="xMidYMid meet"
           role="img"
-          aria-label={`${range} account balance comparison for strategy, SPY and SPMO`}
+          aria-label={isPercent
+            ? `${range} return on invested capital for strategy, SPY and SPMO`
+            : `${range} account balance comparison for strategy, SPY and SPMO`}
           onPointerMove={(event) => {
             if (event.pointerType !== "touch" && event.pointerType !== "pen") selectAt(event.clientX);
           }}
@@ -474,7 +480,7 @@ function CumulativeChart({ dates, range, logScale, seriesValues, onLogUnavailabl
             return (
               <g key={tick}>
                 <line x1={left} x2={left + plotWidth} y1={y} y2={y} className="backtest-gridline" />
-                <text x={left - 9} y={y + 4} textAnchor="end" className="backtest-axis-label">{formatAxisMoney(tick)}</text>
+                <text x={left - 9} y={y + 4} textAnchor="end" className="backtest-axis-label">{isPercent ? `${tick}%` : formatAxisMoney(tick)}</text>
               </g>
             );
           })}
@@ -523,7 +529,7 @@ function CumulativeChart({ dates, range, logScale, seriesValues, onLogUnavailabl
                 dominantBaseline="central"
                 textAnchor="middle"
                 className={`backtest-value-label${compact ? " backtest-value-label--compact" : ""}`}
-              >{formatTooltipMoney(series.values.at(-1))}</text>
+              >{isPercent ? formatPercent(series.values.at(-1)) : formatTooltipMoney(series.values.at(-1))}</text>
             </g>
           ))}
         </svg>
@@ -546,7 +552,7 @@ function CumulativeChart({ dates, range, logScale, seriesValues, onLogUnavailabl
     </div>
   );
 }
-function DrawdownChart({ dates, values, basis }) {
+function DrawdownChart({ dates, values }) {
   const [boxRef, box] = useElementSize();
   const [selectedIndex, setSelectedIndex] = useState(null);
   const [tooltipRef, tooltipSize] = useChartTooltipSize();
@@ -605,7 +611,7 @@ function DrawdownChart({ dates, values, basis }) {
 
   useEffect(() => {
     setSelectedIndex(null);
-  }, [dates.length, dates[0], basis]);
+  }, [dates.length, dates[0]]);
 
   function selectAt(clientX) {
     const rect = boxRef.current?.getBoundingClientRect();
@@ -616,17 +622,16 @@ function DrawdownChart({ dates, values, basis }) {
 
   return (
     <div className="backtest-chart-frame backtest-drawdown-frame" ref={boxRef}>
-      {/* No in-frame caption: the basis is already stated by the segmented
-          control, the card's aria-label and the episode line under the chart.
-          An extra static label inside the fixed-height frame pushed the 100%
-          SVG below its own box and dropped the x-axis onto that line. */}
+      {/* No in-frame caption: a static label inside the fixed-height frame
+          pushed the 100%-height SVG below its own box and dropped the x-axis
+          onto it. The card title and the aria-label already name the measure. */}
       {ready && (
         <svg
           className="backtest-chart-svg"
           viewBox={`0 0 ${width} ${height}`}
           preserveAspectRatio="xMidYMid meet"
           role="img"
-          aria-label={`${basis === "account" ? "Account balance" : "Investment"} drawdown, maximum ${formatPercent(values[maxIndex])} on ${formatDate(dates[maxIndex])}`}
+          aria-label={`Investment drawdown, maximum ${formatPercent(values[maxIndex])} on ${formatDate(dates[maxIndex])}`}
           onPointerMove={(event) => {
             if (event.pointerType !== "touch" && event.pointerType !== "pen") selectAt(event.clientX);
           }}
@@ -734,9 +739,6 @@ function AnnualReturnTable({ rows = [], includeYtd, state = "ready" }) {
           </tbody>
         </table>
       </div>
-      <p className="backtest-table-note">
-        Flow-neutral time-weighted returns: deposits and withdrawals are excluded.
-      </p>
     </DashboardCard>
   );
 }
@@ -807,12 +809,6 @@ function PerformanceAndRisk({ report, reportWindow, metrics, config, state = "re
           tip: "Ending balance plus actual withdrawals, minus initial capital and actual deposits. Unpaid withdrawals are excluded because they never left the account.",
         },
         {
-          label: "Return on Capital",
-          value: formatPercent(report?.endingCapitalReturnPct),
-          tone: valueTone(report?.endingCapitalReturnPct),
-          tip: "Profit divided by every dollar committed so far. Deposits dilute the ratio; withdrawals do not erase earned profit.",
-        },
-        {
           label: "vs. SPY (Total Return)",
           value: report ? `${formatPercent(report.relativeToSpyPct)} pp` : "—",
           tone: valueTone(report?.relativeToSpyPct),
@@ -864,12 +860,6 @@ function PerformanceAndRisk({ report, reportWindow, metrics, config, state = "re
           label: "Sortino Ratio",
           value: ratio(metrics?.sortino),
           tip: "Annualised excess return divided by downside deviation. The existing 0% risk-free assumption applies.",
-        },
-        {
-          label: "Account Max Drawdown",
-          value: formatPercent(report?.accountDrawdown?.maxDrawdown),
-          tone: valueTone(report?.accountDrawdown?.maxDrawdown),
-          tip: "Peak-to-trough decline of the actual account balance, including executed withdrawals. This is a cashflow view, not a market-loss measure.",
         },
       ],
     },
@@ -1129,7 +1119,7 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
   const [customRun, setCustomRun] = useState(null);
   const [range, setRange] = useState("All");
   const [logScale, setLogScale] = useState(false);
-  const [drawdownBasis, setDrawdownBasis] = useState("investment");
+  const [chartView, setChartView] = useState("value");
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -1375,34 +1365,16 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
     ),
     [reportWindow, resultBlock, submittedConfig?.inflationAdjusted, submittedConfig?.reinvestDividends],
   );
-  // Investment drawdown is the unitized-NAV measurement; the account-balance
-  // variant is published by the shared simulation.
+  // One drawdown, measured on the unitized total-return NAV: it is the standard
+  // investment risk metric and it cannot be moved by a deposit or a withdrawal.
   const investmentDrawdown = useMemo(
     () => (reportWindow ? analyzeDrawdown(reportWindow.strategy, reportWindow.dates) : null),
     [reportWindow],
   );
-  const drawdownView = useMemo(() => {
-    if (drawdownBasis === "account") {
-      return {
-        basis: "account",
-        series: analysis?.accountDrawdown?.series ?? [],
-        peakDate: analysis?.accountDrawdown?.peakDate ?? null,
-        troughDate: analysis?.accountDrawdown?.troughDate ?? null,
-        recoveryDate: analysis?.accountDrawdown?.recoveryDate ?? null,
-        max: analysis?.accountDrawdown?.maxDrawdown ?? null,
-      };
-    }
-    return {
-      basis: "investment",
-      series: investmentDrawdown?.series ?? [],
-      peakDate: investmentDrawdown?.peakDate ?? null,
-      troughDate: investmentDrawdown?.troughDate ?? null,
-      recoveryDate: investmentDrawdown?.recoveryDate ?? null,
-      max: Number.isFinite(metrics?.maxDrawdown)
-        ? metrics.maxDrawdown
-        : investmentDrawdown?.maxDrawdown ?? null,
-    };
-  }, [analysis, drawdownBasis, investmentDrawdown, metrics]);
+  const drawdownMax = Number.isFinite(metrics?.maxDrawdown)
+    ? metrics.maxDrawdown
+    : investmentDrawdown?.maxDrawdown ?? null;
+  const drawdownSeries = investmentDrawdown?.series ?? [];
   const resultsReady = Boolean(report && reportWindow && chartWindow);
   const resultsState = isRunning
     ? "loading"
@@ -1412,10 +1384,15 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
         ? "loading"
         : sourceState;
   const resultsLoading = !resultsReady && resultsState === "loading";
-  // The headline return is always the flow-neutral total return, so switching
-  // cashflows on or off never changes what this card means. The investor's own
-  // XIRR sits beside it in the Performance & Risk card.
-  const totalReturn = report?.timeWeightedReturnPct ?? metrics.totalReturn;
+  // The headline return answers "what happened to the money I committed": it is
+  // profit over everything deposited, so withdrawals count as money returned.
+  // With cashflows off it is identical to the time-weighted return. A closed
+  // account reports N/A: there is no balance left to earn a return on, and a
+  // large positive number beside a $0 End Balance only reads as a bug.
+  const totalReturn = report?.endingCapitalReturnPct
+    ?? report?.timeWeightedReturnPct
+    ?? metrics.totalReturn;
+  const totalReturnLabel = report?.fullyDepleted ? "N/A" : formatPercent(totalReturn);
   // Pending universe/rebalance changes only update the draft. They never raise
   // a notification: feedback belongs to Run Backtest and its real outcome.
 
@@ -1655,8 +1632,11 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
             <KpiCard
               loading={resultsLoading}
               label="Total Return"
-              value={formatPercent(totalReturn)}
-              valueTone={valueTone(totalReturn)}
+              value={totalReturnLabel}
+              detail={report?.fullyDepleted
+                ? `Fully withdrawn · capital ${formatPercent(report.endingCapitalReturnPct)}`
+                : undefined}
+              valueTone={report?.fullyDepleted ? "" : valueTone(totalReturn)}
               icon={Stack}
               tint="mint"
               mascotVariant="mint"
@@ -1669,7 +1649,21 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
             className="backtest-cumulative-card"
             action={(
               <div className="backtest-chart-controls">
-                <LogScaleToggle checked={logScale} onChange={setLogScale} />
+                <div className="period-control backtest-view-control" role="group" aria-label="Chart view">
+                  {CHART_VIEWS.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      aria-pressed={chartView === item.id}
+                      onClick={() => setChartView(item.id)}
+                    >{item.label}</button>
+                  ))}
+                </div>
+                {/* A log axis cannot draw a percentage that goes negative, so
+                    the switch is only offered for the dollar view. */}
+                {chartView === "value" && (
+                  <LogScaleToggle checked={logScale} onChange={setLogScale} />
+                )}
                 <div className="period-control backtest-range-control" role="group" aria-label="Chart time range">
                   {RANGES.map((item) => (
                     <button key={item} type="button" aria-pressed={range === item} onClick={() => setRange(item)}>{item}</button>
@@ -1695,6 +1689,7 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
               <CumulativeChart
                 dates={chartWindow.dates}
                 range={range}
+                view={chartView}
                 logScale={logScale}
                 seriesValues={chartSeries}
                 onLogUnavailable={() => {
@@ -1718,43 +1713,13 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
             <DashboardCard
               title="Drawdown"
               className="backtest-drawdown-card"
-              action={(
-                <div className="backtest-drawdown-controls">
-                  <div className="period-control backtest-drawdown-control" role="group" aria-label="Drawdown basis">
-                    <button
-                      type="button"
-                      aria-pressed={drawdownBasis === "investment"}
-                      onClick={() => setDrawdownBasis("investment")}
-                    >Investment</button>
-                    <button
-                      type="button"
-                      aria-pressed={drawdownBasis === "account"}
-                      onClick={() => setDrawdownBasis("account")}
-                    >Account</button>
-                  </div>
-                  <span className="backtest-max-drawdown">Max {formatPercent(drawdownView.max)}</span>
-                </div>
-              )}
+              action={<span className="backtest-max-drawdown">Max {formatPercent(drawdownMax)}</span>}
             >
-              {reportWindow && drawdownView.series.length ? (
-                <>
-                  <DrawdownChart
-                    dates={reportWindow.dates}
-                    values={drawdownView.series}
-                    basis={drawdownView.basis}
-                  />
-                  <p className="backtest-drawdown-meta">
-                    {drawdownView.peakDate
-                      ? [
-                        `Max ${formatPercent(drawdownView.max)}`,
-                        `${drawdownView.peakDate} → ${drawdownView.troughDate}`,
-                        drawdownView.recoveryDate
-                          ? `recovered ${drawdownView.recoveryDate}`
-                          : "not recovered",
-                      ].join(" · ")
-                      : "No drawdown inside this window."}
-                  </p>
-                </>
+              {reportWindow && drawdownSeries.length ? (
+                <DrawdownChart
+                  dates={reportWindow.dates}
+                  values={drawdownSeries}
+                />
               ) : (
                 <ChartState
                   state={resultsState}

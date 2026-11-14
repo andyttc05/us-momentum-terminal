@@ -33,7 +33,10 @@ test("duration uses the effective report dates and CAGR is no longer a top KPI",
     /label="Duration"[\s\S]*?value=\{formatBacktestDuration\(reportWindow\?\.dates\?\.\[0\], reportWindow\?\.dates\?\.at\(-1\)\)\}/,
   );
   assert.doesNotMatch(kpiSection, /label="CAGR"/);
-  assert.match(kpiSection, /value=\{formatPercent\(totalReturn\)\}/);
+  // The headline return is profit over committed capital, and a closed account
+  // reports N/A instead of a positive number beside a $0 balance.
+  assert.match(kpiSection, /value=\{totalReturnLabel\}/);
+  assert.match(page, /const totalReturnLabel = report\?\.fullyDepleted \? "N\/A" : formatPercent\(totalReturn\);/);
   assert.doesNotMatch(kpiSection, /Profit \/ Loss|Sharpe Ratio/);
 });
 
@@ -53,7 +56,8 @@ test("monetary balances stay neutral while performance figures keep their tone",
     kpiSection.indexOf("<KpiCard", kpiSection.indexOf('label="Duration"')),
   );
   assert.doesNotMatch(durationCard, /valueTone=/);
-  assert.match(kpiSection, /valueTone=\{valueTone\(totalReturn\)\}/);
+  // A closed account keeps the neutral tone rather than a green/red one.
+  assert.match(kpiSection, /valueTone=\{report\?\.fullyDepleted \? "" : valueTone\(totalReturn\)\}/);
 });
 
 test("Performance & Risk puts the headline figures first and the rest in grouped rows", () => {
@@ -75,9 +79,7 @@ test("Performance & Risk puts the headline figures first and the rest in grouped
     "Time-Weighted Return",
     "Money-Weighted Return / XIRR",
     "Net Profit / Loss",
-    "Return on Capital",
     "Investment Max Drawdown",
-    "Account Max Drawdown",
     "Total Cash Inflows",
     "Actual Withdrawals",
     "Unpaid Withdrawals",

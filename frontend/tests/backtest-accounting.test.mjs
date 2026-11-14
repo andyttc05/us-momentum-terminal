@@ -124,9 +124,11 @@ test("07. negative market with outflows", () => {
 test("08. severe crash with withdrawals caps execution and records the shortfall", () => {
   const result = run([100, 50, 50, 25, 25, 12.5], { direction: "outflow", amount: 6_000 });
   assert.deepEqual(money(result.values.slice(0, 3)), [10_000, 5_000, 0]);
-  assert.equal(result.requestedOutflows, 12_000);
+  // Only the withdrawal that closed the account is recorded.
+  assert.equal(result.requestedOutflows, 6_000);
   assert.equal(result.actualOutflows, 5_000);
-  assert.equal(result.unpaidOutflows, 7_000);
+  assert.equal(result.unpaidOutflows, 1_000);
+  assert.equal(result.fullyDepleted, true);
   assert.equal(result.finalValue, 0);
   assert.equal(result.maxBalanceDrawdownPct, -100);
   assert.deepEqual(clean(result), []);
@@ -134,9 +136,9 @@ test("08. severe crash with withdrawals caps execution and records the shortfall
 
 test("09. an outflow above the balance is capped at the balance", () => {
   const result = run(FLAT, { direction: "outflow", amount: 12_000 });
-  assert.equal(result.requestedOutflows, 24_000);
+  assert.equal(result.requestedOutflows, 12_000);
   assert.equal(result.actualOutflows, 10_000);
-  assert.equal(result.unpaidOutflows, 14_000);
+  assert.equal(result.unpaidOutflows, 2_000);
   assert.equal(result.finalValue, 0);
   const [first] = result.cashflowEvents;
   assert.equal(first.requestedAmount, 12_000);
@@ -149,7 +151,8 @@ test("09. an outflow above the balance is capped at the balance", () => {
 test("10. an outflow equal to the balance depletes the account exactly", () => {
   const result = run(FLAT, { direction: "outflow", amount: 10_000 });
   assert.equal(result.actualOutflows, 10_000);
-  assert.equal(result.unpaidOutflows, 10_000);
+  assert.equal(result.unpaidOutflows, 0);
+  assert.equal(result.fullyDepleted, true);
   assert.equal(result.finalValue, 0);
   assert.equal(result.remainingUnits, 0);
   assert.equal(result.endingHoldingsValue, 0);
@@ -558,4 +561,71 @@ test("23. a report built from an older backend payload derives the same series",
     [0, 0, 0, 0],
   );
   assert.equal(analysis.strategy.endingCapitalReturnPct, 0);
+});
+
+test("24. a closed account stops requesting withdrawals, an inflow reopens it", () => {
+  const closed = simulateCashflows({
+    dates: DATES,
+    strategy: FLAT,
+    initialCapital: 10_000,
+    contributionEnabled: true,
+    contributionAmount: 6_000,
+    contributionFrequency: "monthly",
+    cashflowDirection: "outflow",
+    startsAtBacktestOrigin: true,
+  });
+  // 6,000, then the 4,000 that was left of the next request, then nothing: a
+  // $0 balance is not asked for money again.
+  assert.deepEqual(
+    closed.cashflowEvents.map((event) => [event.date, event.actualAmount, event.unpaidAmount]),
+    [["2020-02-03", 6_000, 0], ["2020-03-02", 4_000, 2_000]],
+  );
+  assert.equal(closed.requestedOutflows, 12_000);
+  assert.equal(closed.actualOutflows, 10_000);
+  assert.equal(closed.unpaidOutflows, 2_000);
+  assert.equal(closed.fullyDepleted, true);
+  assert.deepEqual(money(closed.values), [10_000, 10_000, 4_000, 4_000, 0, 0]);
+
+  const revived = simulateCashflows({
+    dates: DATES.slice(0, 5),
+    strategy: FLAT.slice(0, 5),
+    initialCapital: 10_000,
+    cashflowEnabled: false,
+    cashflowDirection: "inflow",
+    manualEvents: [
+      { index: 1, amount: 10_000, direction: "outflow" },
+      { index: 2, amount: 5_000, direction: "inflow" },
+      { index: 3, amount: 2_000, direction: "outflow" },
+    ],
+  });
+  assert.deepEqual(money(revived.values), [10_000, 0, 5_000, 3_000, 3_000]);
+  assert.equal(revived.fullyDepleted, false);
+  assert.deepEqual(auditAccount(revived, DATES.slice(0, 5)), []);
+});
+
+test("25. a depleted report is flagged so the page can report N/A", () => {
+  const window = {
+    dates: DATES,
+    strategy: FLAT,
+    spy: FLAT,
+    spmo: FLAT,
+    startsAtBacktestOrigin: true,
+  };
+  const config = {
+    initialCapital: 10_000,
+    cashflowEnabled: true,
+    contributionAmount: 6_000,
+    contributionFrequency: "monthly",
+    cashflowDirection: "outflow",
+  };
+  const depleted = buildBacktestAnalysis(window, config);
+  assert.equal(depleted.strategy.fullyDepleted, true);
+  assert.equal(depleted.strategy.values.at(-1), 0);
+  // The account-level return is still a number, which is exactly why the card
+  // has to decide to show N/A instead of printing it.
+  assert.ok(Number.isFinite(depleted.strategy.endingCapitalReturnPct));
+
+  const open = buildBacktestAnalysis(window, { ...config, cashflowAmount: 100, contributionAmount: 100 });
+  assert.equal(open.strategy.fullyDepleted, false);
+  assert.ok(open.strategy.values.at(-1) > 0);
 });

@@ -173,46 +173,32 @@ shallower than the NAV drawdown over the same episode.
 
 ## Reporting Layout
 
-The results page is deliberately quiet: one chart, one drawdown, one calendar-year table, and one
-combined statistics card.
-
 | Card | Contents |
 | --- | --- |
-| Portfolio Performance | account balance in dollars for Strategy, SPY and SPMO |
-| Drawdown | investment (unitized NAV) or account-balance basis, with the episode dates |
+| Portfolio Performance | balance or return on capital, switchable, for Strategy, SPY and SPMO |
+| Drawdown | investment drawdown from the unitized NAV |
 | Annual Return | flow-neutral calendar-year returns per account |
 | Performance & Risk | four headline figures, then Return / Cash Flow / Risk / Benchmarks rows |
 
 ### Portfolio Performance
 
-- The chart plots the simulated account balance only. There is no percentage view, so the line
-  cannot be mistaken for a return that ignores the cashflow setting.
-- The range filter slices the single simulation: a `1Y` view shows the balance the investor actually
+Two views over the same simulation, both of which respond to the cashflow configuration:
+
+| View | Series | Axis |
+| --- | --- | --- |
+| Portfolio Value | account balance in dollars | currency |
+| Return on Capital | profit ÷ capital committed so far | percent, zero-anchored |
+
+- The range filter slices the single simulation. A `1Y` view shows the balance the investor actually
   held one year ago, not fresh opening capital.
-- The tooltip still reports both the balance and the return on capital for the hovered date.
-- Log scale is available and is withdrawn automatically when a balance is not positive (a depleted
-  account at `$0`).
-- The Total Return KPI shows the flow-neutral time-weighted return and does not change when
-  cashflows are switched on or off, so the card always means the same thing.
+- The tooltip reports the balance and the return on capital for the hovered date.
+- Log scale is available on the dollar view and is withdrawn automatically when a balance is not
+  positive. The axis uses **log-spaced ticks** (1/2/5 per decade); an earlier build placed linear
+  ticks on a log plot, which bunched every label at the top. The percentage view hides the switch
+  because a return that can go negative has no log axis.
+- The Total Return KPI is the endpoint of the percentage view, so the card and the chart always agree.
 
-### Performance & Risk
-
-Four headline figures — CAGR, time-weighted return, money-weighted return (XIRR) and investment
-maximum drawdown — sit above three groups of label/value rows:
-
-| Group | Rows |
-| --- | --- |
-| Return | Duration, Net Profit / Loss, Return on Capital, vs. SPY |
-| Cash flow | Schedule, Total Cash Inflows, Actual Withdrawals, Unpaid Withdrawals |
-| Risk | Annualized Volatility, Sharpe, Sortino, Account Max Drawdown |
-| Benchmarks | Beta / correlation / tracking error / information ratio vs. SPY, beta and tracking error vs. SPMO |
-
-Seventeen equal-weight tiles were replaced with this layout because a wall of identical boxes made
-the important figures impossible to find. Every row keeps its own definition tooltip, and a single
-footer line records the run's assumptions (initial capital, dividend treatment, inflation basis,
-rebalancing).
-
-### Return on capital (reported, not charted)
+### Return on capital
 
 ```text
 profit(t)    = balance(t) + actual withdrawals to t − deposits to t − initial capital
@@ -220,9 +206,20 @@ committed(t) = initial capital + deposits to t
 return(t)    = profit(t) / committed(t) × 100
 ```
 
-This is the investor's own percentage: a deposit dilutes it, a withdrawal does not erase profit that
-has already been earned, and a loss shows as a negative number. It appears in the Performance & Risk
-card, the tooltip, the workbook and the mirror tests, but it is not a chart view.
+A deposit dilutes the ratio, a withdrawal does not erase profit already earned, and a loss shows as a
+negative number. With cashflows off it is identical to the time-weighted return, so the number does
+not jump when the cashflow switch is flipped.
+
+### Closed accounts
+
+When a withdrawal empties the account, the schedule stops for outflows: a $0 balance is not asked for
+money again, so `Requested Withdrawals` and `Unpaid Withdrawals` record only what actually happened
+rather than accumulating eight years of unfunded requests. A later inflow still revives the account.
+
+The page reports **N/A** for Total Return once the account is closed. The remaining figures are still
+published — time-weighted return, XIRR and the capital result — and the card states the capital
+figure beside the N/A. This follows PortfolioVisualizer, which also reports `N/A` for `Return` next to
+a `$0` end balance while keeping TWRR visible.
 
 ### Monthly returns
 
@@ -255,6 +252,7 @@ actual and unpaid amounts are recorded separately for each account.
 - Trades and external flows execute at the next/current available adjusted close as applicable.
 - Rebalances continue to operate on portfolio NAV while the account units scale the resulting book.
 - Flow dates use the first available trading observation in a new month, quarter or year.
+- Withdrawal requests stop once the balance is zero; only a deposit can reopen the account.
 - Missing/invalid NAV cannot create wealth. A depleted account remains at zero until a valid deposit.
 - No negative balances, negative units or negative held value are admitted.
 
@@ -266,10 +264,10 @@ actual and unpaid amounts are recorded separately for each account.
 - For the exact submitted full window, the UI consumes the Python balances, units, TWR and XIRR.
 - The browser engine runs only when no authoritative payload matches the submitted configuration
   (the inflation-adjusted view), and produces the same contract.
-- The headline return card always reads the flow-neutral TWR, so switching cashflows never changes
-  what it means.
-- The performance chart is the account balance; the Total Return KPI is flow-neutral and stable, and
-  the investor's own XIRR sits beside it in the Performance & Risk card.
+- The headline return card reads return on capital, which equals the time-weighted return when
+  cashflows are off.
+- The performance chart switches between the account balance and return on capital; the Total Return
+  KPI mirrors the percentage view, and reports N/A once the account is closed.
 - The Performance Summary carries TWR, XIRR, Net P&L and both drawdown bases as separate tiles.
 - The workbook adds an Annual Returns sheet, an Account Balances sheet, a strategy account-balance
   drawdown column, and a return-on-capital column for each of the three accounts.
@@ -338,13 +336,14 @@ The local application was exercised against the local FastAPI engine (publicatio
 
 | Scenario | Result |
 | --- | --- |
-| Monthly `$1,000` inflow, default window | Start `$10,000`, End `$312,963`, Investor Return `+21.1%`, TWR `+406.1%` |
+| Monthly `$1,000` inflow, default window | Start `$10,000`, End `$312,963`, Total Return `+177.0%`, TWR `+406.09%`, XIRR `+21.08%` |
 | Same run, Portfolio Value view | Currency axis `$0 … $400K`; end labels `$312,963` / `$288,730` / `$237,304` |
 | Same run, `1Y` range | Axis `$150K … $350K`; the balance is the real one, not restarting at `$10,000` |
-| Same run, Total Return KPI | `+406.1%` with cashflows on and off |
-| Drawdown, Investment basis | Max `−32.1%`, `2020-02-19 → 2020-03-23`, recovered `2020-07-06` |
-| Drawdown, Account basis | Max `−30.3%`, `2020-02-19 → 2020-03-23`, recovered `2020-05-20` |
-| Monthly `$1,000` outflow, re-run | End `$0` on all three accounts, Investor Return `+21.4%`, TWR `+416.5%` |
+| Same run, Return on Capital view | Ends at `+177.0%`, exactly the KPI value |
+| Drawdown | Max `−32.1%`, single investment basis, no toggle |
+| Log scale | Axis `$5K / $10K / $20K / $50K / $100K / $200K / $500K`, log-spaced |
+| Monthly `$1,000` outflow, 2y 10m window | Start `$10,000`, End `$0`, Total Return **`N/A`**, `Fully withdrawn · capital +26.1%` |
+| Same run, backend | 12 events (all funded), `fully_depleted: true`, TWR `+416.5%` |
 
 Hover tooltip at 2023-05-22, compared against the published account simulation:
 

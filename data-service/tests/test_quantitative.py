@@ -1506,8 +1506,16 @@ class TransactionCostTests(unittest.TestCase):
             [event["date"] for event in accounts[key]["events"]]
             for key in ("strategy", "spy", "spmo")
         ]
-        self.assertEqual(dates[0], dates[1])
-        self.assertEqual(dates[1], dates[2])
+        # Every account receives the same dated request while it is funded. A
+        # depleted account stops requesting, so its ledger is a prefix.
+        common = min(len(sequence) for sequence in dates)
+        self.assertGreater(common, 0)
+        self.assertEqual(dates[0][:common], dates[1][:common])
+        self.assertEqual(dates[1][:common], dates[2][:common])
+        longest = max(len(sequence) for sequence in dates)
+        for key, sequence in zip(("strategy", "spy", "spmo"), dates):
+            if len(sequence) < longest:
+                self.assertTrue(accounts[key]["fully_depleted"], key)
         self.assertEqual(len(accounts["strategy"]["balances"]), len(result["strategy"]))
         self.assertAlmostEqual(
             accounts["strategy"]["time_weighted_return_pct"],

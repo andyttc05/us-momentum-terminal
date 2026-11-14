@@ -225,7 +225,16 @@ def simulate_account(
         cash = max(0.0, cash)
         balance = holdings + cash
         event = events_by_index.get(index)
-        if event:
+        # A depleted account has nothing left to redeem. Re-requesting the
+        # withdrawal every period would accumulate an "unpaid" figure that never
+        # had a chance of being paid, so the schedule stops for outflows while
+        # the account is closed. A later inflow still revives it.
+        skip_event = bool(
+            event
+            and (event.get("direction", direction) == "outflow")
+            and balance <= 1e-9
+        )
+        if event and not skip_event:
             balance_before = balance
             scheduled = event["requested_amount"]
             event_direction = event.get("direction", direction)
@@ -338,6 +347,11 @@ def simulate_account(
         "twr_values": twr_values,
         "capital_return": capital_return,
         "ending_capital_return_pct": capital_return[-1] if capital_return else None,
+        # A closed account has no ongoing return to report. The page shows N/A
+        # for its account-level return, while TWR and XIRR stay available.
+        "fully_depleted": bool(
+            ending_balance <= 1e-9 and units_values[-1] <= 1e-9
+        ),
         "balance_drawdown": balance_drawdown,
         "max_balance_drawdown_pct": min(balance_drawdown) if balance_drawdown else 0.0,
         "daily_returns": daily_twr,

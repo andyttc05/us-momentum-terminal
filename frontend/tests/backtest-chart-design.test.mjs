@@ -13,15 +13,18 @@ test("the cumulative chart uses the approved concise legend labels", () => {
   assert.doesNotMatch(page, /US Momentum Strategy/);
 });
 
-test("the chart plots the simulated account balance and nothing else", () => {
-  assert.match(page, /const values = seriesValues\?\.\[series\.id\]\?\.values;/);
+test("each chart view plots its own account series", () => {
+  assert.match(page, /const values = isPercent \? entry\?\.capitalReturns : entry\?\.values;/);
   assert.match(page, /\.filter\(\(series\) => series\.values\.length === dates\.length\)/);
-  assert.match(page, /valuePosition\(value, scale, top, plotHeight, renderedLogScale\)/);
+  assert.match(page, /wealthPosition\(value, scale, top, plotHeight\)/);
+  assert.match(page, /percentScale\(allValues\)/);
   assert.doesNotMatch(page, /window\[series\.id\]\.map\(\(value\) => value - 100\)/);
-  // The percentage view and its toggle were removed.
-  assert.doesNotMatch(page, /CHART_VIEWS/);
-  assert.doesNotMatch(page, /chartView/);
-  assert.doesNotMatch(page, /wealthPosition|cumulativeScale/);
+  // Two views, both fed by the shared simulation.
+  assert.match(page, /\{ id: "value", label: "Portfolio Value" \}/);
+  assert.match(page, /\{ id: "capital", label: "Return on Capital" \}/);
+  assert.match(page, /const \[chartView, setChartView\] = useState\("value"\);/);
+  // Log scale is a dollar-axis feature; the percentage view hides the switch.
+  assert.match(page, /\{chartView === "value" && \(/);
 });
 
 test("the plot has no redundant cumulative-return caption", () => {

@@ -151,14 +151,17 @@ test("H. repeated scheduled outflows stop executing once the account is depleted
     contributionAmount: 600,
     cashflowDirection: "outflow",
   });
-  assert.equal(result.cashflowEvents.length, 3);
+  // The account closes after the second withdrawal, so the schedule stops
+  // instead of re-requesting an amount that could never be paid.
+  assert.equal(result.cashflowEvents.length, 2);
   assert.deepEqual(
     result.cashflowEvents.map((event) => [event.actualAmount, event.unpaidAmount, event.endingBalance]),
-    [[600, 0, 400], [400, 200, 0], [0, 600, 0]],
+    [[600, 0, 400], [400, 200, 0]],
   );
-  assert.equal(result.requestedOutflows, 1_800);
+  assert.equal(result.requestedOutflows, 1_200);
   assert.equal(result.actualOutflows, 1_000);
-  assert.equal(result.unpaidOutflows, 800);
+  assert.equal(result.unpaidOutflows, 200);
+  assert.equal(result.fullyDepleted, true);
   assert.equal(result.finalValue, 0);
   assertProtected(result);
 });

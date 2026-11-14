@@ -227,6 +227,7 @@ export function normalizeBackendCashflowAccounts(payload, config, dates) {
       endingCapitalReturnPct: Number.isFinite(Number(account.ending_capital_return_pct))
         ? Number(account.ending_capital_return_pct)
         : null,
+      fullyDepleted: Boolean(account.fully_depleted),
       balanceDrawdown,
       maxBalanceDrawdownPct: balanceDrawdown.length ? Math.min(...balanceDrawdown) : null,
       values: balances,
@@ -355,6 +356,7 @@ export function simulateCashflows({
       returns: [],
       capitalReturns: [],
       endingCapitalReturnPct: null,
+      fullyDepleted: false,
       balanceDrawdown: [],
       maxBalanceDrawdownPct: null,
       cashflowEvents: [],
@@ -445,7 +447,16 @@ export function simulateCashflows({
       : 0;
     value = nonNegativeBalance(holdingsValue + availableCash);
     const scheduledEvent = scheduleByIndex.get(index);
-    if (scheduledEvent) {
+    // A depleted account has nothing left to redeem, so withdrawal requests are
+    // no longer recorded. "Unpaid" therefore only ever reports the shortfall of
+    // the withdrawal that closed the account. An inflow still revives it.
+    const skipEvent = Boolean(
+      scheduledEvent
+      && (scheduledEvent.direction ?? direction) === "outflow"
+      && value <= 1e-9
+      && units <= 1e-9,
+    );
+    if (scheduledEvent && !skipEvent) {
       const power = scheduledEvent.explicit ? 1 : powerAt(index);
       const requestedReal = scheduledEvent.requestedAmount * power;
       const eventDirection = scheduledEvent.direction ?? direction;
@@ -591,6 +602,7 @@ export function simulateCashflows({
     values: timeline.map((point) => point.value),
     returns: twrValues,
     capitalReturns,
+    fullyDepleted: value <= 1e-9 && units <= 1e-9,
     endingCapitalReturnPct: capitalReturns.length ? capitalReturns.at(-1) : null,
     balanceDrawdown,
     maxBalanceDrawdownPct: balanceDrawdown.length ? Math.min(...balanceDrawdown) : null,
@@ -650,6 +662,9 @@ function withDerivedSeries(account) {
     endingCapitalReturnPct: finite(account.endingCapitalReturnPct)
       ? account.endingCapitalReturnPct
       : capitalReturns.at(-1) ?? null,
+    fullyDepleted: account.fullyDepleted ?? (
+      (values.at(-1) ?? 0) <= 1e-9 && (account.remainingUnits ?? 0) <= 1e-9
+    ),
     balanceDrawdown,
     maxBalanceDrawdownPct: balanceDrawdown.length ? Math.min(...balanceDrawdown) : null,
   };
