@@ -18,6 +18,7 @@ import { ExportMenu } from "./components/ExportMenu.jsx";
 import { KpiCard } from "./components/KpiCard.jsx";
 import { MascotDuo } from "./components/Mascot.jsx";
 import { PageHeader } from "./components/PageHeader.jsx";
+import { PortfolioEvolution } from "./components/PortfolioEvolution.jsx";
 import { useChartTooltipSize } from "./components/useChartTooltipSize.js";
 import {
   CurrencyInput,
@@ -1494,6 +1495,21 @@ export function BacktestingPage({ hidden = false }) {
             metrics={metrics}
             config={submittedConfig}
             state={resultsReady ? "ready" : resultsState}
+          />
+          <PortfolioEvolution
+            block={resultBlock}
+            config={submittedConfig}
+            stocks={data?.stocks ?? []}
+            portfolios={data?.portfolios ?? {}}
+            state={resultsReady ? "ready" : resultsState}
+            onNotify={({ message, kind = "updated", durationMs, id }) => {
+              showNotification(
+                message,
+                kind,
+                durationMs ?? (kind === "error" ? undefined : 3200),
+                id,
+              );
+            }}
           />
           </div>
       </div>
