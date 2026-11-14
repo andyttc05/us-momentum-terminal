@@ -95,6 +95,20 @@
 .stock-switch i { width: 14px; height: 14px; border-radius: 50%; background: #FFFFFF; box-shadow: 0 1px 2px rgb(0 0 0 / 18%); transition: transform 180ms ease; }
 .stock-price-scale-toggle[aria-pressed="true"] .stock-switch { background: #14110D; }
 .stock-price-scale-toggle[aria-pressed="true"] .stock-switch i { transform: translateX(12px); }
+/* The selected window's own headline, in the same row as the range pills: one
+   number, no label, no rule under it. */
+.stock-price-controls__row { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 14px; }
+.stock-price-range-change {
+  color: var(--color-ink);
+  font-size: 1.32rem;
+  font-weight: var(--font-weight-black);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.025em;
+  line-height: 1;
+  white-space: nowrap;
+}
+.stock-price-range-change.is-positive { color: #1E9B58; }
+.stock-price-range-change.is-negative { color: #E0555C; }
 .stock-price-chart-wrap { display: flex; min-height: 0; flex: 1 1 auto; margin-top: 3px; }
 /* The canvas is the measured box; the SVG draws itself 1:1 inside it so no
    element is ever stretched by a viewBox scale. */
@@ -280,6 +294,8 @@
   .stock-price-toolbar { min-height: 36px; }
   .stock-price-toolbar button { min-width: 42px; min-height: 29px; padding-inline: 9px; font-size: 0.8rem; }
   .stock-price-scale-toggle { min-height: 34px; padding-inline: 11px; font-size: 0.79rem; }
+  .stock-price-controls__row { gap: 10px; }
+  .stock-price-range-change { font-size: 1.12rem; }
   .stock-returns-card { padding-block: 6px; }
   .stock-return { gap: 4px; }
   .stock-return > span { font-size: 0.75rem; }

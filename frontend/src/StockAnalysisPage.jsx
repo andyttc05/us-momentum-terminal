@@ -29,6 +29,7 @@ import {
   logPosition,
   priceLogAxis,
   priceRanges,
+  rangeChange,
   rangeStartIndex,
   timeTicks,
 } from "./utils/priceRange.js";
@@ -520,6 +521,16 @@ export function StockAnalysisPage({ ticker = "NVDA", onBack, backLabel = "Screen
   const universeSize = market?.stocks?.length ?? 0;
   const rankTier = getRankTier(stock?.rank, universeSize);
 
+  // The selected window's own headline: how much the price moved between its
+  // first and last real observation. It follows the range selector, so the
+  // chart and the number always describe the same span.
+  const rangeSummary = useMemo(() => {
+    const history = stock?.priceHistory;
+    if (!history?.dates?.length) return null;
+    const start = rangeStartIndex(history.dates, range);
+    return { change: rangeChange(history.values.slice(start)) };
+  }, [stock, range]);
+
   const returnRows = useMemo(() => (stock ? [
     ["1M Return", stock.priceHistory.returns.oneMonth],
     ["3M Return", stock.priceHistory.returns.threeMonth],
@@ -623,8 +634,18 @@ export function StockAnalysisPage({ ticker = "NVDA", onBack, backLabel = "Screen
 
           <section className="dashboard-card stock-price-card" aria-label={`${ticker} historical price chart`}>
             <div className="stock-price-controls">
-              <div className="stock-price-toolbar" role="group" aria-label="Stock price history range">
-                {priceRanges.map((item) => <button key={item} type="button" aria-pressed={range === item} onClick={() => setRange(item)}>{item}</button>)}
+              <div className="stock-price-controls__row">
+                <div className="stock-price-toolbar" role="group" aria-label="Stock price history range">
+                  {priceRanges.map((item) => <button key={item} type="button" aria-pressed={range === item} onClick={() => setRange(item)}>{item}</button>)}
+                </div>
+                {rangeSummary && (
+                  <strong
+                    className={`stock-price-range-change is-${rangeSummary.change > 0 ? "positive" : rangeSummary.change < 0 ? "negative" : "neutral"}`}
+                    aria-label={`${range} total change`}
+                  >
+                    {signedPercent(rangeSummary.change, 2)}
+                  </strong>
+                )}
               </div>
               <button
                 type="button"

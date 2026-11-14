@@ -9,14 +9,13 @@
 
 export const DEFAULT_RANGE = "1Y";
 
-export const priceRanges = ["1M", "3M", "6M", "1Y", "3Y", "5Y", "10Y", "ALL"];
+export const priceRanges = ["1Y", "3Y", "5Y", "10Y", "ALL"];
 // Calendar-day lookbacks. "ALL" has no cutoff: it shows every weekly sample the
 // source actually published, which is the honest definition of "maximum
-// available history".
+// available history". The sub-year windows were dropped once the change over
+// the selected window became the chart's own headline: three overlapping short
+// ranges said less than one number did.
 export const rangeDays = {
-  "1M": 31,
-  "3M": 92,
-  "6M": 183,
   "1Y": 366,
   "3Y": 1096,
   "5Y": 1827,
@@ -41,33 +40,49 @@ export function rangeStartIndex(dates, range) {
   return index <= 0 ? 0 : index;
 }
 
+/**
+ * Percent change between the first and last observation of the visible window.
+ * Uses the unfiltered slice so a stray zero price cannot hide a real move.
+ */
+export function rangeChange(values) {
+  const clean = (Array.isArray(values) ? values : []).filter(
+    (value) => typeof value === "number" && Number.isFinite(value),
+  );
+  if (clean.length < 2) return null;
+  const first = clean[0];
+  const last = clean[clean.length - 1];
+  if (!(first > 0)) return null;
+  return (last / first - 1) * 100;
+}
+
 /** Label density follows the window: months up to a year, then years. */
 export function timeTicks(dates, range) {
-  const dense = range === "1M" || range === "3M" || range === "6M" || range === "1Y";
-  const byYear = range === "10Y" || range === "ALL";
+  // One label per month on a one-year window, two per year on five years, one
+  // per year beyond that: the gridline count stays roughly constant instead of
+  // packing forty labels into the same width.
+  const mode = range === "1Y" ? "month" : range === "3Y" ? "quarter" : range === "5Y" ? "half" : "year";
   const ticks = [];
   let lastKey = "";
   dates.forEach((iso, index) => {
     const year = iso.slice(0, 4);
     const month = Number(iso.slice(5, 7));
-    const key = byYear ? year : dense ? iso.slice(0, 7) : `${year}-Q${Math.ceil(month / 3)}`;
+    const key = mode === "year"
+      ? year
+      : mode === "half"
+        ? `${year}-H${month <= 6 ? 1 : 2}`
+        : mode === "quarter"
+          ? `${year}-Q${Math.ceil(month / 3)}`
+          : `${year}-${String(month).padStart(2, "0")}`;
     if (key === lastKey) return;
     lastKey = key;
-    const label = byYear
-      ? year
-      // Quarterly windows name the year on January so the reader never has to
-      // count quarters to work out which year a label belongs to.
-      : dense
-        ? MONTH_LABELS[month - 1]
-        : month === 1 ? year : MONTH_LABELS[month - 1];
+    // Year boundaries name the year, so a quarter or half label never has to be
+    // counted backwards to work out which calendar year it belongs to.
+    const label = mode === "year" || month === 1 ? year : MONTH_LABELS[month - 1];
     ticks.push({ index, label });
   });
   return ticks;
 }
 
-
-// A denser ladder than the money axis uses: a price series usually spans one or
-// two decades, where 1/2/5 alone would leave two gridlines.
 const PRICE_LADDER = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8];
 
 function ladderStep(value, direction) {

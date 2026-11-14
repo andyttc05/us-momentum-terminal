@@ -6,6 +6,7 @@ import {
   logPosition,
   priceLogAxis,
   priceRanges,
+  rangeChange,
   rangeDays,
   rangeStartIndex,
   timeTicks,
@@ -21,12 +22,16 @@ function weeklyDates(count) {
 
 const DATES = weeklyDates(626); // ~12 years of Fridays
 
-test("the eight ranges are offered and 1Y is the default", () => {
-  assert.deepEqual(priceRanges, ["1M", "3M", "6M", "1Y", "3Y", "5Y", "10Y", "ALL"]);
+test("the five ranges are offered and 1Y is the default", () => {
+  assert.deepEqual(priceRanges, ["1Y", "3Y", "5Y", "10Y", "ALL"]);
   assert.equal(DEFAULT_RANGE, "1Y");
   assert.equal(rangeDays.ALL, null);
   for (const range of priceRanges.filter((item) => item !== "ALL")) {
     assert.ok(rangeDays[range] > 0, range);
+  }
+  // The sub-year windows are gone, not merely hidden.
+  for (const gone of ["1M", "3M", "6M"]) {
+    assert.equal(rangeDays[gone], undefined);
   }
 });
 
@@ -48,16 +53,31 @@ test("a window the series cannot reach falls back to the first real observation"
   const short = DATES.slice(-60); // barely a year
   assert.equal(rangeStartIndex(short, "10Y"), 0);
   assert.equal(rangeStartIndex(short, "5Y"), 0);
-  assert.ok(rangeStartIndex(short, "1M") > 0);
+  assert.ok(rangeStartIndex(short.slice(-20), "1Y") >= 0);
   // Nothing is invented: the caller simply draws from index 0.
   assert.equal(rangeStartIndex([], "1Y"), 0);
+});
+
+test("the range change is the move across the visible window", () => {
+  assert.ok(Math.abs(rangeChange([100, 120, 131]) - 31) < 1e-9);
+  assert.ok(Math.abs(rangeChange([100, 50]) + 50) < 1e-9);
+  assert.equal(rangeChange([80, 80, 80]), 0);
+  // Not enough observations, an unusable first price, or junk input yield null
+  // rather than a fabricated number.
+  assert.equal(rangeChange([100]), null);
+  assert.equal(rangeChange([]), null);
+  assert.equal(rangeChange([0, 50]), null);
+  assert.equal(rangeChange([Number.NaN, 50]), null);
+  // Non-finite points are skipped, so a single bad bar cannot break the span.
+  assert.ok(Math.abs(rangeChange([100, Number.NaN, 131]) - 31) < 1e-9);
 });
 
 test("axis labels follow the window: months, quarters, then years", () => {
   const year = DATES.slice(rangeStartIndex(DATES, "1Y"));
   const monthTicks = timeTicks(year, "1Y");
   assert.ok(monthTicks.length >= 11 && monthTicks.length <= 13, String(monthTicks.length));
-  assert.ok(monthTicks.every((tick) => /^[A-Z][a-z]{2}$/.test(tick.label)));
+  // January is labelled with the year, which is what anchors a 12-month axis.
+  assert.ok(monthTicks.every((tick) => /^(\d{4}|[A-Z][a-z]{2})$/.test(tick.label)));
 
   const decade = DATES.slice(rangeStartIndex(DATES, "10Y"));
   const yearTicks = timeTicks(decade, "10Y");
@@ -69,6 +89,9 @@ test("axis labels follow the window: months, quarters, then years", () => {
   // One label per quarter, and January carries the year so quarters stay
   // attributable without counting backwards.
   assert.ok(quarterTicks.length >= 11 && quarterTicks.length <= 14, String(quarterTicks.length));
+  const fiveYears = DATES.slice(rangeStartIndex(DATES, "5Y"));
+  const halfYearTicks = timeTicks(fiveYears, "5Y");
+  assert.ok(halfYearTicks.length >= 9 && halfYearTicks.length <= 12, String(halfYearTicks.length));
   assert.ok(quarterTicks.some((tick) => /^\d{4}$/.test(tick.label)));
   for (const tick of quarterTicks) {
     assert.ok(tick.index >= 0 && tick.index < threeYears.length);
