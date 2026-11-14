@@ -173,26 +173,45 @@ shallower than the NAV drawdown over the same episode.
 
 ## Chart Presentation
 
-The performance card offers two views over the same simulation.
+The performance card offers two views over the same simulation, and both respond to the cashflow
+configuration.
 
 | View | Series | Axis |
 | --- | --- | --- |
 | Portfolio Value | account balance in dollars | currency |
-| Cumulative Return | unitized TWR, rebased to the first visible observation | percent |
+| Return on Capital | profit ÷ capital committed so far | percent |
+
+### Return on capital
+
+```text
+profit(t)   = balance(t) + actual withdrawals to t − deposits to t − initial capital
+committed(t)= initial capital + deposits to t
+return(t)   = profit(t) / committed(t) × 100
+```
+
+This is the investor's own percentage: a deposit raises the denominator and therefore dilutes the
+ratio, a withdrawal does not erase profit that has already been earned, and a loss shows as a
+negative percentage. In the flat-then-rising fixture used by the tests, `$1,000` monthly deposits
+produce `0 → 10 → 9.09 → 20 → 18.33 → 30.17` while the same run with withdrawals produces
+`0 → 10 → 10 → 20 → 20 → 30`.
+
+It is deliberately *not* the time-weighted return. TWR compounds the investment and ignores external
+flows, so it belongs in the Performance Summary and the drawdown, not on a chart whose job is to show
+what the investor experienced.
 
 Rules:
 
 - Both views read the three account contracts; neither falls back to the raw NAV.
 - The range filter slices the single simulation. A `1Y` dollar view shows the balance the investor
   actually held one year ago, not fresh opening capital.
-- The percentage view rebases to the first visible point with `(1 + r_t) / (1 + r_0) − 1`, which is
-  the exact unitized ratio and therefore still flow-neutral.
-- The tooltip always shows both the balance and the TWR for the hovered date.
+- Return on capital is an absolute measure since the account opened, so a range only zooms the
+  x-axis; the series is never rebased.
+- The tooltip always shows the balance and the return on capital for the hovered date.
 - Log scale is offered in both views and is automatically withdrawn when a value is non-positive
   (a depleted account at `$0`).
-
-Annual and monthly tables stay flow-neutral and say so in a caption under each table: a monthly
-percentage that silently included deposits would be meaningless as investment performance.
+- The annual and monthly tables below the chart still report flow-neutral TWR, because a monthly
+  percentage that silently included a deposit would not be a return. Each table carries a caption
+  saying so.
 
 ## Benchmark Simulation
 
@@ -232,9 +251,11 @@ actual and unpaid amounts are recorded separately for each account.
   (the inflation-adjusted view), and produces the same contract.
 - The headline return card reads the investor's XIRR whenever cashflows are enabled and shows the
   flow-neutral TWR beneath it; with cashflows disabled it reads the TWR directly.
+- The performance chart's second view is return on capital, so both views move when the direction,
+  amount or frequency changes.
 - The Performance Summary carries TWR, XIRR, Net P&L and both drawdown bases as separate tiles.
-- The workbook adds an Annual Returns sheet, an Account Balances sheet, and a strategy
-  account-balance drawdown column alongside the NAV drawdown columns.
+- The workbook adds an Annual Returns sheet, an Account Balances sheet, a strategy account-balance
+  drawdown column, and a return-on-capital column for each of the three accounts.
 - The Cash Flows sheet contains requested, actual and unpaid strategy withdrawals.
 
 ## Automated Evidence
@@ -302,22 +323,22 @@ The local application was exercised against the local FastAPI engine (publicatio
 | --- | --- |
 | Monthly `$1,000` inflow, default window | Start `$10,000`, End `$312,963`, Investor Return `+21.1%`, TWR `+406.1%` |
 | Same run, Portfolio Value view | Currency axis `$0 … $400K`; end labels `$312,963` / `$288,730` / `$237,304` |
-| Same run, Cumulative Return view | Percent axis `0 … 500%`; end labels `+406.6%` / `+325.1%` / `+233.2%` |
+| Same run, Return on Capital view | Percent axis `−20 … 250%`; end labels `+177.0%` / `+155.5%` / `+110.0%` |
 | Same run, `1Y` range (value) | Axis `$150K … $350K`; the balance is the real one, not restarting at `$10,000` |
-| Same run, `1Y` range (return) | Axis `−10% … 40%`; end labels `+17.2%` / `+13.5%` / `+13.4%` (rebased) |
+| Same run, `1Y` range (capital) | The same absolute percentages, zoomed; the series is not rebased |
 | Drawdown, Investment basis | Max `−32.1%`, `2020-02-19 → 2020-03-23`, recovered `2020-07-06` |
 | Drawdown, Account basis | Max `−30.3%`, `2020-02-19 → 2020-03-23`, recovered `2020-05-20` |
 | Monthly `$1,000` outflow, re-run | End `$0` on all three accounts, Investor Return `+21.4%`, TWR `+416.5%` |
 
-Hover tooltip at 2026-06-26, compared against the published account simulation:
+Hover tooltip at 2023-05-22, compared against the published account simulation:
 
 ```text
-tooltip:  Strategy $309,890 (+17.9%)   SPY $223,936 (+9.4%)   SPMO $330,668 (+31.9%)
+tooltip:  Strategy $107,616 (+51.6%)   SPY $96,104 (+35.4%)   SPMO $90,725 (+27.8%)
 snapshot: Strategy $309,889.86         SPY $223,936.44        SPMO $330,668.00
 ```
 
-The tooltip balances are the simulated balances to the cent; the percentages are the unitized TWR
-rebased to the visible range.
+The tooltip balances are the simulated balances to the cent. `$107,616` against `$71,000` committed
+by that date is `+51.6%`, which is the return on capital at that point in the curve.
 
 ## Test and Build Evidence
 
@@ -391,6 +412,9 @@ redeploying. A later publication build will publish the field directly.
   remains the risk metric for that reason.
 - Annual and monthly tables intentionally report flow-neutral returns. They are not account growth
   rates, and the caption under each table says so.
+- Return on capital is a cumulative level, not a rate: it is not annualised, and it cannot be
+  chain-linked across sub-periods the way TWR can. The Performance Summary keeps both measures so the
+  two are never confused.
 - Deployments that serve a publication generated before this change will compute
   `balance_drawdown` in the browser from the published balances; the values agree, but the field is
   absent from the JSON until the next publication is generated.

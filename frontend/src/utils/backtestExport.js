@@ -9,14 +9,17 @@ const DAILY_PERFORMANCE_COLUMNS = [
   "Date",
   "Strategy Portfolio Value",
   "Strategy Daily Return (%)",
-  "Strategy Cumulative Return (%)",
+  "Strategy TWR (%)",
+  "Strategy Return on Capital (%)",
   "Strategy Drawdown (%)",
   "SPY Portfolio Value",
   "SPY Daily Return (%)",
-  "SPY Cumulative Return (%)",
+  "SPY TWR (%)",
+  "SPY Return on Capital (%)",
   "SPMO Portfolio Value",
   "SPMO Daily Return (%)",
-  "SPMO Cumulative Return (%)",
+  "SPMO TWR (%)",
+  "SPMO Return on Capital (%)",
 ];
 
 const DRAWDOWN_COLUMNS = [
@@ -160,18 +163,22 @@ function buildDailyRows(window, analysis) {
   const accountDrawdown = analysis.accountDrawdown?.series ?? [];
   const spyDrawdown = drawdown(window.spy);
   const spmoDrawdown = drawdown(window.spmo);
+  const capital = (id, index) => account[id]?.capitalReturns?.[index] ?? null;
   const rows = window.dates.map((date, index) => [
     date,
     account.strategy?.values?.[index] ?? null,
     percentChange(window.strategy, index),
     account.strategy?.returns?.[index] ?? (window.strategy?.[index] - 100),
+    capital("strategy", index),
     strategyDrawdown[index],
     account.spy?.values?.[index] ?? null,
     percentChange(window.spy, index),
     account.spy?.returns?.[index] ?? (window.spy?.length ? window.spy[index] - 100 : null),
+    capital("spy", index),
     account.spmo?.values?.[index] ?? null,
     percentChange(window.spmo, index),
     account.spmo?.returns?.[index] ?? (window.spmo?.length ? window.spmo[index] - 100 : null),
+    capital("spmo", index),
   ]);
 
   return {
@@ -254,6 +261,7 @@ function buildPerformanceSummaryRows(metrics, account) {
     ["Sharpe Ratio (0% risk-free)", metrics.sharpe, "ratio"],
     ["Sortino Ratio (0% risk-free)", metrics.sortino, "ratio"],
     ["Time-Weighted Return", account.timeWeightedReturnPct, "%"],
+    ["Return on Capital", account.endingCapitalReturnPct, "%"],
     ["Money-Weighted Return / XIRR", account.moneyWeightedReturnPct, "%"],
     ["Total Cash Inflows", account.totalInflows, "USD"],
     ["Requested Cash Outflows", account.requestedOutflows, "USD"],
@@ -362,18 +370,21 @@ export function buildBacktestExportData({
     {
       name: "Daily Performance",
       rows: dailyRows,
-      widths: [12, 23, 22, 27, 22, 19, 18, 23, 20, 19, 24],
+      widths: [12, 23, 22, 16, 27, 22, 19, 18, 14, 24, 20, 19, 15, 25],
       formats: {
         1: EXCEL_FORMAT.currency,
         2: EXCEL_FORMAT.percent,
         3: EXCEL_FORMAT.percent,
         4: EXCEL_FORMAT.percent,
-        5: EXCEL_FORMAT.currency,
-        6: EXCEL_FORMAT.percent,
+        5: EXCEL_FORMAT.percent,
+        6: EXCEL_FORMAT.currency,
         7: EXCEL_FORMAT.percent,
-        8: EXCEL_FORMAT.currency,
+        8: EXCEL_FORMAT.percent,
         9: EXCEL_FORMAT.percent,
-        10: EXCEL_FORMAT.percent,
+        10: EXCEL_FORMAT.currency,
+        11: EXCEL_FORMAT.percent,
+        12: EXCEL_FORMAT.percent,
+        13: EXCEL_FORMAT.percent,
       },
       autoFilter: true,
       freezeHeader: true,

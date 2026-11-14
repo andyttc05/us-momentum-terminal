@@ -72,12 +72,12 @@ import {
 import { UNIVERSE_OPTIONS } from "./utils/universeState.js";
 
 const RANGES = ["1Y", "3Y", "5Y", "All"];
-// The two cumulative-chart views are different measurements, not skins:
-// "value" plots the cashflow-inclusive account balance, "return" plots the
-// flow-neutral unitized TWR.
+// The two chart views answer different questions, and both respond to the
+// cashflow configuration: "value" is the account balance in dollars, "capital"
+// is profit measured against every dollar the investor has committed.
 const CHART_VIEWS = [
   { id: "value", label: "Portfolio Value" },
-  { id: "return", label: "Cumulative Return" },
+  { id: "capital", label: "Return on Capital" },
 ];
 const SERIES = [
   { id: "strategy", name: "Strategy", color: "#FFC83D" },
@@ -294,7 +294,7 @@ function CumulativeTooltip({ dates, index, width, seriesValues }) {
       {SERIES.map((series) => {
         const values = seriesValues?.[series.id];
         const portfolioValue = values?.values?.[index];
-        const cumulativeReturn = values?.returns?.[index];
+        const capitalReturn = values?.capitalReturns?.[index];
         return (
           <span className="backtest-chart-tooltip__row" key={series.id}>
             <i style={{ "--series-color": series.color }} aria-hidden="true" />
@@ -302,8 +302,8 @@ function CumulativeTooltip({ dates, index, width, seriesValues }) {
             <strong className="backtest-chart-tooltip__portfolio">
               {formatTooltipMoney(portfolioValue)}
             </strong>
-            <strong className={`backtest-chart-tooltip__return is-${valueTone(cumulativeReturn)}`}>
-              {formatPercent(cumulativeReturn)}
+            <strong className={`backtest-chart-tooltip__return is-${valueTone(capitalReturn)}`}>
+              {formatPercent(capitalReturn)}
             </strong>
           </span>
         );
@@ -349,7 +349,7 @@ function CumulativeChart({ dates, range, view, logScale, seriesValues, onLogUnav
   const computedSeries = SERIES
     .map((series) => {
       const entry = seriesValues?.[series.id];
-      const values = isPercent ? entry?.returns : entry?.values;
+      const values = isPercent ? entry?.capitalReturns : entry?.values;
       return { ...series, values: Array.isArray(values) ? values : [] };
     })
     .filter((series) => series.values.length === dates.length);
@@ -494,7 +494,7 @@ function CumulativeChart({ dates, range, view, logScale, seriesValues, onLogUnav
           preserveAspectRatio="xMidYMid meet"
           role="img"
           aria-label={isPercent
-            ? `${range} cumulative return comparison for strategy, SPY and SPMO`
+            ? `${range} return on invested capital for strategy, SPY and SPMO`
             : `${range} account balance comparison for strategy, SPY and SPMO`}
           onPointerMove={(event) => {
             if (event.pointerType !== "touch" && event.pointerType !== "pen") selectAt(event.clientX);

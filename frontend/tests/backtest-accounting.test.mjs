@@ -438,3 +438,124 @@ test("21. direction changes balances and investor return, never the TWR series",
     assert.deepEqual(auditAccount(analysis.strategy, DATES), []);
   }
 });
+
+test("22. return on capital is the chart's flow-aware percentage", () => {
+  const window = {
+    dates: DATES,
+    strategy: RISING,
+    spy: [100, 101, 102, 103, 104, 105],
+    spmo: [100, 99, 98, 97, 96, 95],
+    startsAtBacktestOrigin: true,
+  };
+  const base = {
+    initialCapital: 10_000,
+    cashflowEnabled: true,
+    contributionAmount: 1_000,
+    contributionFrequency: "monthly",
+  };
+  const off = buildBacktestAnalysis(window, { ...base, cashflowEnabled: false });
+  const inflow = buildBacktestAnalysis(window, { ...base, cashflowDirection: "inflow" });
+  const outflow = buildBacktestAnalysis(window, { ...base, cashflowDirection: "outflow" });
+
+  // Profit against everything committed so far. A deposit dilutes the ratio;
+  // a withdrawal does not, because the profit has already been earned.
+  assert.deepEqual(
+    inflow.strategy.capitalReturns.map((value) => Number(value.toFixed(4))),
+    [0, 10, 9.0909, 20, 18.3333, 30.1667],
+  );
+  assert.deepEqual(
+    outflow.strategy.capitalReturns.map((value) => Number(value.toFixed(4))),
+    [0, 10, 10, 20, 20, 30],
+  );
+  // With no external flows the two measures coincide exactly.
+  assert.deepEqual(
+    off.strategy.capitalReturns.map((value) => Number(value.toFixed(4))),
+    [0, 10, 10, 21, 21, 33.1],
+  );
+  off.strategy.capitalReturns.forEach((value, index) => {
+    assert.ok(Math.abs(value - off.strategy.returns[index]) < 1e-9);
+  });
+  assert.ok(Math.abs(inflow.strategy.endingCapitalReturnPct - 3_620 / 120) < 1e-9);
+  assert.ok(Math.abs(outflow.strategy.endingCapitalReturnPct - 30) < 1e-9);
+
+  // The percentage chart therefore moves with the flow schedule, while the TWR
+  // series used by the summary and the drawdown stays put.
+  assert.notDeepEqual(inflow.strategy.capitalReturns, outflow.strategy.capitalReturns);
+  assert.deepEqual(inflow.strategy.returns, outflow.strategy.returns);
+
+  // Slicing keeps the absolute level: a range only zooms the x-axis.
+  const slice = sliceAccountSeries(inflow.strategy, 3, 5);
+  assert.deepEqual(
+    slice.capitalReturns.map((value) => Number(value.toFixed(4))),
+    [20, 18.3333, 30.1667],
+  );
+});
+
+test("23. a report built from an older backend payload derives the same series", () => {
+  const dates = DATES.slice(0, 4);
+  const backend = {
+    config: {
+      initial_capital: 10_000,
+      enabled: true,
+      amount: 1_000,
+      frequency: "monthly",
+      direction: "inflow",
+    },
+    accounts: {
+      strategy: {
+        initial_capital: 10_000,
+        final_value: 11_000,
+        ending_holdings_value: 11_000,
+        ending_cash: 0,
+        remaining_units: 110,
+        total_inflows: 1_000,
+        requested_outflows: 0,
+        actual_outflows: 0,
+        unpaid_outflows: 0,
+        net_cashflow: 1_000,
+        net_profit_loss: 0,
+        gross_invested_capital: 11_000,
+        time_weighted_return_pct: 0,
+        money_weighted_return_pct: 0,
+        balances: [10_000, 10_000, 11_000, 11_000],
+        holdings_values: [10_000, 10_000, 11_000, 11_000],
+        cash_values: [0, 0, 0, 0],
+        units: [100, 100, 110, 110],
+        twr_values: [0, 0, 0, 0],
+        // No capital_return / balance_drawdown: an older publication.
+        events: [{
+          date: dates[2],
+          direction: "inflow",
+          requested_amount: 1_000,
+          actual_amount: 1_000,
+          unpaid_amount: 0,
+          balance_before: 10_000,
+          balance_after: 11_000,
+          units: 110,
+          available_cash: 0,
+        }],
+        investor_flows: [],
+      },
+      spy: null,
+      spmo: null,
+    },
+  };
+  const window = {
+    dates,
+    strategy: [100, 100, 100, 100],
+    spy: [100, 100, 100, 100],
+    spmo: [100, 100, 100, 100],
+    startsAtBacktestOrigin: true,
+  };
+  const analysis = buildBacktestAnalysis(
+    window,
+    { initialCapital: 10_000, cashflowEnabled: true, contributionAmount: 1_000, contributionFrequency: "monthly", cashflowDirection: "inflow" },
+    backend,
+  );
+  // The deposit bought units at the same NAV, so the ratio dilutes to zero.
+  assert.deepEqual(
+    analysis.strategy.capitalReturns.map((value) => Number(value.toFixed(6))),
+    [0, 0, 0, 0],
+  );
+  assert.equal(analysis.strategy.endingCapitalReturnPct, 0);
+});

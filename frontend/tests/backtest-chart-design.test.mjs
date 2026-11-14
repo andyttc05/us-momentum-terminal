@@ -15,8 +15,9 @@ test("the cumulative chart uses the approved concise legend labels", () => {
 
 test("each chart view plots its own account series, never the raw NAV", () => {
   // The dollar view reads the simulated account balance; the percentage view
-  // reads the unitized TWR. Both come from the same simulation.
-  assert.match(page, /const values = isPercent \? entry\?\.returns : entry\?\.values;/);
+  // reads the money-weighted return on the capital the investor has committed.
+  // Both come from the same simulation.
+  assert.match(page, /const values = isPercent \? entry\?\.capitalReturns : entry\?\.values;/);
   assert.match(page, /\.filter\(\(series\) => series\.values\.length === dates\.length\)/);
   assert.doesNotMatch(page, /window\[series\.id\]\.map\(\(value\) => value - 100\)/);
   assert.match(page, /valuePosition\(value, scale, top, plotHeight, renderedLogScale\)/);
@@ -25,7 +26,9 @@ test("each chart view plots its own account series, never the raw NAV", () => {
 
 test("the chart offers both views and defaults to the account balance", () => {
   assert.match(page, /\{ id: "value", label: "Portfolio Value" \}/);
-  assert.match(page, /\{ id: "return", label: "Cumulative Return" \}/);
+  assert.match(page, /\{ id: "capital", label: "Return on Capital" \}/);
+  // The flow-neutral TWR is no longer a chart view; it stays in the summary.
+  assert.doesNotMatch(page, /label: "Cumulative Return"/);
   assert.match(page, /const \[chartView, setChartView\] = useState\("value"\);/);
   assert.match(page, /role="group" aria-label="Chart view"/);
 });
@@ -38,12 +41,13 @@ test("the plot has no redundant cumulative-return caption", () => {
   assert.doesNotMatch(page, />Cumulative return \(%\)</);
 });
 
-test("the cumulative tooltip renders dated balance and return columns for every series", () => {
+test("the chart tooltip renders a dated balance and capital-return column per series", () => {
   const tooltipStart = page.indexOf("function CumulativeTooltip");
   const tooltipEnd = page.indexOf("function LogScaleToggle", tooltipStart);
   const tooltip = page.slice(tooltipStart, tooltipEnd);
   assert.match(tooltip, /formatTooltipMoney\(portfolioValue\)/);
-  assert.match(tooltip, /formatPercent\(cumulativeReturn\)/);
+  assert.match(tooltip, /formatPercent\(capitalReturn\)/);
+  assert.match(tooltip, /values\?\.capitalReturns\?\.\[index\]/);
   assert.match(tooltip, /SERIES\.map/);
   assert.doesNotMatch(tooltip, /\$46,370|363\.7%/);
 });

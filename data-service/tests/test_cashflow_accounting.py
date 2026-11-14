@@ -345,6 +345,47 @@ class CriticalScenarioTests(unittest.TestCase):
                                                      "2020-04-01", "2020-05-01"]), [])
 
 
+class ReturnOnCapitalTests(unittest.TestCase):
+    """The chart's percentage view: profit against committed capital."""
+
+    def test_inflow_series_reports_profit_over_everything_committed(self):
+        result = run(RISING)
+        # 10,000 -> 11,000 (+10%); the 1,000 deposit dilutes to 9.09%; and so on.
+        self.assertEqual(
+            [round(value, 4) for value in result["capital_return"]],
+            [0.0, 10.0, 9.0909, 20.0, 18.3333, 30.1667],
+        )
+        # 3,620 profit on 12,000 committed.
+        self.assertAlmostEqual(result["ending_capital_return_pct"], 3_620.0 / 120.0, places=6)
+
+    def test_outflow_series_keeps_the_profit_that_leaves_the_account(self):
+        result = run(RISING, direction="outflow")
+        self.assertEqual(
+            [round(value, 4) for value in result["capital_return"]],
+            [0.0, 10.0, 10.0, 20.0, 20.0, 30.0],
+        )
+        # 3,000 profit on 10,000 committed; the withdrawal does not erase it.
+        self.assertAlmostEqual(result["ending_capital_return_pct"], 30.0, places=6)
+
+    def test_the_two_measures_disagree_by_design(self):
+        inflow = run(RISING)
+        outflow = run(RISING, direction="outflow")
+        # TWR is identical; the capital return is not.
+        self.assertAlmostEqual(
+            inflow["time_weighted_return_pct"], outflow["time_weighted_return_pct"], places=9
+        )
+        self.assertNotAlmostEqual(
+            inflow["ending_capital_return_pct"], outflow["ending_capital_return_pct"], places=6
+        )
+
+    def test_series_stays_finite_through_depletion(self):
+        result = run(FLAT, direction="outflow", amount=10_000.0)
+        self.assertTrue(all(value is not None for value in result["capital_return"]))
+        self.assertTrue(all(math.isfinite(value) for value in result["capital_return"]))
+        # Fully withdrawn on a flat market: no profit, ratio stays zero.
+        self.assertAlmostEqual(result["ending_capital_return_pct"], 0.0, places=6)
+
+
 class AuditTests(unittest.TestCase):
     def test_audit_accepts_every_scenario(self):
         for direction in ("inflow", "outflow"):

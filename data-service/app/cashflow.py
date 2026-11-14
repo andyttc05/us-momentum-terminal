@@ -199,6 +199,8 @@ def simulate_account(
     requested_outflows = 0.0
     actual_outflows = 0.0
     unpaid_outflows = 0.0
+    cumulative_inflows: list[float] = []
+    cumulative_outflows: list[float] = []
 
     for index, (stamp, nav_value) in enumerate(zip(stamps, values)):
         nav = float(nav_value)
@@ -278,6 +280,8 @@ def simulate_account(
         cash_values.append(cash)
         units_values.append(units)
         twr_values.append(cumulative_twr)
+        cumulative_inflows.append(total_inflows)
+        cumulative_outflows.append(actual_outflows)
 
     ending_balance = balances[-1]
     investor_flows.append({"date": stamps[-1], "amount": ending_balance})
@@ -290,6 +294,20 @@ def simulate_account(
     # (investment) drawdown: it follows the money the investor actually owns, so
     # an executed withdrawal shows up here as a fall in the balance even though
     # it is not an investment loss.
+    # Return on capital is the money-weighted *level* the investor sees: profit
+    # measured against everything they have put in so far. It responds to every
+    # deposit and withdrawal, which the unitized TWR deliberately does not.
+    capital_return: list[float | None] = []
+    for index, balance in enumerate(balances):
+        invested = float(initial_capital) + cumulative_inflows[index]
+        profit = (
+            balance
+            + cumulative_outflows[index]
+            - cumulative_inflows[index]
+            - float(initial_capital)
+        )
+        capital_return.append(profit / invested * 100.0 if invested > 0 else None)
+
     running_peak = 0.0
     balance_drawdown: list[float] = []
     for balance in balances:
@@ -318,6 +336,8 @@ def simulate_account(
         "cash_values": cash_values,
         "units": units_values,
         "twr_values": twr_values,
+        "capital_return": capital_return,
+        "ending_capital_return_pct": capital_return[-1] if capital_return else None,
         "balance_drawdown": balance_drawdown,
         "max_balance_drawdown_pct": min(balance_drawdown) if balance_drawdown else 0.0,
         "daily_returns": daily_twr,

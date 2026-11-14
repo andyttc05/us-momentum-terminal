@@ -175,7 +175,9 @@ test("Backtesting CSV and workbook retain every configured trading date", async 
 
   const { workbook, archive } = await readWorkbook(data.workbookSheets);
   assert.deepEqual(workbook.SheetNames, data.workbookSheets.map((sheet) => sheet.name));
-  assert.equal(workbook.Sheets["Daily Performance"]["!ref"], `A1:K${block.dates.length + 1}`);
+  // Fourteen columns: balance, daily return, TWR, return on capital and the
+  // strategy drawdown for each of the three accounts.
+  assert.equal(workbook.Sheets["Daily Performance"]["!ref"], `A1:N${block.dates.length + 1}`);
   assert.equal(workbook.Sheets["Daily Performance"].B2.t, "n");
   assert.equal(workbook.Sheets["Daily Performance"].C3.t, "n");
   const firstSheet = strFromU8(archive["xl/worksheets/sheet1.xml"]);

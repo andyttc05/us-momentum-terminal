@@ -220,6 +220,13 @@ export function normalizeBackendCashflowAccounts(payload, config, dates) {
       })),
       dailyReturns: (account.daily_returns ?? []).map(Number),
       twrValues,
+      capitalReturns: Array.isArray(account.capital_return)
+        && account.capital_return.length === dates.length
+        ? account.capital_return.map((value) => (value == null ? null : Number(value)))
+        : null,
+      endingCapitalReturnPct: Number.isFinite(Number(account.ending_capital_return_pct))
+        ? Number(account.ending_capital_return_pct)
+        : null,
       balanceDrawdown,
       maxBalanceDrawdownPct: balanceDrawdown.length ? Math.min(...balanceDrawdown) : null,
       values: balances,
@@ -346,6 +353,8 @@ export function simulateCashflows({
       twrValues: [],
       values: [],
       returns: [],
+      capitalReturns: [],
+      endingCapitalReturnPct: null,
       balanceDrawdown: [],
       maxBalanceDrawdownPct: null,
       cashflowEvents: [],
@@ -390,6 +399,9 @@ export function simulateCashflows({
   }];
   const investorFlows = [{ date: dates[0], amount: -initialCapitalReal }];
   const cashflowEvents = [];
+  // Seeded with the opening observation, which is recorded before the loop.
+  const cumulativeInflows = [0];
+  const cumulativeOutflows = [0];
   // Explicit dated events exist for diagnostics and for the accounting tests;
   // the scheduled path is the one the UI drives. Amounts on manual events are
   // already in base-date dollars, so they are never scaled again.
@@ -504,6 +516,8 @@ export function simulateCashflows({
       availableCash,
       units,
     });
+    cumulativeInflows.push(totalInflows);
+    cumulativeOutflows.push(actualOutflows);
   }
 
   investorFlows.push({ date: dates.at(-1), amount: value });
@@ -527,6 +541,17 @@ export function simulateCashflows({
   // It therefore moves on an executed withdrawal, which the unitized-NAV
   // investment drawdown deliberately does not.
   const balanceDrawdown = drawdownFromValues(timeline.map((point) => point.value));
+  // Return on capital: profit measured against every dollar the investor has
+  // committed so far. It moves with each deposit and withdrawal, which is the
+  // opposite of the unitized TWR and exactly why the chart offers both.
+  const capitalReturns = timeline.map((point, index) => {
+    const invested = initialCapitalReal + cumulativeInflows[index];
+    const profit = point.value
+      + cumulativeOutflows[index]
+      - cumulativeInflows[index]
+      - initialCapitalReal;
+    return invested > 0 ? (profit / invested) * 100 : null;
+  });
 
   return {
     finalValue: value,
@@ -565,6 +590,8 @@ export function simulateCashflows({
     twrValues,
     values: timeline.map((point) => point.value),
     returns: twrValues,
+    capitalReturns,
+    endingCapitalReturnPct: capitalReturns.length ? capitalReturns.at(-1) : null,
     balanceDrawdown,
     maxBalanceDrawdownPct: balanceDrawdown.length ? Math.min(...balanceDrawdown) : null,
     inflationAdjusted: purchasingPower.length > 0,
@@ -572,6 +599,37 @@ export function simulateCashflows({
 }
 
 const PORTFOLIO_IDS = ["strategy", "spy", "spmo"];
+
+/**
+ * Rebuild the return-on-capital series from balances and dated flows.
+ *
+ * Used when a payload was published before the field existed; the formula is
+ * identical to the one both simulators apply.
+ */
+function deriveCapitalReturns(account, values) {
+  const initial = Number(account.initialCapital ?? 0);
+  const timeline = Array.isArray(account.timeline) ? account.timeline : [];
+  if (!values.length || !(initial > 0) || timeline.length !== values.length) return [];
+  const flowsByDate = new Map();
+  (account.cashflowEvents ?? []).forEach((event) => {
+    const entry = flowsByDate.get(event.date) ?? { inflow: 0, outflow: 0 };
+    if (event.direction === "outflow") entry.outflow += Number(event.actualAmount ?? 0);
+    else entry.inflow += Number(event.actualAmount ?? 0);
+    flowsByDate.set(event.date, entry);
+  });
+  let inflows = 0;
+  let outflows = 0;
+  return values.map((value, index) => {
+    const flow = flowsByDate.get(timeline[index].date);
+    if (flow) {
+      inflows += flow.inflow;
+      outflows += flow.outflow;
+    }
+    const invested = initial + inflows;
+    if (!(invested > 0) || !finite(value)) return null;
+    return ((value + outflows - inflows - initial) / invested) * 100;
+  });
+}
 
 function withDerivedSeries(account) {
   const values = account.values?.length
@@ -581,10 +639,17 @@ function withDerivedSeries(account) {
   const balanceDrawdown = account.balanceDrawdown?.length
     ? account.balanceDrawdown
     : drawdownFromValues(values);
+  const capitalReturns = account.capitalReturns?.length
+    ? account.capitalReturns
+    : deriveCapitalReturns(account, values);
   return {
     ...account,
     values,
     returns,
+    capitalReturns,
+    endingCapitalReturnPct: finite(account.endingCapitalReturnPct)
+      ? account.endingCapitalReturnPct
+      : capitalReturns.at(-1) ?? null,
     balanceDrawdown,
     maxBalanceDrawdownPct: balanceDrawdown.length ? Math.min(...balanceDrawdown) : null,
   };
@@ -677,6 +742,11 @@ export function sliceAccountSeries(account, startIndex, endIndex = null) {
   return {
     values: values.slice(from, to + 1),
     returns,
+    // Return on capital is an absolute measure since the account opened, so a
+    // range only zooms the x-axis; it is never rebased.
+    capitalReturns: Array.isArray(account.capitalReturns)
+      ? account.capitalReturns.slice(from, to + 1)
+      : [],
   };
 }
 
