@@ -347,20 +347,34 @@ same TWR and non-negative depletion behavior as the live API path.
 
 ## Deployment Verification
 
-The feature-branch Pages dispatch built successfully, but the `github-pages` environment rejected the
-feature ref because deployment is restricted to protected branches. The tested commit was then
-fast-forwarded to `main` without rewriting history.
+Commit `94254e4` was pushed to `main`; no history was rewritten and no other branch was touched.
 
-- Production workflow: `43586357811`
-- Source commit: `9e90cf7524bd9c50f47f5216caee4e7c5d7c8345`
-- Build job: success
-- Deploy job: success
-- Deployment status: success
+- Workflow: `Deploy to GitHub Pages`, run `43611458480`
+- Status: completed / success
 - Deployed URL: https://andyttc05.github.io/us-momentum-terminal/
+- Deployed bundle: `assets/index-DloS5ZoF.js`, which contains the new `Portfolio Value` and
+  `Investor Return` strings
 
-The live Backtesting page shows publication `2026-11-14-cashflow-accounts-v14`, the default inflow
-account result, and the expected `$0` / actual / unpaid withdrawal breakdown after a `$20,000` monthly
-outflow run.
+The live Backtesting page was loaded in headless Chrome against the deployed build and reported:
+
+```text
+Start Balance      $10,000
+End Balance        $312,963
+Duration           8y 7m
+Investor Return    +21.1%   (XIRR · TWR +406.1%)
+Drawdown badge     Max −32.1%
+Drawdown caption   Max −32.1% · 2020-02-19 → 2020-03-23 · recovered 2020-07-06
+Chart axis         $0 / $100K / $200K / $300K / $400K
+End labels         $312,963 / $288,730 / $237,304
+Active view        Portfolio Value
+```
+
+`GET https://us-momentum-data.onrender.com/api/snapshot` returned `200` for publication
+`2026-11-14-cashflow-accounts-v14` with a strategy `final_value` of `$312,962.59`, matching the
+deployed page to the dollar. That payload predates this change, so it carries no
+`balance_drawdown` field; the browser derives the series from the published balances, which is why
+the live account drawdown and caption render correctly regardless of when Render finishes
+redeploying. A later publication build will publish the field directly.
 
 ## Remaining Limitations
 
