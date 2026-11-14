@@ -24,10 +24,8 @@ import { Pagination } from "./components/Pagination.jsx";
 import { SectorAllocation } from "./components/SectorAllocation.jsx";
 import { Toast } from "./components/Toast.jsx";
 import { UpdateBar } from "./components/UpdateBar.jsx";
-import { useMediaQuery } from "./components/useMediaQuery.js";
 import { useMarket } from "./api/MarketProvider.jsx";
 import { useUniverse } from "./api/UniverseProvider.jsx";
-import { PHONE_TABLE_MEDIA_QUERY } from "./utils/breakpoints.js";
 import { downloadCsvFile } from "./utils/csv.js";
 import { getSectionState } from "./utils/dataState.js";
 import { downloadWorkbookFile } from "./utils/exportFiles.js";
@@ -133,10 +131,6 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
     strategyRebalanceFrequency,
   } = useMarket();
   const { activeUniverse } = useUniverse();
-  // Phones drop the rank column so the ticker can pin to the left edge without
-  // an empty lane beside it. The rank stays on every holding and in the CSV
-  // export; only the phone table stops rendering the cell.
-  const isPhone = useMediaQuery(PHONE_TABLE_MEDIA_QUERY);
 
   const universe = activeUniverse;
   // One dataset drives the book, its summary, its sector split and the
@@ -171,7 +165,7 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
     error,
     refreshing,
   });
-  const columnCount = isPhone ? 6 : 7;
+  const columnCount = 7;
 
   useEffect(() => {
     setPage(1);
@@ -361,7 +355,7 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
                 aria-busy={holdingsState === "loading" || undefined}
               >
                 <colgroup>
-                  {!isPhone && <col className="portfolio-col-rank" />}
+                  <col className="portfolio-col-rank" />
                   <col className="portfolio-col-ticker" />
                   <col className="portfolio-col-sector" />
                   <col className="portfolio-col-score" />
@@ -371,7 +365,7 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
                 </colgroup>
                 <thead>
                   <tr>
-                    {!isPhone && <th scope="col" className="portfolio-heading portfolio-heading--rank"><span>#</span></th>}
+                    <th scope="col" className="portfolio-heading portfolio-heading--rank"><span>#</span></th>
                     {sortableFields.slice(1).map(([key, label, className, shortLabel]) => (
                       <th scope="col" key={key} className={`portfolio-heading portfolio-heading--${className}`} aria-sort={sort.key === key ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}>
                         <button type="button" aria-label={`Sort by ${label}`} onClick={() => toggleSort(key)}>
@@ -401,7 +395,7 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
                         if (shouldOpenRow(event)) onSelectStock?.(holding.ticker);
                       }}
                     >
-                      {!isPhone && <td className="portfolio-rank-cell"><span>{holding.rank}</span></td>}
+                      <td className="portfolio-rank-cell"><span>{holding.rank}</span></td>
                       <td className="portfolio-ticker-cell">
                         <a
                           className="portfolio-ticker-link"

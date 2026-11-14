@@ -19,3 +19,6 @@
 /* Also last: the Screener and Holdings tables share one row interaction and one
    heading-alignment contract, so those rules have to win over the page sheets. */
 @import "./styles/tables.css";
+/* Last of all: it hides the whole shell in phone portrait, so it must not be
+   overridden by any page or component sheet above. */
+@import "./styles/orientation.css";

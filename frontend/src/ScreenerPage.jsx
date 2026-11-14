@@ -16,10 +16,8 @@ import { Pagination } from "./components/Pagination.jsx";
 import { Sparkline } from "./components/Sparkline.jsx";
 import { Toast } from "./components/Toast.jsx";
 import { UpdateBar } from "./components/UpdateBar.jsx";
-import { useMediaQuery } from "./components/useMediaQuery.js";
 import { useMarket } from "./api/MarketProvider.jsx";
 import { useUniverse } from "./api/UniverseProvider.jsx";
-import { PHONE_TABLE_MEDIA_QUERY } from "./utils/breakpoints.js";
 import { downloadCsvFile } from "./utils/csv.js";
 import { getSectionState } from "./utils/dataState.js";
 import { downloadWorkbookFile } from "./utils/exportFiles.js";
@@ -73,12 +71,6 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
   const filterControlRef = useRef(null);
   const { data, refresh, status, error, refreshing } = useMarket();
   const { activeUniverse, activateUniverse } = useUniverse();
-  // The rank column is dropped on phones so the ticker can stay pinned at the
-  // left edge with no dead space beside it. It is not rendered there at all —
-  // hiding the cells with CSS would leave the column's width behind in the
-  // fixed table layout — but the rank itself stays on every row's data, in the
-  // CSV export and in the desktop table.
-  const isPhone = useMediaQuery(PHONE_TABLE_MEDIA_QUERY);
   const universe = activeUniverse;
 
   // The rows are the active dataset's selection — exactly the names the model
@@ -94,7 +86,7 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
     error,
     refreshing,
   });
-  const columnCount = isPhone ? 8 : 9;
+  const columnCount = 9;
 
   useEffect(() => {
     setPage(1);
@@ -329,7 +321,7 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
               aria-busy={tableState === "loading" || undefined}
             >
               <colgroup>
-                {!isPhone && <col className="stock-col-rank" />}
+                <col className="stock-col-rank" />
                 <col className="stock-col-ticker" />
                 <col className="stock-col-company" />
                 <col className="stock-col-market-cap" />
@@ -341,7 +333,7 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
               </colgroup>
               <thead>
                 <tr>
-                  {!isPhone && <th scope="col" className="stock-rank-heading">#</th>}
+                  <th scope="col" className="stock-rank-heading">#</th>
                   {sortableColumns.map(([key, label, slug]) => (
                     <th scope="col" key={key} className={`stock-heading stock-heading--${slug}`} aria-sort={sort.key === key ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}>
                       <button type="button" onClick={() => toggleSort(key)} aria-label={`Sort by ${label}`}>
@@ -362,7 +354,7 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
                       if (shouldOpenRow(event)) onSelectStock?.(stock.ticker);
                     }}
                   >
-                    {!isPhone && <td className="stock-rank-cell"><span>{stock.rank}</span></td>}
+                    <td className="stock-rank-cell"><span>{stock.rank}</span></td>
                     <td className="stock-ticker-cell">
                       <a
                         className="stock-ticker-link"

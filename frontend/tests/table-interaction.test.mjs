@@ -79,9 +79,10 @@ test("the shared table layer owns row feedback for every stock table", () => {
   assert.match(tablesCss, /@media \(hover: hover\) and \(pointer: fine\) \{\s*\.stock-row:hover \{ background: #FCFAF7; \}/);
   assert.match(tablesCss, /\.stock-row:focus-within \{ background: #FCFAF7; \}/);
   assert.match(tablesCss, /\.portfolio-evolution__holdings-table \.stock-row:hover \{ background: transparent; \}/);
-  // ...and it loads after the page sheets so those rules win.
+  // ...and it loads after the page sheets so those rules win. Only
+  // orientation.css comes later, because it has to be able to hide the shell.
   const order = [...stylesIndex.matchAll(/styles\/([\w-]+)\.css/g)].map((match) => match[1]);
-  assert.equal(order.at(-1), "tables");
+  assert.deepEqual(order.slice(-2), ["tables", "orientation"]);
   assert.ok(order.indexOf("tables") > order.indexOf("screener"));
   assert.ok(order.indexOf("tables") > order.indexOf("portfolio"));
 });

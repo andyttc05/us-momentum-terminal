@@ -281,36 +281,6 @@
   min-height: 44px;
 }
 
-/* Phones ---------------------------------------------------------------- */
-@media (max-width: 560px) {
-  .app-dialog {
-    width: calc(100vw - 24px);
-    max-height: calc(100dvh - 24px);
-  }
-  .app-dialog__panel {
-    max-height: calc(100dvh - 24px);
-    padding: 22px 18px;
-  }
-  /* The close button keeps its 36px circle and its 16px offsets, so the header
-     keeps reserving exactly the same column. */
-  .app-dialog__header { gap: 11px; }
-  .app-dialog__title { font-size: 1.32rem; }
-  .app-dialog__description { font-size: 0.82rem; }
-  .project-info__sections > div {
-    grid-template-columns: 84px minmax(0, 1fr);
-    gap: 12px;
-    padding: 11px 0;
-  }
-  .project-info__links { grid-template-columns: 1fr; }
-  .data-status-dialog__facts { grid-template-columns: 1fr; }
-  .data-status-dialog__footer {
-    align-items: stretch;
-    flex-direction: column;
-    gap: 12px;
-  }
-  .data-status-dialog__footer .app-button { width: 100%; }
-}
-
 /* The only motion in the shared chrome is the close button's colour change;
    drop it when the reader has asked for less movement. */
 @media (prefers-reduced-motion: reduce) {

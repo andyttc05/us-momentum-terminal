@@ -28,7 +28,9 @@ test("Portfolio holding rows use the Screener row rhythm and hover treatment", (
     /@media \(hover: hover\) and \(pointer: fine\) \{\s*\.portfolio-table tbody tr:hover \{ background: #FCFAF7; \}/,
   );
   assert.match(portfolioCss, /\.portfolio-table tbody tr:focus-within \{ background: #FCFAF7; \}/);
-  assert.match(portfolioCss, /tbody tr:hover \.portfolio-ticker-cell \{ background: #FCFAF7; \}/);
+  // The ticker cell is an ordinary cell now: it is no longer pinned over the
+  // scrolling columns, so it no longer needs its own hover repaint.
+  assert.doesNotMatch(portfolioCss, /position:\s*sticky/);
 });
 
 test("Portfolio financial columns stay right aligned with matching badge sizes", () => {

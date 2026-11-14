@@ -226,60 +226,6 @@
   .screener-table { min-width: 1130px; }
 }
 
-@media (max-width: 680px) {
-  .screener-toolbar { grid-template-columns: minmax(0, 1fr); grid-template-areas: "scope" "search" "actions"; gap: 10px; }
-  .screener-scope, .screener-search { min-height: 48px; }
-  .screener-scope button, .screener-search input { font-size: 0.95rem; }
-  .screener-search { gap: 10px; padding-inline: 16px; }
-  .screener-search > svg { width: 20px; height: 20px; }
-  .screener-toolbar__actions { justify-content: stretch; gap: 10px; }
-  .screener-filter-wrap, .screener-filter-wrap > .app-button, .screener-export-control { flex: 1 1 0; }
-  .screener-filter-wrap > .app-button,
-  .screener-export-control .export-menu__app-trigger { width: 100%; }
-  .screener-toolbar__button { min-width: 0; min-height: 46px; justify-content: center; padding-inline: 12px; font-size: 0.9rem; }
-  .screener-filter-panel { position: fixed; top: auto; right: 16px; bottom: 20px; left: 16px; width: auto; max-height: min(80vh, 520px); overflow-y: auto; }
-  .screener-table-card { padding: 4px 10px 0; border-radius: var(--radius-md); }
-  /* Phones drop the rank column (see ScreenerPage), so the eight remaining
-     columns share the same 1130px scroll width. Proportions match the desktop
-     table, widened to fill the space the rank column used to occupy. */
-  .screener-table { min-width: 1130px; border-collapse: separate; border-spacing: 0; }
-  .stock-col-ticker { width: 8.5%; }
-  .stock-col-company { width: 17.5%; }
-  .stock-col-market-cap { width: 11.5%; }
-  .stock-col-price { width: 9%; }
-  .stock-col-change { width: 13.5%; }
-  .stock-col-momentum { width: 14.5%; }
-  .stock-col-score { width: 10%; }
-  .stock-col-sector { width: 15.5%; }
-  /* `separate` borders, because WebKit drops the border on a sticky cell that
-     sits in a collapsed-border table — the pinned column would lose its row
-     lines. The row border moves from the `tr` onto its cells. */
-  .screener-table thead tr,
-  .screener-table tbody tr { border-bottom: 0; }
-  .screener-table thead th,
-  .screener-table tbody td { border-bottom: 1px solid var(--color-line); }
-  .screener-table tbody tr:last-child td { border-bottom: 0; }
-  /* The ticker is the one column that must stay put while the rest scrolls:
-     it identifies the row. No left offset — with the rank column gone it is
-     the first column, so it pins to the container's leading edge. The solid
-     background keeps the scrolling cells from showing through, and the hairline
-     plus soft shadow mark where the pinned column ends. */
-  .screener-table thead .stock-heading--ticker,
-  .screener-table tbody .stock-ticker-cell {
-    position: sticky;
-    left: 0;
-    z-index: 2;
-    background: var(--color-surface);
-    box-shadow: 1px 0 0 var(--color-line), 7px 0 9px -5px rgb(56 40 22 / 26%);
-  }
-  .screener-table thead .stock-heading--ticker { z-index: 3; }
-  .screener-table tbody tr:hover .stock-ticker-cell { background: #FCFAF7; }
-}
-
-@media (max-width: 400px) {
-  .screener-toolbar__actions { gap: 7px; }
-  .screener-toolbar__button { padding-inline: 8px; }
-}
 .stock-ticker-link { display: inline; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; font-weight: inherit; text-align: left; text-decoration: none; transition: color 160ms ease; }
 .stock-ticker-link:hover { color: #8D6500; }
 .stock-ticker-link:focus-visible { outline: 2px solid #D7AB2E; outline-offset: 2px; border-radius: 3px; }

@@ -22,7 +22,8 @@ The application does not execute orders and is not investment advice.
 - Backtesting with configurable dates, capital, cashflows, dividends, inflation, rebalancing,
   chart window, log scale, and CSV or multi-sheet Excel results.
 - Freshness, browser-cache and fallback states, including a Data & Cache status panel.
-- Responsive desktop, tablet and mobile layouts.
+- Desktop-first responsive layout: one application for desktop (≥ 1101px) and tablet (768–1100px),
+  the same layout on phones in landscape, and a rotate-device notice on phones in portrait.
 
 ## Loading and failure behaviour
 

@@ -84,9 +84,12 @@ test("important errors stay until dismissed and keep the Retry action", () => {
   );
 });
 
-test("notifications stay above the mobile navigation", () => {
-  assert.match(appCss, /--toast-edge-bottom: calc\(var\(--mobile-nav-gap\) \+ var\(--mobile-nav-height\) \+ 12px\);/);
-  assert.match(appCss, /--mobile-nav-height: 66px/);
-  const mobile = appCss.slice(appCss.indexOf("@media (max-width: 767px)"));
-  assert.match(mobile, /\.notification-toast \{[\s\S]*?bottom: var\(--toast-edge-bottom\)/);
+test("notifications keep the viewport corner at every width", () => {
+  // One anchor for every viewport: the phone-only centring that existed to
+  // clear the bottom navigation is gone with the navigation itself.
+  assert.match(appCss, /\.notification-toast \{[\s\S]*?right: var\(--toast-edge-right\)[\s\S]*?bottom: var\(--toast-edge-bottom\)/);
+  assert.match(appCss, /--toast-edge-bottom: max\(26px, calc\(env\(safe-area-inset-bottom\) \+ 16px\)\)/);
+  // The pill is clamped to the viewport, so it cannot run off a narrow screen.
+  assert.match(appCss, /max-width: min\(360px, calc\(100vw - 32px\)\)/);
+  assert.doesNotMatch(appCss, /--mobile-nav-/);
 });

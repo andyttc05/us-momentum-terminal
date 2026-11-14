@@ -5,6 +5,7 @@ import { PortfolioPage } from "./PortfolioPage.jsx";
 import { ScreenerPage } from "./ScreenerPage.jsx";
 import { BacktestingPage } from "./BacktestingPage.jsx";
 import { StockAnalysisPage } from "./StockAnalysisPage.jsx";
+import { OrientationNotice } from "./components/OrientationNotice.jsx";
 import { SidebarNav } from "./components/SidebarNav.jsx";
 import { StatusToast } from "./components/StatusToast.jsx";
 import { RouterProvider, backLabelFor, backPathFor, useRouter, useStockNavigation } from "./router.jsx";
@@ -26,28 +27,33 @@ function Shell() {
   }
 
   return (
-    <div className="app-shell">
-      <SidebarNav active={page} onNavigate={goToPage} />
+    <>
+      <div className="app-shell">
+        <SidebarNav active={page} onNavigate={goToPage} />
 
-      <OverviewPage
-        hidden={page !== "overview"}
-        onNavigate={goToPage}
-        onSelectStock={openStock}
-      />
-      <ScreenerPage isActive={page === "screener"} onSelectStock={openStock} />
-      <PortfolioPage hidden={page !== "portfolio"} onSelectStock={openStock} />
-      <BacktestingPage hidden={page !== "backtesting"} onSelectStock={openStock} />
-
-      {page === "stock-analysis" && (
-        <StockAnalysisPage
-          ticker={ticker}
-          backLabel={backLabelFor(from)}
-          onBack={goBack}
+        <OverviewPage
+          hidden={page !== "overview"}
+          onNavigate={goToPage}
+          onSelectStock={openStock}
         />
-      )}
+        <ScreenerPage isActive={page === "screener"} onSelectStock={openStock} />
+        <PortfolioPage hidden={page !== "portfolio"} onSelectStock={openStock} />
+        <BacktestingPage hidden={page !== "backtesting"} onSelectStock={openStock} />
 
-      <StatusToast />
-    </div>
+        {page === "stock-analysis" && (
+          <StockAnalysisPage
+            ticker={ticker}
+            backLabel={backLabelFor(from)}
+            onBack={goBack}
+          />
+        )}
+
+        <StatusToast />
+      </div>
+
+      {/* Sibling of the shell on purpose: the shell is what phone portrait hides. */}
+      <OrientationNotice />
+    </>
   );
 }
 

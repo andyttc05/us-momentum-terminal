@@ -309,11 +309,11 @@
 /* Phones swap the long "Float-Adj. Market Cap" heading for a short one so the
    column keeps its full width without clipping; desktop keeps the full label. */
 .portfolio-heading__short { display: none; }
-/* Between the phone layout and a wide desktop the market-cap column is still
-   too narrow for the full label: because the heading is right-aligned, the
-   overflow would eat its first letters instead of trailing off with an ellipsis.
-   The sort button keeps the full name in its aria-label either way. */
-@media (min-width: 768px) and (max-width: 1340px) {
+/* Below a wide desktop the market-cap column is still too narrow for the full
+   label: because the heading is right-aligned, the overflow would eat its first
+   letters instead of trailing off with an ellipsis. The sort button keeps the
+   full name in its aria-label either way. */
+@media (max-width: 1340px) {
   .portfolio-heading--market-cap .portfolio-heading__full { display: none; }
   .portfolio-heading--market-cap .portfolio-heading__short { display: inline; }
 }
@@ -422,118 +422,20 @@
   .portfolio-constraint { gap: 7px; padding-inline: 10px 7px; font-size: 0.77rem; }
 }
 
+/* Tablet — and every phone in landscape, which shares this band.
+   Four KPIs stay in a 2 × 2 block rather than one column, and the summary row
+   keeps two cards side by side with the constraint card spanning the row, so
+   the desktop reading order survives. */
 @media (max-width: 1100px) {
   .portfolio-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .portfolio-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .portfolio-constraints { grid-column: 1 / -1; }
   .portfolio-constraint-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
 
-@media (max-width: 680px) {
-  /* Four cards in a balanced 2 x 2 grid — no card spans the full row. */
-  .portfolio-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
-  .portfolio-kpis .kpi-card { min-height: 92px; }
-  .portfolio-summary-grid { grid-template-columns: 1fr; }
-  .next-rebalance-card__body { min-height: 200px; padding-inline: 15px; }
-  .next-rebalance-card__visuals { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 8px; }
-  .rebalance-calendar { width: min(100%, 164px); }
-  .rebalance-countdown { width: min(100%, 140px); }
-  .next-rebalance-card__frequency { font-size: 0.9rem; }
-  /* Sector Allocation on a phone: the donut sits above a full-width legend, so
-     the five named sectors and Other each get their own comfortable row
-     instead of being squeezed into a narrow side column. */
-  .portfolio-sector-content {
-    min-height: 0;
-    grid-template-columns: minmax(0, 1fr);
-    justify-items: center;
-    align-content: start;
-    row-gap: 14px;
-  }
-  .portfolio-sector-card .sector-donut { width: min(100%, 150px); }
-  /* The legend rows override this file's own desktop values, so they are
-     restated here rather than in the shared compact block in app.css — a page
-     rule further up this file would otherwise win the cascade at ≥ 400px. */
-  .portfolio-sector-content .sector-legend { width: 100%; gap: 0; }
-  .portfolio-sector-content .sector-legend li {
-    min-height: 36px;
-    gap: 12px;
-    padding: 6px 0;
-    border-bottom: 1px solid var(--color-line);
-    font-size: 0.92rem;
-    line-height: 1.3;
-  }
-  .portfolio-sector-content .sector-legend li:last-child { border-bottom: 0; }
-  .portfolio-sector-content .sector-legend__name {
-    align-items: center;
-    gap: 9px;
-    font-size: 0.92rem;
-    font-weight: var(--font-weight-bold);
-  }
-  .portfolio-sector-content .sector-legend__name i {
-    width: 11px;
-    height: 11px;
-    flex: 0 0 11px;
-    margin-top: 0;
-  }
-  .portfolio-sector-content .sector-legend strong { font-size: 0.95rem; font-weight: var(--font-weight-black); }
-  .portfolio-constraints { grid-column: auto; }
-  .portfolio-constraint-list { grid-template-columns: 1fr; }
-  .portfolio-holdings-card { --card-body-padding-start: 0px; }
-  /* Match the Screener card inset. The table still clips the next column at
-     the scroll edge, keeping the cue that more columns exist. */
-  .portfolio-holdings-card > .dashboard-card__body { padding: 4px 10px 0; }
-  .portfolio-holdings-card .table-pagination { padding-inline: 10px; }
-  .portfolio-table-scroll { -webkit-overflow-scrolling: touch; }
-  /* 740px is the sum of the six phone columns below. The rank column is not
-     rendered on phones, so nothing is left over where it used to sit. */
-  .portfolio-table { width: 740px; min-width: 740px; border-collapse: separate; border-spacing: 0; }
-  .portfolio-table th,
-  .portfolio-table td { padding-inline: 12px; }
-  /* Headings may wrap rather than clip, and the long market-cap label is
-     replaced by its short form. */
-  .portfolio-table th {
-    overflow: visible;
-    font-size: 0.7rem;
-    text-overflow: clip;
-    white-space: normal;
-  }
-  .portfolio-heading__full { display: none; }
-  .portfolio-heading__short { display: inline; }
-  .portfolio-col-ticker { width: 96px; }
-  .portfolio-col-sector { width: 148px; }
-  .portfolio-col-score { width: 112px; }
-  .portfolio-col-market-cap { width: 148px; }
-  .portfolio-col-raw-weight { width: 118px; }
-  .portfolio-col-final-weight { width: 118px; }
-  /* A sticky ticker keeps the row identifiable while the rest of the columns
-     scroll. Sticky cells need their own background, and `separate` borders,
-     because `collapse` drops borders on sticky cells in WebKit. */
-  .portfolio-table thead th,
-  .portfolio-table tbody td { border-bottom: 1px solid var(--color-line); }
-  .portfolio-table tbody tr:last-child td { border-bottom: 0; }
-  /* The ticker is the first column on phones, so it pins at the leading edge
-     with no offset. The opaque background hides the cells scrolling underneath
-     and the hairline marks the boundary. */
-  .portfolio-table thead .portfolio-heading--ticker,
-  .portfolio-table tbody .portfolio-ticker-cell {
-    position: sticky;
-    left: 0;
-    z-index: 2;
-    background: var(--color-surface);
-    box-shadow: 1px 0 0 var(--color-line), 7px 0 9px -5px rgb(56 40 22 / 26%);
-  }
-  .portfolio-table thead .portfolio-heading--ticker { z-index: 3; }
-  @media (hover: hover) and (pointer: fine) {
-    .portfolio-table tbody tr:hover .portfolio-ticker-cell { background: #FCFAF7; }
-  }
-  .portfolio-table tbody tr:focus-within .portfolio-ticker-cell { background: #FCFAF7; }
-}
-
-/* While the table has columns off-screen, a soft fade on its right edge says
-   "there is more" without adding chrome; it disappears at the end of the
-   scroll. The inset shadow keeps that cue visible even when the cut happens to
-   land on a column boundary and there is no text left to fade. */
-@media (max-width: 767px) {
+  /* While the table has columns off-screen, a soft fade on its right edge says
+     "there is more" without adding chrome; it disappears at the end of the
+     scroll. The inset shadow keeps that cue visible even when the cut happens
+     to land on a column boundary and there is no text left to fade. */
   .portfolio-table-shell.is-scrollable:not(.is-at-end) .portfolio-table-scroll {
     -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 34px), transparent 100%);
     mask-image: linear-gradient(to right, #000 calc(100% - 34px), transparent 100%);
@@ -549,21 +451,6 @@
     content: "";
     pointer-events: none;
   }
-}
-
-@media (max-width: 400px) {
-  .portfolio-sector-content .sector-legend li { font-size: 0.9rem; }
-  .portfolio-sector-content .sector-legend__name { gap: 8px; }
-}
-
-@media (max-width: 350px) {
-  .next-rebalance-card__visuals {
-    grid-template-columns: minmax(0, 1.2fr) minmax(90px, 0.8fr);
-    gap: 4px;
-  }
-  .rebalance-calendar { width: min(100%, 137px); }
-  .rebalance-countdown { width: min(100%, 100px); }
-  .next-rebalance-card__frequency { font-size: 0.78rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

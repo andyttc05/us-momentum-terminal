@@ -51,9 +51,10 @@ test("the full value stays reachable when the text is clipped", () => {
 test("no KPI card can shrink its own value", () => {
   assert.doesNotMatch(kpiCard, /longValue/);
   assert.doesNotMatch(portfolioPage, /longValue/);
-  // The one responsive size is shared by every card, never per card.
-  const mobileBlock = appCss.slice(appCss.indexOf(".kpi-card__value { margin-top: 5px"));
-  assert.match(mobileBlock.slice(0, 120), /\.kpi-card__value \{ margin-top: 5px; font-size: 1\.8rem; \}/);
+  // The value size is one token at every viewport: the phone step that used to
+  // re-declare it is gone with the rest of the phone layout, and nothing
+  // replaces it in a media block.
+  assert.doesNotMatch(appCss, /\.kpi-card__value \{[^}]*font-size/s);
 });
 
 test("all four Portfolio KPI cards go through the same component", () => {

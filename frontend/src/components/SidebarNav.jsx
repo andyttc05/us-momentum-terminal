@@ -29,48 +29,27 @@ function SidebarItem({ id, label, icon: Icon, active, disabled = false, onClick 
 
 export function SidebarNav({ active = "overview", onNavigate }) {
   return (
-    <>
-      <aside className="sidebar">
-        <a
-          className="brand-lockup"
-          href={publicPath("/")}
-          aria-label="US Momentum Terminal Overview"
-          onClick={(event) => { event.preventDefault(); onNavigate?.("overview"); }}
-        >
-          <span className="brand-lockup__text">US Momentum<br />Terminal</span>
-        </a>
+    <aside className="sidebar">
+      <a
+        className="brand-lockup"
+        href={publicPath("/")}
+        aria-label="US Momentum Terminal Overview"
+        onClick={(event) => { event.preventDefault(); onNavigate?.("overview"); }}
+      >
+        <span className="brand-lockup__text">US Momentum<br />Terminal</span>
+      </a>
 
-        <div className="sidebar__rule" />
-        <nav className="sidebar-nav" aria-label="Primary navigation">
-          {mainItems.map(({ id, label, icon }) => (
-            <SidebarItem key={id} id={id} label={label} icon={icon} active={active} onClick={() => onNavigate?.(id)} />
-          ))}
-        </nav>
-
-        <div className="sidebar-project-info">
-          <ProjectInfo />
-        </div>
-        <div className="sidebar__mascot" aria-hidden="true"><MascotDuo className="mascot-duo--reverse" creamColor="var(--color-surface)" /></div>
-      </aside>
-
-      <nav className="mobile-tab-bar" aria-label="Mobile navigation">
-        {mainItems.map(({ id, label, icon: Icon }) => {
-          const isActive = active === id;
-          return (
-            <button
-              key={id}
-              type="button"
-              className={`mobile-tab-bar__item${isActive ? " is-active" : ""}`}
-              aria-label={label}
-              title={label}
-              aria-current={isActive ? "page" : undefined}
-              onClick={() => onNavigate?.(id)}
-            >
-              <span className="mobile-tab-bar__icon"><Icon size={23} weight="regular" aria-hidden="true" /></span>
-            </button>
-          );
-        })}
+      <div className="sidebar__rule" />
+      <nav className="sidebar-nav" aria-label="Primary navigation">
+        {mainItems.map(({ id, label, icon }) => (
+          <SidebarItem key={id} id={id} label={label} icon={icon} active={active} onClick={() => onNavigate?.(id)} />
+        ))}
       </nav>
-    </>
+
+      <div className="sidebar-project-info">
+        <ProjectInfo />
+      </div>
+      <div className="sidebar__mascot" aria-hidden="true"><MascotDuo className="mascot-duo--reverse" creamColor="var(--color-surface)" /></div>
+    </aside>
   );
 }

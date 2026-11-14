@@ -4,9 +4,13 @@ import { useEffect, useState } from "react";
  * Subscribe to a CSS media query from React.
  *
  * The initial value is read synchronously, so the first paint already matches
- * the viewport and no desktop-to-phone flash of the wrong layout is rendered.
- * Phones only fire this on rotation or when the URL bar collapses, which is why
- * a plain `matchMedia` listener is enough (no resize polling).
+ * the viewport and no flash of the wrong state is rendered.
+ *
+ * Viewport width is deliberately *not* asked here: the layout has one structure
+ * per width band and it is decided entirely in CSS (see layout.css). The
+ * remaining caller reads pointer capability, which changes when a mouse or a
+ * tablet pen is attached — a rare, discrete event, so a plain `matchMedia`
+ * listener is enough and no resize polling is needed.
  */
 export function useMediaQuery(query) {
   const read = () => (typeof window !== "undefined" && typeof window.matchMedia === "function"

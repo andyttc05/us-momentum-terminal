@@ -145,24 +145,3 @@
 .portfolio-export-control .export-menu__trigger {
   min-height: 40px;
 }
-
-@media (max-width: 680px) {
-  .export-menu__trigger {
-    min-height: 46px;
-    padding-inline: 12px;
-  }
-
-  .screener-export-control {
-    flex: 1 1 0;
-  }
-
-  .screener-export-control .export-menu,
-  .screener-export-control .export-menu__trigger,
-  .screener-export-control .export-menu__app-trigger {
-    width: 100%;
-  }
-
-  .export-menu__popover {
-    border-radius: var(--radius-sm);
-  }
-}

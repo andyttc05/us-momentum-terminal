@@ -105,7 +105,9 @@ function PriceChart({ stock, range }) {
   const [tooltipRef, tooltipSize] = useChartTooltipSize();
   const movementOriginX = useRef(Number.NaN);
   const touchStart = useRef(null);
-  const stableTouchDetail = useMediaQuery("(max-width: 680px), (hover: none), (pointer: coarse)");
+  // A touch or pen pointer needs the tap-to-inspect path even on a wide screen:
+  // there is no hover to preview with, so the detail is pinned instead.
+  const stableTouchDetail = useMediaQuery("(hover: none), (pointer: coarse)");
   const history = stock.priceHistory;
   const total = history.values.length;
   const months = monthsBack[range];

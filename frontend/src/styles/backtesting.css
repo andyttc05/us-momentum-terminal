@@ -421,6 +421,20 @@
   height: 100%;
   overflow: visible;
 }
+/* The plot reserves a 30px top gutter for this caption, so it belongs inside
+   the frame, not above it. In normal flow it pushed the whole 100%-height SVG
+   below the frame's own box and the x-axis labels landed on the note under the
+   chart. */
+.backtest-axis-caption {
+  position: absolute;
+  top: 0;
+  left: 0;
+  color: var(--color-text-secondary);
+  font-size: 0.74rem;
+  font-weight: 700;
+  line-height: 1.2;
+  pointer-events: none;
+}
 .backtest-gridline { stroke: var(--color-line); stroke-width: 1; }
 .backtest-zero-line { stroke: #CFC8BF; stroke-width: 1.2; vector-effect: non-scaling-stroke; }
 .backtest-axis-label {
@@ -931,39 +945,18 @@
   .backtest-results { transition: none; }
 }
 
+/* Tablet — and every phone in landscape, which shares this band. The shared
+   icon sidebar and page container apply unchanged; what has to give way is the
+   configuration card and the two control headers, whose labels no longer fit
+   beside their controls. There is deliberately no backtesting-only sidebar
+   here any more: every page uses the same navigation at the same width. */
 @media (min-width: 768px) and (max-width: 1100px) {
-  .app-shell:has(.backtest-page) { --sidebar-width: 136px; }
-  .app-shell:has(.backtest-page) .backtest-page { padding-inline: 30px; }
-  .app-shell:has(.backtest-page) .sidebar {
-    align-items: stretch;
-    padding-top: 18px;
+  /* Four columns still, with the two fixed ones squeezed, so the card keeps its
+     desktop arrangement down to a 901px viewport — where the two-column
+     arrangement below takes over instead. */
+  .backtest-config {
+    grid-template-columns: minmax(300px, 1.55fr) 1px minmax(185px, 0.85fr) minmax(165px, 0.7fr);
   }
-  .app-shell:has(.backtest-page) .brand-lockup {
-    align-items: flex-start;
-    margin: 0 8px 0 18px;
-    padding: 0;
-    text-align: left;
-  }
-  .app-shell:has(.backtest-page) .brand-lockup__text {
-    font-size: 1rem;
-    letter-spacing: -0.02em;
-    line-height: 1.18;
-  }
-  .app-shell:has(.backtest-page) .sidebar__rule {
-    width: auto;
-    margin: 13px 12px 11px 16px;
-  }
-  .app-shell:has(.backtest-page) .sidebar-nav {
-    width: 100%;
-    padding: 0 8px;
-  }
-  .app-shell:has(.backtest-page) .sidebar-nav__item {
-    justify-content: flex-start;
-    gap: 10px;
-    padding: 0 11px;
-  }
-  .app-shell:has(.backtest-page) .sidebar-nav__label { display: inline; }
-  .app-shell:has(.backtest-page) .sidebar__mascot { display: block; }
   .backtest-capital-card .settings-card__header {
     align-items: flex-start;
     flex-direction: column;
@@ -988,32 +981,23 @@
     width: 100%;
     max-width: none;
   }
-}
 
-@media (min-width: 901px) and (max-width: 1100px) {
-  .app-shell:has(.backtest-page) .page-header {
-    grid-template-columns: minmax(0, 1fr) auto auto;
-    column-gap: 16px;
-  }
-  .app-shell:has(.backtest-page) .page-header__art {
-    display: block;
-    width: 150px;
-    height: 110px;
-  }
-}
+  /* Four KPI cards become 2 × 2 here, exactly as the Portfolio KPIs do: the
+     Investor Return card carries a second line (XIRR · TWR) that needs the
+     room, and a four-across row would clip it. */
+  .backtest-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
-@media (min-width: 1001px) and (max-width: 1100px) {
-  .backtest-rebalance-row .settings-card__header {
-    align-items: center;
-    flex-direction: row;
-    gap: 12px;
+  /* The performance card carries four controls next to its title. Below the
+     desktop they never fit on one line, so they take a row of their own
+     instead of wrapping one control at a time. */
+  .backtest-cumulative-card > .dashboard-card__header {
+    flex-wrap: wrap;
+    row-gap: 10px;
   }
-  .backtest-rebalance-row .settings-card__action {
-    width: min(52%, 210px);
-    max-width: 52%;
-    min-width: 0;
+  .backtest-cumulative-card .backtest-chart-controls {
+    flex: 1 1 100%;
+    justify-content: flex-end;
   }
-  .backtest-rebalance-control { width: 100%; }
 }
 
 /* Near the tablet breakpoint the two columns remain, but their controls get
@@ -1065,148 +1049,6 @@
   .backtest-summary-top { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .backtest-summary-settings { grid-column: 1 / -1; }
   .backtest-return-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-
-@media (max-width: 680px) {
-  .app-shell:has(.backtest-page) .page-header__controls .update-bar { display: inline-flex; }
-  .app-shell:has(.backtest-page) .page-header__controls { display: flex; }
-  .app-shell:has(.backtest-page) .page-header__title { font-size: var(--font-size-page-title); }
-  .backtest-page { --backtest-section-gap: 14px; gap: var(--backtest-section-gap); }
-  .backtest-config {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 17px;
-    padding: 17px 16px 13px;
-  }
-  .backtest-config__period,
-  .backtest-config__universe,
-  .backtest-run-group { grid-column: 1; }
-  .backtest-config__heading { margin-bottom: 9px; }
-  .backtest-date-fields { grid-template-columns: minmax(0, 1fr); gap: 14px; }
-  .backtest-date-group {
-    width: 100%;
-    grid-template-columns: minmax(0, 1fr);
-    row-gap: 7px;
-  }
-  .backtest-date-label,
-  .backtest-date-control { grid-column: 1; }
-  .backtest-date-label { grid-row: 1; font-size: 0.8rem; }
-  /* Only the phone-sized geometry changes here. The edge, the fill and the
-     focus transition stay on the wrapper as declared above, so the field keeps
-     a single animated border at every width. The width bounds are restated in
-     this block because the phone layout is the one that collapses to a single
-     column, where an intrinsic iOS date width would otherwise overflow. */
-  .backtest-date-control {
-    grid-row: 2;
-    width: 100%;
-    min-width: 0;
-    max-width: 100%;
-    height: 48px;
-    padding: 0 16px;
-    overflow: hidden;
-  }
-  .backtest-date-input {
-    flex: 1 1 0;
-    padding: 0;
-    font-size: 16px;
-    line-height: 46px;
-    text-align: center;
-    -webkit-appearance: none;
-    appearance: none;
-  }
-  .backtest-date-input::-webkit-datetime-edit {
-    height: 100%;
-    min-height: 0;
-    padding: 0;
-    line-height: inherit;
-    text-align: center;
-  }
-  .backtest-date-input::-webkit-date-and-time-value {
-    min-height: 0;
-    height: 100%;
-    line-height: inherit;
-    text-align: center;
-  }
-  .backtest-segmented button { min-height: 44px; font-size: 0.9rem; }
-  .backtest-run-button { width: 100%; min-height: 50px; }
-  .backtest-advanced__toggle { min-height: 57px; padding-inline: 16px; }
-  .backtest-advanced__grid { row-gap: 12px; padding: 2px 16px 16px; }
-  .backtest-capital-card .settings-card__header,
-  .backtest-cashflow-card .settings-card__header,
-  .backtest-advanced__lower-settings .settings-card__header {
-    min-height: 68px;
-    padding: 13px 15px;
-  }
-  .backtest-capital-card .settings-card__header {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 12px;
-  }
-  .backtest-capital-card .settings-card__action {
-    flex: 0 1 auto;
-    width: 100%;
-    max-width: none;
-    min-width: 0;
-  }
-  .backtest-capital-field { width: 100%; min-width: 0; }
-  .backtest-cashflow-card .settings-card__body { padding: 0 15px 15px; }
-  .backtest-cashflow-controls[data-open] { gap: 11px; }
-  .backtest-cashflow-direction__segment { min-height: 40px; font-size: 0.84rem; }
-  .settings-row .settings-card__action { max-width: 48%; }
-  .backtest-rebalance-control { width: 100%; }
-  .backtest-rebalance-row .settings-card__header {
-    min-height: 0;
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 10px;
-  }
-  .backtest-rebalance-row .settings-card__action {
-    width: 100%;
-    max-width: none;
-  }
-  .backtest-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .backtest-kpis .kpi-card { min-height: 96px; }
-  .backtest-cumulative-card { min-height: 408px; }
-  .backtest-cumulative-card > .dashboard-card__header {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .backtest-chart-controls {
-    width: 100%;
-    align-items: stretch;
-    flex-direction: column-reverse;
-    gap: 8px;
-  }
-  .backtest-log-toggle { align-self: flex-start; min-height: 34px; }
-  .backtest-cumulative-legend { gap: 11px; padding-inline: 2px; }
-  .backtest-cumulative-legend .performance-legend__item { font-size: 0.7rem; }
-  .backtest-range-control button { min-width: 36px; min-height: 29px; padding-inline: 8px; }
-  .backtest-chart-frame { height: 292px; min-height: 292px; flex-basis: 292px; }
-  .backtest-axis-label { font-size: 10px; }
-  .backtest-chart-tooltip { width: 208px; min-height: 110px; gap: 6px; padding: 10px 9px; }
-  .backtest-chart-tooltip__date { font-size: 0.58rem; }
-  .backtest-chart-tooltip__row {
-    grid-template-columns: 5px 40px max-content minmax(0, 1fr);
-    column-gap: 6px;
-    font-size: 0.55rem;
-  }
-  .backtest-chart-tooltip__row i { width: 5px; height: 5px; }
-  .backtest-chart-tooltip__row strong { font-size: 0.57rem; }
-  .backtest-chart-tooltip__return { min-width: 0; }
-  .backtest-chart-tooltip--compact { width: 182px; min-height: 82px; }
-  .backtest-drawdown-card { min-height: 305px; }
-  .backtest-drawdown-frame { height: 225px; min-height: 225px; flex-basis: 225px; }
-  .backtest-annual-card > .dashboard-card__body { --card-body-padding-end: 12px; }
-  .backtest-annual-table { min-width: 100%; }
-  .backtest-annual-table th:first-child { width: 27%; }
-  .backtest-annual-table th:nth-child(2) { width: 29%; }
-  .backtest-annual-table th { font-size: 0.62rem; letter-spacing: 0.04em; }
-  .backtest-annual-table tbody th { padding-left: 6px; font-size: 0.82rem; }
-  .backtest-annual-table td { padding: 0 5px; font-size: 0.82rem; }
-  .backtest-summary-top { grid-template-columns: minmax(0, 1fr); gap: 12px; }
-  .backtest-summary-settings { grid-column: auto; }
-  .backtest-summary-tile { min-height: 112px; padding: 17px; }
-  .backtest-return-metrics { grid-template-columns: minmax(0, 1fr); gap: 10px; }
 }
 
 /* Portfolio evolution ----------------------------------------------------- */
@@ -1781,14 +1623,6 @@
   box-shadow: none;
 }
 
-@media (max-width: 520px) {
-  .backtest-cashflow-fields {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 7px;
-  }
-  .backtest-cashflow-fields > label:not(:first-child) { margin-top: 3px; }
-}
-
 @media (max-width: 1240px) {
   .portfolio-evolution__workspace { grid-template-columns: minmax(0, 1fr); }
   .portfolio-evolution__history-state { min-height: 230px; }
@@ -1799,7 +1633,6 @@
 
 @media (max-width: 900px) {
   .portfolio-evolution__panel { padding: 18px; }
-  .portfolio-evolution__holdings-table { min-width: 0; }
   .portfolio-evolution__toolbar { grid-template-columns: minmax(0, 1fr); }
   .portfolio-evolution__filters {
     width: 100%;
@@ -1813,130 +1646,4 @@
     min-width: 0;
     min-height: 34px;
   }
-}
-
-@media (max-width: 680px) {
-  .portfolio-evolution { gap: 14px; }
-  .portfolio-evolution__kpis { grid-template-columns: minmax(0, 1fr); gap: 9px; }
-  .portfolio-evolution__kpis .kpi-card { min-height: 112px; padding: 16px 18px; }
-  .portfolio-evolution__kpis .kpi-card__value { font-size: 1.78rem; }
-  .portfolio-evolution__kpis .kpi-card__detail {
-    display: block;
-    margin-top: 2px;
-    font-size: 0.73rem;
-    line-height: 1.35;
-  }
-  .portfolio-evolution__workspace { gap: 12px; }
-  .portfolio-evolution__panel { padding: 14px; border-radius: 17px; }
-  .portfolio-evolution__panel-header {
-    min-height: 0;
-    align-items: center;
-    gap: 10px;
-  }
-  .portfolio-evolution__panel h3,
-  .portfolio-evolution__holdings-header h3 { font-size: 1.12rem; }
-  .portfolio-evolution__year {
-    width: 108px;
-    flex-basis: 108px;
-  }
-  .portfolio-evolution__year select {
-    min-height: 44px;
-    padding-right: 32px;
-    font-size: 0.7rem;
-  }
-  .portfolio-evolution__history-panel .portfolio-evolution__panel-header h3 {
-    gap: 6px;
-    font-size: 1.03rem;
-    white-space: nowrap;
-  }
-  .portfolio-evolution__event {
-    min-height: var(--portfolio-event-row);
-    grid-template-columns: minmax(0, 1fr) auto 14px;
-    gap: 6px;
-    padding: 9px 7px 9px 11px;
-  }
-  .portfolio-evolution__event-meta {
-    align-items: flex-end;
-    flex-direction: column;
-    gap: 3px;
-  }
-  .portfolio-evolution__event-type { min-height: 21px; padding-inline: 7px; font-size: 0.58rem; }
-  .portfolio-evolution__event-turnover { min-width: 48px; }
-  .portfolio-evolution__event-turnover small { font-size: 0.62rem; }
-  .portfolio-evolution__event-turnover strong { font-size: 0.76rem; }
-  .portfolio-evolution__holdings-header {
-    display: flex;
-    min-height: 150px;
-    flex-direction: column;
-    gap: 10px;
-  }
-  .portfolio-evolution__holdings-header .export-menu { align-self: flex-end; }
-  .portfolio-evolution__selected-date {
-    min-height: 51px;
-    margin-left: 0;
-    overflow: visible;
-  }
-  .portfolio-evolution__selected-date-primary > strong { font-size: 1.2rem; }
-  .portfolio-evolution__signal-date {
-    overflow: visible;
-    white-space: nowrap;
-  }
-  .portfolio-evolution__toolbar {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 8px;
-    margin-top: 0;
-  }
-  .portfolio-evolution__search { height: 46px; }
-  .portfolio-evolution__search input { font-size: 16px; }
-  .portfolio-evolution__filters {
-    width: 100%;
-    min-width: 0;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 2px;
-    height: 50px;
-    padding: 3px;
-  }
-  .portfolio-evolution__filters button {
-    width: 100%;
-    min-width: 0;
-    min-height: 42px;
-    padding-inline: 3px;
-    font-size: 0.68rem;
-  }
-  .portfolio-evolution__table-wrap {
-    min-height: 274px;
-    margin-top: 10px;
-  }
-  .portfolio-evolution__holdings-table { min-width: 560px; }
-  .portfolio-evolution__holdings-table th { height: 44px; padding-inline: 7px; font-size: 0.69rem; }
-  .portfolio-evolution__holdings-table td { height: 46px; padding-inline: 7px; font-size: 0.8rem; }
-  .portfolio-evolution__panel > .table-pagination { min-height: 49px; }
-  .portfolio-evolution__panel > .table-pagination .table-pagination__range { display: none; }
-  .portfolio-evolution__panel > .table-pagination .table-pagination__controls {
-    min-width: 0;
-    gap: 0;
-  }
-  .portfolio-evolution__panel > .table-pagination .pagination-page-list {
-    min-width: 0;
-    flex: 1 1 auto;
-    gap: 0;
-  }
-  .portfolio-evolution__panel > .table-pagination .pagination-page-list button,
-  .portfolio-evolution__panel > .table-pagination .pagination-ellipsis {
-    width: auto;
-    min-width: 0;
-    height: 44px;
-    flex: 1 1 0;
-  }
-  .portfolio-evolution__panel > .table-pagination .pagination-arrow {
-    width: 44px;
-    height: 44px;
-    flex-basis: 44px;
-  }
-}
-
-@media (max-width: 420px) {
-  .portfolio-evolution__panel { padding: 13px 11px; }
-  .portfolio-evolution__event-date strong { font-size: 0.9rem; }
-  .portfolio-evolution__event-date small { font-size: 0.66rem; }
 }

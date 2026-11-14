@@ -140,14 +140,14 @@ test("the shared layer loads after the sheets it replaces", () => {
   }
 });
 
-test("phones get one responsive contract for both dialogs", () => {
-  const mobile = dialogsCss.slice(dialogsCss.indexOf("@media (max-width: 560px)"));
-  assert.match(mobile, /\.app-dialog \{[^}]*width: calc\(100vw - 24px\);/s);
-  assert.match(mobile, /\.app-dialog \{[^}]*max-height: calc\(100dvh - 24px\);/s);
-  assert.match(block(mobile, ".app-dialog__panel"), /padding: 22px 18px;/);
-  // Content-specific collapse, same breakpoint for both.
-  assert.match(mobile, /\.project-info__links \{ grid-template-columns: 1fr; \}/);
-  assert.match(mobile, /\.data-status-dialog__facts \{ grid-template-columns: 1fr; \}/);
+test("both dialogs share one geometry at every supported viewport", () => {
+  // One size, clamped to the viewport, so it fits the narrowest supported
+  // screen (a phone in landscape) without a second phone-specific block.
+  assert.match(block(dialogsRules, ".app-dialog"), /width: min\(640px, calc\(100vw - 32px\)\);/);
+  assert.match(block(dialogsRules, ".app-dialog"), /max-height: calc\(100dvh - 32px\);/);
+  // The content grids keep their columns: the panel is 640px wide everywhere
+  // it can be opened.
+  assert.doesNotMatch(dialogsCss, /@media \(max-width/);
 });
 
 test("motion is optional", () => {

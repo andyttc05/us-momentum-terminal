@@ -1,0 +1,74 @@
+/* ------------------------------------------------------------------------- *
+ * Phone portrait — the one screen that is not the application
+ *
+ * The responsive policy has three bands (see layout.css): desktop ≥ 1101px,
+ * tablet 768–1100px and phone < 768px. A phone in landscape is served by the
+ * same tablet/desktop layout as everything else; a phone held upright has no
+ * layout of its own, so it gets this notice and the application is not painted
+ * at all.
+ *
+ * Both switches live in one media query, which is what makes rotation free:
+ * the query stops matching the moment the device turns, the shell is displayed
+ * again from the same state it was hidden in, and there is nothing to re-run.
+ * ------------------------------------------------------------------------- */
+
+.orientation-notice { display: none; }
+
+@media (max-width: 767px) and (orientation: portrait) {
+  /* No application underneath, therefore nothing to scroll behind the notice. */
+  html,
+  body {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  /* Hidden, not unmounted: every page keeps its data, its scroll position and
+     its chart measurements, so returning to landscape is instant. */
+  .app-shell { display: none; }
+
+  .orientation-notice {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: grid;
+    box-sizing: border-box;
+    place-items: center;
+    padding: 32px 28px calc(32px + env(safe-area-inset-bottom));
+    background: var(--color-cream);
+    color: var(--color-ink);
+    text-align: center;
+  }
+
+  .orientation-notice__inner {
+    display: grid;
+    max-width: 340px;
+    justify-items: center;
+    gap: 0;
+  }
+
+  .orientation-notice__icon {
+    display: block;
+    width: clamp(92px, 26vw, 112px);
+    height: auto;
+    margin-bottom: 22px;
+  }
+
+  .orientation-notice__title {
+    margin: 0;
+    color: var(--color-ink);
+    font-family: var(--font-family);
+    font-size: clamp(1.42rem, 5.6vw, 1.72rem);
+    font-weight: var(--font-weight-black);
+    letter-spacing: -0.028em;
+    line-height: var(--line-height-title);
+  }
+
+  .orientation-notice__subtitle {
+    margin: 10px 0 0;
+    color: var(--color-text-secondary);
+    font-size: 0.95rem;
+    font-weight: var(--font-weight-medium);
+    line-height: 1.45;
+  }
+}

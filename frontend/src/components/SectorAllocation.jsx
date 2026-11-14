@@ -1,23 +1,20 @@
 import { useMemo } from "react";
 import { DataState, Skeleton } from "./DataState.jsx";
 import { SectorDonut } from "./SectorDonut.jsx";
-import { useMediaQuery } from "./useMediaQuery.js";
-import { PHONE_MEDIA_QUERY } from "../utils/breakpoints.js";
-import { MOBILE_SECTOR_LIMIT, SECTOR_GROUP_LIMIT, formatSectorPercent, getSectorAllocationGroups } from "../utils/sectorDisplay.js";
+import { SECTOR_GROUP_LIMIT, formatSectorPercent, getSectorAllocationGroups } from "../utils/sectorDisplay.js";
 
 /**
  * A shared Top N + Other sector breakdown.
  *
- * Phones name one fewer sector (Top 5 + Other) so the legend stays legible;
- * desktop keeps its Top 6 + Other. Both the donut and the legend are built from
- * the same groups, so the two always describe the same allocation. Only the
- * grouping changes — the underlying sector values are never altered.
+ * The grouping is the same at every viewport: the desktop, tablet and phone
+ * landscape layouts all show the allocation card at a size that fits Top 6 +
+ * Other, so there is no second, narrower variant to keep in sync. Both the
+ * donut and the legend are built from the same groups, so the two always
+ * describe the same allocation.
  */
 export function SectorAllocation({ sectors = [], className = "", state = "ready" }) {
-  const compact = useMediaQuery(PHONE_MEDIA_QUERY);
-  const limit = compact ? MOBILE_SECTOR_LIMIT : SECTOR_GROUP_LIMIT;
-  const { groups } = useMemo(() => getSectorAllocationGroups(sectors, limit), [sectors, limit]);
-  const classes = `sector-allocation${compact ? " sector-allocation--compact" : ""} ${className}`.trim();
+  const { groups } = useMemo(() => getSectorAllocationGroups(sectors, SECTOR_GROUP_LIMIT), [sectors]);
+  const classes = `sector-allocation ${className}`.trim();
 
   if (state === "loading") {
     return (

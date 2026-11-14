@@ -156,36 +156,6 @@
 .sector-legend strong { flex: 0 0 auto; font-size: 0.74rem; font-weight: var(--font-weight-black); font-variant-numeric: tabular-nums; }
 .sector-allocation__other { min-height: 21px; justify-content: space-between; }
 
-/* Phones (≤ 767px): Sector Allocation renders fewer named sectors (the
-   component drops to Top 5 + Other), so each row can afford a comfortable
-   height and a readable size instead of the dense desktop list. This is a
-   presentation-only change — the legend still comes from the same aggregated
-   groups as the donut. */
-.sector-allocation--compact .sector-legend { width: 100%; align-content: start; gap: 0; }
-.sector-allocation--compact .sector-legend li {
-  min-height: 36px;
-  gap: 12px;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--color-line);
-  font-size: 0.92rem;
-  line-height: 1.3;
-}
-.sector-allocation--compact .sector-legend li:last-child { border-bottom: 0; }
-.sector-allocation--compact .sector-legend__name {
-  align-items: center;
-  gap: 9px;
-  font-size: 0.92rem;
-  font-weight: var(--font-weight-bold);
-}
-.sector-allocation--compact .sector-legend__name i {
-  width: 11px;
-  height: 11px;
-  flex: 0 0 11px;
-  margin-top: 0;
-}
-.sector-allocation--compact .sector-legend strong { font-size: 0.95rem; font-weight: var(--font-weight-black); }
-.sector-allocation--compact .sector-allocation__other { min-height: 36px; }
-
 .model-banner {
   position: relative;
   display: flex;
@@ -309,17 +279,6 @@
 }
 @keyframes notification-spin { to { transform: rotate(360deg); } }
 
-@media (max-width: 520px) {
-  .notification-toast {
-    min-height: 64px;
-    gap: 9px;
-    padding: 12px;
-    border-radius: 20px;
-    font-size: 0.92rem;
-  }
-  .notification-toast__icon { width: 32px; height: 32px; flex-basis: 32px; }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .notification-toast { animation: none; }
   .notification-toast--loading .notification-toast__icon svg,
@@ -353,178 +312,32 @@
   .model-banner__arrow { top: calc(50% - 20px); right: 16px; }
 }
 
+/* Tablet — the icon sidebar and a single-column dashboard grid. The overview
+   keeps its two groups (chart + banner, then momentum + allocation); it is the
+   group that stacks, not the individual cards. */
 @media (max-width: 1100px) {
-  :root { --sidebar-width: var(--sidebar-compact-width); }
   .sidebar { align-items: center; padding-top: 18px; }
   .brand-lockup { align-items: center; margin: 0; padding-inline: 8px; text-align: center; }
   .brand-lockup__text { font-size: 0.66rem; letter-spacing: 0; line-height: 1.2; }
   .sidebar__rule { width: calc(100% - 24px); margin: 13px 12px 11px; }
-  .sidebar__label, .sidebar__mascot { display: none; }
+  .sidebar__mascot { display: none; }
   .sidebar-nav { width: 100%; margin-top: var(--space-5); padding: 0 8px; }
   .sidebar-nav__item { justify-content: center; padding: 0; }
   .sidebar-nav__item .sidebar-nav__label { display: none; }
   .sidebar-project-info { padding: 0 8px 18px; }
   .sidebar-nav__item--secondary { min-height: 48px; justify-content: center; padding: 0; }
   .sidebar-nav__item--secondary .sidebar-nav__label { display: none; }
-  .overview-grid { grid-template-columns: 1fr; }
-  .overview-grid__side { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+
+  .overview-grid { grid-template-columns: minmax(0, 1fr); }
+  .overview-grid__side { grid-template-columns: minmax(0, 1fr); align-items: start; }
+  /* The legend and the range control share the chart header; wrapping is the
+     one thing that keeps them apart when the card is narrow. */
+  .performance-card__toolbar { flex-wrap: wrap; }
 }
 
-@media (max-width: 680px) {
-  .overview-grid__side { grid-template-columns: 1fr; }
-  .performance-card__toolbar { align-items: flex-start; flex-direction: column; gap: 8px; }
-  .performance-legend { gap: 16px; }
-  .performance-chart__svg { width: 100%; min-width: 0; }
-  .model-banner { min-height: 96px; padding: 10px 18px; }
-  .model-banner__arrow { top: calc(50% - 20px); right: 12px; }
-  .model-banner .section-header h2 { font-size: 1.75rem; }
-}
-
-/* Phones (≤ 767px) — a compact reorganisation of the same design.
-   Desktop (≥ 1200px) and tablet (768–1199px) are untouched. */
-@media (max-width: 767px) {
-  :root { --sidebar-width: 0px; }
-
-  /* Phones use the app-style navigation at the bottom instead of the sidebar. */
-  .sidebar { display: none; }
-  .app-shell {
-    /* The bottom navigation's own metrics, in one place. Everything that has to
-       sit clear of it — the toasts, the page padding — is derived from these,
-       so the bar and the things above it cannot drift apart when its height or
-       the safe-area inset changes. */
-    --mobile-nav-height: 66px; /* 48px icon row + 16px padding + 2px borders */
-    --mobile-nav-gap: max(10px, env(safe-area-inset-bottom));
-    --toast-inset-left: max(16px, env(safe-area-inset-left));
-    --toast-inset-right: max(16px, env(safe-area-inset-right));
-    --toast-edge-bottom: calc(var(--mobile-nav-gap) + var(--mobile-nav-height) + 12px);
-  }
-  /* The toast is fixed to the viewport, not to a card or the page column — it
-     is mounted inside whichever page raised it, so a containing block from an
-     ancestor would drag it into the content; none of them creates one (no
-     transform/filter/contain on the shell, the main or the page). Pinning both
-     edges and letting the auto margins centre the pill keeps the entry and exit
-     transform animation free, and clamps the width to the visible area on every
-     phone without a hardcoded offset. */
-  .notification-toast {
-    right: var(--toast-inset-right);
-    left: var(--toast-inset-left);
-    bottom: var(--toast-edge-bottom);
-    width: fit-content;
-    min-width: min(250px, calc(100% - var(--toast-inset-left) - var(--toast-inset-right)));
-    max-width: min(360px, calc(100% - var(--toast-inset-left) - var(--toast-inset-right)));
-    margin-inline: auto;
-  }
-  .app-main {
-    margin-left: 0;
-    padding-bottom: calc(var(--mobile-nav-height) + var(--mobile-nav-gap) + 12px);
-  }
-  .mobile-tab-bar {
-    position: fixed;
-    z-index: 30;
-    right: 12px;
-    bottom: var(--mobile-nav-gap);
-    left: 12px;
-    display: grid;
-    min-height: calc(var(--mobile-nav-height) - 2px);
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    align-items: center;
-    padding: 8px;
-    border: 1px solid rgb(234 228 220 / 88%);
-    border-radius: 24px;
-    background: var(--color-surface);
-    box-shadow: 0 14px 38px rgb(56 40 22 / 14%), 0 3px 10px rgb(56 40 22 / 6%);
-  }
-  .mobile-tab-bar__item {
-    display: grid;
-    min-width: 0;
-    min-height: 48px;
-    place-items: center;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    cursor: pointer;
-  }
-  .mobile-tab-bar__icon {
-    display: grid;
-    width: 44px;
-    height: 44px;
-    place-items: center;
-    border-radius: 50%;
-    color: var(--color-text-secondary);
-    transition: background-color 160ms ease, color 160ms ease;
-  }
-  .mobile-tab-bar__item.is-active .mobile-tab-bar__icon {
-    background: var(--color-yellow);
-    color: var(--color-ink);
-  }
-  .mobile-tab-bar__item:not(.is-active):hover .mobile-tab-bar__icon { background: var(--color-nav-hover); }
-  .mobile-tab-bar__item:focus-visible { outline: none; }
-  .mobile-tab-bar__item:focus-visible .mobile-tab-bar__icon { box-shadow: var(--focus-ring); }
-
-  /* The update bar is dropped entirely on phones — it consumed a whole row. */
-  .page-header__controls .update-bar { display: none; }
-
-  /* KPI cards: two equal columns, tighter padding, no decorative mascots. */
-  .overview-page .overview-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
-  .overview-page .overview-kpis .kpi-card:last-child { grid-column: span 2; }
-  .kpi-card { min-height: 92px; padding: 11px 13px; }
-  .kpi-card__mascot { display: none; }
-  .kpi-card__label { gap: 7px; font-size: 0.82rem; line-height: 1.25; }
-  .kpi-card__label svg { width: 18px; height: 18px; }
-  .kpi-card__value { margin-top: 5px; font-size: 1.8rem; }
-  .kpi-card__detail, .kpi-card__sample { display: none; }
-  .kpi-card__label-full { display: none; }
-  .kpi-card__label-short { display: inline; }
-
-  /* Compact legend labels on phones ("Strategy" instead of the full name). */
-  .legend-name-short { display: contents; }
-  .legend-name-full { display: none; }
-
-  /* Top Momentum: the score pill keeps its compact width and the price column
-     takes the slack, so the rows read the same as on desktop. */
-  .top-momentum-list { grid-template-columns: 32px 48px minmax(52px, 1fr) 68px 52px; column-gap: 8px; grid-auto-rows: 34px; }
-  .momentum-row .sparkline { width: min(100%, 64px); }
-  .momentum-row__score { width: 50px; }
-  .sector-card__content { grid-template-columns: minmax(112px, 0.78fr) minmax(160px, 1.22fr); gap: 9px; }
-  .sector-donut { width: min(100%, 122px); }
-
-  /* Performance chart: compact legend, compact range control, smaller axis text. */
-  .performance-chart { min-height: 200px; }
-  .performance-legend { flex-wrap: wrap; gap: 12px; }
-  .performance-legend__item { gap: 6px; font-size: 0.74rem; }
-  .performance-legend__item i { width: 9px; height: 9px; }
-  .performance-chart__axis-label { font-size: 10px; }
-  .period-control { padding: 3px; }
-  .period-control button { min-width: 32px; min-height: 28px; padding: 0 7px; font-size: 0.68rem; }
-
-  /* The banner mascot is raised so both eyes stay clearly inside the yellow
-     card instead of being clipped by its bottom edge. */
-  .model-banner__mascot { right: 46px; bottom: -58px; width: 148px; height: 148px; opacity: 0.92; }
-
-  /* On phones the Model Portfolio banner reads better as the closing card, so
-     the two columns are flattened into one flow and the banner moves last. */
-  .overview-grid__main, .overview-grid__side { display: contents; }
-  .overview-grid { grid-auto-rows: min-content; }
-  .model-banner { order: 10; }
-}
-
-@media (max-width: 520px) {
-  /* The About dialog's phone layout is part of the shared modal contract in
-     styles/dialogs.css, next to the Published Snapshot's, so the two cannot
-     drift apart at this width. */
-  .overview-grid__side { grid-template-columns: 1fr; }
-  .sector-card .dashboard-card__header { align-items: center; flex-direction: row; }
-  .update-bar { gap: 7px; padding-left: 10px; }
-}
-
-@media (max-width: 400px) {
-  .update-bar__date { font-size: 0.7rem; }
-  .update-bar { gap: 5px; }
-  .top-momentum-list { grid-template-columns: 28px 42px minmax(46px, 1fr) 62px 46px; column-gap: 5px; }
-  .momentum-row .sparkline { width: min(100%, 58px); }
-  .momentum-row__ticker, .momentum-row__price, .momentum-row__score { font-size: 0.72rem; }
-  .momentum-row__score { width: 44px; }
-  .sector-card__content { grid-template-columns: 104px minmax(0, 1fr); gap: 7px; }
-  .sector-donut { width: 102px; }
-  .sector-legend li, .sector-legend strong { font-size: 0.65rem; }
+/* Top Momentum and Sector Allocation sit side by side again as soon as both
+   cards can still hold their minimum width — the desktop reading order, kept
+   wherever the tablet has the room for it. */
+@media (min-width: 1000px) and (max-width: 1100px) {
+  .overview-grid__side { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

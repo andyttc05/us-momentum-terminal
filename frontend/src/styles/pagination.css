@@ -62,24 +62,20 @@
   .pagination-arrow { width: 38px; height: 38px; flex-basis: 38px; }
 }
 
-@media (max-width: 680px) {
-  /* The range description is hidden on phones, so the controls stay on one row. */
-  .table-pagination { min-height: 56px; align-items: center; justify-content: center; padding: 9px 0; }
-  .table-pagination__controls { width: 100%; justify-content: space-between; gap: 2px; }
-  .pagination-page-list { gap: 1px; }
-  .pagination-page-list button { width: 34px; height: 34px; flex-basis: 34px; font-size: 0.88rem; }
-  .pagination-ellipsis { width: 34px; flex-basis: 34px; }
-  .pagination-arrow { width: 36px; height: 36px; flex-basis: 36px; }
-}
-
-@media (max-width: 400px) {
-  .pagination-page-list { gap: 0; }
-  .pagination-page-list button { width: 30px; height: 32px; flex-basis: 30px; }
-  .pagination-ellipsis { width: 30px; flex-basis: 30px; }
-}
-
-/* On phones the range description takes more room than the page controls
-   need, so it is dropped — the pagination itself stays fully functional. */
-@media (max-width: 767px) {
-  .table-pagination__range { display: none; }
+/* Tablet — and every phone in landscape, where the table card is at its
+   narrowest. The range description stays: it is the only place that says how
+   many records were filtered out. Wrapping is the safety valve, so the arrows
+   can never be pushed out of the card on a small landscape screen. */
+@media (max-width: 1100px) {
+  .table-pagination {
+    flex-wrap: wrap;
+    row-gap: 4px;
+    gap: 12px;
+    padding-inline: 4px;
+  }
+  .table-pagination__range { font-size: 0.9rem; }
+  .pagination-page-list { gap: 5px; }
+  .pagination-page-list button { width: 38px; height: 38px; flex-basis: 38px; }
+  .pagination-ellipsis { width: 38px; flex-basis: 38px; }
+  .pagination-arrow { width: 40px; height: 40px; flex-basis: 40px; }
 }

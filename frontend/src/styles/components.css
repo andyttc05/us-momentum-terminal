@@ -82,12 +82,6 @@ button:focus-visible, a:focus-visible { outline: none; box-shadow: var(--focus-r
 .kpi-card__label { gap: 12px; color: var(--color-ink); font-size: 1rem; font-weight: var(--font-weight-bold); }
 .kpi-card__label svg { width: 23px; height: 23px; flex: 0 0 auto; color: var(--color-ink); }
 .kpi-card__sample { color: var(--color-text-muted); font-size: 0.64rem; letter-spacing: 0.08em; text-transform: uppercase; }
-/* The short label is a phone-only alternative to the full one. */
-.kpi-card__label-short { display: none; }
-/* The two legend names are swapped by CSS on phones; `display: contents` keeps
-   them out of the inline box so the desktop layout is untouched. */
-.legend-name-full { display: contents; }
-.legend-name-short { display: none; }
 /* One value style for every KPI card, in every state — including "Loading…"
    and "Unavailable". A composite value such as `GOOGL 9.0%` keeps the same
    size and truncates instead, so no card can shrink its own number. */
@@ -361,7 +355,6 @@ button:focus-visible, a:focus-visible { outline: none; box-shadow: var(--focus-r
 .sidebar-nav__item.is-active { background: var(--color-yellow); color: var(--color-ink); }
 .sidebar-nav__item.is-active:hover { background: var(--color-yellow); color: var(--color-ink); }
 .sidebar-nav__item:disabled { cursor: default; opacity: 1; }
-.mobile-tab-bar { display: none; }
 .sidebar-status__value { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--color-text-secondary); font-size: var(--font-size-xs); font-weight: var(--font-weight-bold); }
 .sidebar-status__value i { width: 7px; height: 7px; border-radius: 50%; background: var(--color-yellow-line); }
 .sidebar-project-info {
