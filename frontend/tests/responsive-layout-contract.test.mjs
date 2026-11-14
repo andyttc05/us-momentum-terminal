@@ -1,6 +1,6 @@
 // The responsive policy, as a contract.
 //
-// Desktop (≥ 1101px) and tablet (768–1100px) are the two platforms this
+// Desktop (≥ 1101px) and tablet (601–1100px) are the two platforms this
 // application is designed for. A phone in landscape is served by the same
 // tablet rules; a phone held upright gets one screen that asks the reader to
 // rotate, and the application is not painted at all.
@@ -34,23 +34,23 @@ const mediaQueries = (css) => [...css.matchAll(/@media\s+([^{]+)\{/g)].map((matc
 test("the three width bands are the only width bands", () => {
   const widthQueries = Object.values(styles).flatMap(mediaQueries).filter((query) => /max-width|min-width/.test(query));
 
-  // Desktop / tablet / phone-landscape, plus the deliberate tuning steps that
-  // exist inside them (compact desktop, the near-boundary backtest card, the
-  // pagination and the evolution workspace).
+  // Desktop / tablet / compact landscape / the capability-aware portrait
+  // notice, plus deliberate tuning steps inside those bands.
   const allowed = new Set([
     "(max-height: 830px) and (min-width: 1101px)",
     "(min-height: 831px) and (min-width: 1101px)",
     "(max-height: 800px) and (min-width: 1101px)",
     "(max-width: 1100px)",
-    "(min-width: 1000px) and (max-width: 1100px)",
     "(min-width: 1101px) and (max-width: 1180px)",
     "(max-width: 1340px)",
     "(max-width: 1240px)",
     "(max-width: 1399px) and (min-width: 1101px)",
     "(max-width: 900px)",
-    "(min-width: 768px) and (max-width: 1100px)",
-    "(max-width: 767px) and (orientation: landscape)",
-    "(max-width: 767px) and (orientation: portrait)",
+    "(max-width: 900px) and (orientation: landscape)",
+    "(min-width: 601px) and (max-width: 1100px)",
+    "(max-width: 819px)",
+    "(max-width: 819px) and (orientation: portrait)",
+    "(max-width: 600px) and (orientation: portrait) and (pointer: coarse)",
   ]);
 
   for (const query of widthQueries) {
@@ -86,6 +86,9 @@ test("tablet keeps the desktop structure with a narrower navigation", () => {
 
   // The decorative header art is the only thing the tablet band gives up.
   assert.match(tablet, /\.page-header__art \{ display: none; \}/);
+  // Side-card grids use available width rather than a named iPad model.
+  assert.match(styles["app.css"], /repeat\(auto-fit, minmax\(min\(100%, 300px\), 1fr\)\)/);
+  assert.match(styles["portfolio.css"], /repeat\(auto-fit, minmax\(min\(100%, 300px\), 1fr\)\)/);
 });
 
 test("no page hides the sidebar or adds a second navigation", () => {
@@ -101,14 +104,19 @@ test("no page hides the sidebar or adds a second navigation", () => {
 });
 
 test("phone portrait renders the notice and nothing else", () => {
-  const portrait = orientationCss.slice(orientationCss.indexOf("@media (max-width: 767px) and (orientation: portrait) {"));
+  const portraitQuery = "@media (max-width: 600px) and (orientation: portrait) and (pointer: coarse)";
+  const portrait = orientationCss.slice(orientationCss.indexOf(`${portraitQuery} {`));
   assert.ok(portrait.length > 0, "orientation.css must own the portrait band");
+  assert.match(orientationCss, /max-width: 600px/);
+  assert.match(orientationCss, /orientation: portrait/);
+  assert.match(orientationCss, /pointer: coarse/);
 
   // Both halves of the switch live in the same query, which is what makes a
   // live rotation free: no reload, no React state to reset.
   assert.match(portrait, /\.app-shell \{ display: none; \}/);
   assert.match(portrait, /\.orientation-notice \{[\s\S]*?position: fixed;[\s\S]*?inset: 0;/);
   assert.match(portrait, /display: grid;[\s\S]*?place-items: center;/);
+  assert.match(portrait, /min-height: 100svh;[\s\S]*?min-height: 100dvh;/);
   // Background scrolling is cancelled while the notice is on screen.
   assert.match(portrait, /html,\s*body \{[\s\S]*?overflow: hidden;/);
 
@@ -116,6 +124,15 @@ test("phone portrait renders the notice and nothing else", () => {
   assert.match(portrait, /background: var\(--color-cream\)/);
   assert.match(portrait, /color: var\(--color-ink\)/);
   assert.match(source("../src/components/OrientationNotice.jsx"), /fill="var\(--color-yellow\)"/);
+  assert.equal((source("../src/components/OrientationNotice.jsx").match(/<rect\b/g) ?? []).length, 2);
+});
+
+test("tablet portrait cannot be classified as a phone", () => {
+  // The phone screen is bounded at 600 CSS pixels; an iPad Mini at 744px stays
+  // in the tablet application even when its input media feature is coarse.
+  assert.match(orientationCss, /@media \(max-width: 600px\) and \(orientation: portrait\) and \(pointer: coarse\)/);
+  assert.doesNotMatch(orientationCss, /max-width: 767px|max-width: 768px/);
+  assert.match(layoutCss, /tablet\s+601[–-]1100/);
 });
 
 test("the notice starts hidden and is not a page of its own", () => {
@@ -177,7 +194,7 @@ test("both data tables render the same columns at every width", () => {
 });
 
 test("the pagination range stays on screen at every width", () => {
-  // It used to be hidden below 768px. It is the only element that says how many
+  // It used to be hidden on phones. It is the only element that says how many
   // records the filters returned, so it is no longer dropped anywhere.
   assert.doesNotMatch(allCss, /\.table-pagination__range \{[^}]*display:\s*none/);
   assert.match(styles["pagination.css"], /@media \(max-width: 1100px\) \{[\s\S]*?\.table-pagination \{[\s\S]*?flex-wrap: wrap/);

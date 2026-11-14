@@ -1,7 +1,11 @@
-#root { min-height: 100vh; }
+#root { min-height: 100vh; min-height: 100dvh; }
 
-.app-shell { min-height: 100vh; }
-.app-main { min-height: 100vh; margin-left: var(--sidebar-width); }
+.app-shell { min-height: 100vh; min-height: 100dvh; }
+.app-main {
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin-left: calc(var(--sidebar-width) + var(--safe-area-left));
+}
 .app-main[hidden] { display: none; }
 
 /* Overview ----------------------------------------------------------------- */
@@ -13,6 +17,7 @@
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .overview-kpis {
@@ -29,7 +34,7 @@
   display: grid;
   flex: 1 1 auto;
   min-height: 0;
-  grid-template-columns: minmax(0, 1.82fr) minmax(360px, 1fr);
+  grid-template-columns: minmax(0, 1.72fr) minmax(330px, 1fr);
   gap: var(--card-gap);
 }
 .overview-grid__main,
@@ -98,8 +103,8 @@
    aligned, so no column is left with a large empty hole. */
 .top-momentum-list {
   display: grid;
-  grid-template-columns: 36px 65px minmax(76px, 1fr) 85px 68px;
-  column-gap: 12px;
+  grid-template-columns: 32px 52px minmax(56px, 1fr) minmax(62px, 84px) 60px;
+  column-gap: clamp(6px, 0.75vw, 12px);
   row-gap: 3px;
   grid-auto-rows: 35px;
   align-items: center;
@@ -125,7 +130,7 @@
    stays centred inside its column instead of stretching to fill it. */
 .momentum-row .sparkline { width: min(100%, 84px); height: auto; justify-self: stretch; }
 .momentum-row__price { color: var(--color-ink); font-size: var(--font-size-xs); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
-.momentum-row__score { display: inline-flex; width: 64px; min-height: 27px; align-items: center; justify-content: center; justify-self: center; padding: 0; border-radius: var(--radius-pill); background: var(--color-positive-soft); color: var(--color-positive); font-size: var(--font-size-xs); font-weight: var(--font-weight-black); font-variant-numeric: tabular-nums; }
+.momentum-row__score { display: inline-flex; width: 60px; min-height: 27px; align-items: center; justify-content: center; justify-self: center; padding: 0; border-radius: var(--radius-pill); background: var(--color-positive-soft); color: var(--color-positive); font-size: var(--font-size-xs); font-weight: var(--font-weight-black); font-variant-numeric: tabular-nums; }
 .view-all-button { min-height: 30px; padding: 0 11px 0 13px; border: 1px solid var(--color-line); border-radius: var(--radius-pill); background: var(--color-surface); color: var(--color-ink); font-size: 0.78rem; box-shadow: 0 1px 2px rgb(56 40 22 / 5%); }
 .view-all-button > span { display: inline-flex; align-items: center; gap: 6px; }
 .view-all-button .view-all-button__arrow { display: inline-flex; align-items: center; color: var(--color-ink); transition: color 180ms ease; }
@@ -294,7 +299,7 @@
   .performance-legend { gap: 16px; }
   .performance-legend__item { font-size: 0.88rem; }
   .period-control button { min-height: 30px; min-width: 39px; }
-  .top-momentum-list { grid-template-columns: 32px 58px minmax(70px, 1fr) 76px 62px; column-gap: 9px; grid-auto-rows: 32px; }
+  .top-momentum-list { grid-template-columns: 30px 50px minmax(52px, 1fr) minmax(60px, 76px) 58px; column-gap: 7px; grid-auto-rows: 32px; }
   .momentum-row .sparkline { width: min(100%, 70px); }
   .momentum-row__rank { width: 25px; height: 25px; }
   .sparkline { width: 58px; height: 20px; }
@@ -312,9 +317,9 @@
   .model-banner__arrow { top: calc(50% - 20px); right: 16px; }
 }
 
-/* Tablet — the icon sidebar and a single-column dashboard grid. The overview
-   keeps its two groups (chart + banner, then momentum + allocation); it is the
-   group that stacks, not the individual cards. */
+/* Tablet — the icon sidebar, a bounded chart, and responsive side-card columns.
+   The overview keeps its two groups (chart + banner, then momentum + allocation);
+   it is the group that stacks, not every individual card. */
 @media (max-width: 1100px) {
   .sidebar { align-items: center; padding-top: 18px; }
   .brand-lockup { align-items: center; margin: 0; padding-inline: 8px; text-align: center; }
@@ -328,16 +333,52 @@
   .sidebar-nav__item--secondary { min-height: 48px; justify-content: center; padding: 0; }
   .sidebar-nav__item--secondary .sidebar-nav__label { display: none; }
 
+  .overview-page { min-height: auto; }
   .overview-grid { grid-template-columns: minmax(0, 1fr); }
-  .overview-grid__side { grid-template-columns: minmax(0, 1fr); align-items: start; }
+  .overview-grid__main { grid-template-rows: minmax(360px, 390px) auto; }
+  .overview-grid__side {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+    grid-template-rows: none;
+    align-items: start;
+  }
+  .performance-card { min-height: 360px; }
+  .top-momentum-list {
+    grid-template-columns: 28px 46px minmax(42px, 1fr) minmax(56px, 72px) 54px;
+    column-gap: 5px;
+  }
+  .momentum-row__rank { width: 25px; height: 25px; }
+  .momentum-row__ticker { font-size: 0.78rem; }
+  .momentum-row__price, .momentum-row__score { font-size: 0.69rem; }
+  .momentum-row__score { width: 54px; min-height: 25px; }
+  .sector-card__content {
+    grid-template-columns: minmax(112px, 0.9fr) minmax(128px, 1.1fr);
+    gap: 8px;
+  }
+  .sector-legend li, .sector-legend strong { font-size: 0.66rem; }
   /* The legend and the range control share the chart header; wrapping is the
      one thing that keeps them apart when the card is narrow. */
   .performance-card__toolbar { flex-wrap: wrap; }
 }
 
-/* Top Momentum and Sector Allocation sit side by side again as soon as both
-   cards can still hold their minimum width — the desktop reading order, kept
-   wherever the tablet has the room for it. */
-@media (min-width: 1000px) and (max-width: 1100px) {
-  .overview-grid__side { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* The narrowest supported iPad portrait gives the title its own row instead of
+   forcing the update control into the same track. Landscape keeps the compact
+   one-row header so vertical content remains usable. */
+@media (max-width: 819px) and (orientation: portrait) {
+  .page-header {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    row-gap: 8px;
+  }
+  .page-header__controls { justify-content: flex-start; }
+}
+
+/* Compact landscape trims vertical chrome without changing the component
+   structure. The chart keeps a useful plot height while the first KPI row and
+   header remain visible together. */
+@media (max-width: 900px) and (orientation: landscape) {
+  .overview-grid__main { grid-template-rows: minmax(300px, 320px) auto; }
+  .performance-card { min-height: 300px; }
+  .overview-kpis { margin-bottom: var(--section-gap); }
+  .kpi-card { min-height: 88px; padding-block: 10px; }
+  :root { --font-size-kpi: clamp(1.65rem, 4.2vw, 2rem); }
 }

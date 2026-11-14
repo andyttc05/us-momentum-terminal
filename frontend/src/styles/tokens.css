@@ -155,4 +155,11 @@
   --sidebar-compact-width: 76px;
   --content-max-width: var(--page-max-width);
   --focus-ring: 0 0 0 3px rgb(169 211 239 / 65%);
+
+  /* iOS reports display cut-outs and the home indicator separately from the
+     visual viewport. Zero on ordinary desktop browsers. */
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
 }

@@ -15,6 +15,8 @@
   width: min(100%, var(--page-max-width));
   margin-inline: auto;
   padding: var(--page-padding-block-start) var(--page-padding-inline) var(--page-padding-block-end);
+  padding-right: max(var(--page-padding-inline), var(--safe-area-right));
+  padding-bottom: max(var(--page-padding-block-end), calc(var(--safe-area-bottom) + 16px));
 }
 
 /* B. Page header ----------------------------------------------------------- */
@@ -185,11 +187,11 @@
  *
  *   desktop  >= 1101px  The full system: labelled sidebar, multi-column
  *                       dashboards, full-width tables, full chart layouts.
- *   tablet    768–1100  The same structure and components, one step tighter:
+ *   tablet    601–1100  The same structure and components, one step tighter:
  *                       icon sidebar (76px), two-column card rows where they
  *                       still fit, tables that scroll horizontally instead of
  *                       losing columns.
- *   phone      < 768    No design of its own. Landscape receives the tablet
+ *   phone      ≤ 600    No design of its own. Landscape receives the tablet
  *                       rules above; portrait renders orientation.css and the
  *                       application is not painted.
  *
@@ -217,7 +219,8 @@
   }
 }
 
-/* Tablet — and every phone in landscape, since they share this band. */
+/* Tablet — and every phone in landscape, since they share this band. Compact
+   width is decided by the content available, not by a device name. */
 @media (max-width: 1100px) {
   :root {
     --page-padding-inline: clamp(18px, 2.4vw, 26px);
@@ -238,23 +241,25 @@
   .page-header__art { display: none; }
 }
 
-/* Phone landscape: the tablet layout, with the gutter trimmed to the height
-   that is left. Nothing is rearranged, hidden or re-styled — a phone held
-   sideways is a small tablet, and it reads like one. */
-@media (max-width: 767px) and (orientation: landscape) {
+/* Compact landscape: same tablet/layout system, with the rail and gutters
+   trimmed to preserve content width. This classifies by available viewport,
+   so an iPad portrait never receives phone treatment. */
+@media (max-width: 900px) and (orientation: landscape) {
   :root {
-    --page-padding-inline: 18px;
-    --page-padding-block-start: 16px;
-    --page-padding-block-end: 16px;
-    --section-gap: 12px;
-    --card-gap: 10px;
-    --font-size-page-title: var(--font-size-page-title-compact);
+    --page-padding-inline: 14px;
+    --page-padding-block-start: 14px;
+    --page-padding-block-end: 14px;
+    --section-gap: 10px;
+    --card-gap: 9px;
+    --card-padding-inline: 15px;
+    --sidebar-compact-width: 64px;
+    --font-size-page-title: clamp(1.625rem, 3.8vw, 2rem);
   }
 
   .page-header {
     min-height: 0;
-    margin-bottom: 12px;
-    column-gap: 14px;
+    margin-bottom: 10px;
+    column-gap: 12px;
   }
 }
 
@@ -264,7 +269,7 @@
   .sidebar {
     overflow-y: auto;
     overscroll-behavior-y: contain;
-    padding-bottom: 12px;
+    padding-bottom: max(12px, var(--safe-area-bottom));
   }
 
   .sidebar-project-info { padding-bottom: 12px; }

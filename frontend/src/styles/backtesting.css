@@ -4,6 +4,7 @@
   --backtest-section-gap: 15px;
   display: flex;
   min-height: 100vh;
+  min-height: 100dvh;
   flex-direction: column;
   gap: var(--backtest-section-gap);
   overflow: visible;
@@ -14,7 +15,7 @@
      touching the 15px gap between the sections themselves. */
   margin-bottom: max(0px, calc(var(--page-header-gap) - var(--backtest-section-gap)));
 }
-.app-shell:has(.backtest-page) .page-header__title { font-size: 2.15rem; }
+.app-shell:has(.backtest-page) .backtest-page .page-header__title { font-size: 2.15rem; }
 
 /* Configuration ----------------------------------------------------------- */
 
@@ -947,7 +948,7 @@
    configuration card and the two control headers, whose labels no longer fit
    beside their controls. There is deliberately no backtesting-only sidebar
    here any more: every page uses the same navigation at the same width. */
-@media (min-width: 768px) and (max-width: 1100px) {
+@media (min-width: 601px) and (max-width: 1100px) {
   /* Four columns still, with the two fixed ones squeezed, so the card keeps its
      desktop arrangement down to a 901px viewport — where the two-column
      arrangement below takes over instead. */
@@ -1027,6 +1028,18 @@
   .backtest-config__divider { display: none; }
   .backtest-config__universe { grid-column: 1; }
   .backtest-run-group { grid-column: 2; align-self: end; padding-top: 0; }
+  .backtest-advanced__summary { display: none; }
+  .backtest-advanced__toggle { grid-template-columns: minmax(0, 1fr) auto; }
+  .backtest-analytics-grid { grid-template-columns: 1fr; }
+  .backtest-summary-top { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .backtest-summary-settings { grid-column: 1 / -1; }
+  .backtest-return-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* The two-column advanced form stays intact down to a tablet-sized content
+   area. Below this, stacking is the readable choice rather than a leftover
+   phone arrangement. */
+@media (max-width: 819px) {
   .backtest-advanced__grid {
     grid-template-areas:
       "initial"
@@ -1040,12 +1053,6 @@
     grid-template-rows: none;
     gap: 12px;
   }
-  .backtest-advanced__summary { display: none; }
-  .backtest-advanced__toggle { grid-template-columns: minmax(0, 1fr) auto; }
-  .backtest-analytics-grid { grid-template-columns: 1fr; }
-  .backtest-summary-top { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .backtest-summary-settings { grid-column: 1 / -1; }
-  .backtest-return-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 /* Portfolio evolution ----------------------------------------------------- */

@@ -2,7 +2,7 @@
  * The only phone-portrait screen the application has.
  *
  * Rendering it is a pure CSS decision: `orientation.css` shows this block and
- * hides `.app-shell` inside `@media (max-width: 767px) and (orientation: portrait)`.
+ * hides `.app-shell` inside the capability-aware phone-portrait query.
  * The markup is therefore always mounted, and rotating the device swaps the two
  * views without a React update, a reload or a lost scroll position. Nothing here
  * reads the Screen Orientation API — Safari does not expose it consistently, and
@@ -13,31 +13,51 @@ export function OrientationNotice() {
   return (
     <div className="orientation-notice" role="status" aria-live="polite">
       <div className="orientation-notice__inner">
-        {/* A device held upright inside one clockwise arrow: the arc runs from
-            10 o'clock round to 2 o'clock, and the arrowhead is a filled
-            triangle on the arc's own tangent, so the two read as one stroke.
-            Both the arc and the head are explicit coordinates — a dashed ring
-            plus a floating chevron was tried first and looked like a handle at
-            88px. */}
-        <svg className="orientation-notice__icon" viewBox="0 0 96 96" aria-hidden="true" focusable="false">
-          <circle cx="48" cy="48" r="44" fill="var(--color-yellow)" />
-          <path
-            d="M42.44 16.5A32 32 0 1 0 78.07 37.06"
-            fill="none"
-            stroke="var(--color-ink)"
-            strokeWidth="5.4"
-            strokeLinecap="round"
-          />
-          <path d="M81.1 45.5 73 38.9 83.2 35.2Z" fill="var(--color-ink)" />
-          <rect
-            x="37"
-            y="32"
-            width="22"
-            height="32"
-            rx="4.6"
+        {/* Two device states and one short clockwise arc. Keeping the arrow
+            between the phones, rather than wrapping around a single handset,
+            makes the result unambiguous at notification size and avoids the
+            reload-icon silhouette of a near-complete circle. */}
+        <svg className="orientation-notice__icon" viewBox="0 0 120 120" aria-hidden="true" focusable="false">
+          <circle cx="60" cy="60" r="58" fill="var(--color-yellow)" />
+          <g
             fill="var(--color-surface)"
             stroke="var(--color-ink)"
-            strokeWidth="3.8"
+            strokeWidth="3.6"
+            strokeLinejoin="round"
+          >
+            <rect x="18" y="26" width="25" height="43" rx="6" transform="rotate(-7 30.5 47.5)" />
+            <rect x="63" y="68" width="39" height="24" rx="6" />
+          </g>
+          <path
+            d="M42.2 35.5C48.5 18.2 73.2 14.4 88.7 29.5C97.3 37.8 98.6 49.7 93.6 59"
+            fill="none"
+            stroke="var(--color-ink)"
+            strokeWidth="4.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M85.5 51.3 93.6 59 100.8 51.7"
+            fill="none"
+            stroke="var(--color-ink)"
+            strokeWidth="4.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M26.3 33.3H34.7"
+            fill="none"
+            stroke="var(--color-ink)"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            transform="rotate(-7 30.5 33.3)"
+          />
+          <path
+            d="M77 88H88"
+            fill="none"
+            stroke="var(--color-ink)"
+            strokeWidth="2.2"
+            strokeLinecap="round"
           />
         </svg>
         <h1 className="orientation-notice__title">Please Rotate Your Device</h1>
