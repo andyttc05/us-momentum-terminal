@@ -913,6 +913,17 @@
 }
 .backtest-summary-state { margin-top: 12px; }
 
+/* A narrow desktop has four headline figures but not enough room for four
+   independent label/value columns. Two roomy columns keep Schedule and
+   $1,000 monthly inflow separate instead of allowing them to collide. */
+@media (max-width: 1399px) and (min-width: 1101px) {
+  .backtest-perf-columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px 34px;
+  }
+  .backtest-perf-row__label { flex: 1 1 auto; }
+}
+
 /* Tablet and phone landscape share one band, so the card has one step: two
    columns of figures and two columns of groups. */
 @media (max-width: 1100px) {

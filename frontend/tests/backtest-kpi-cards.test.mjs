@@ -7,6 +7,10 @@ const page = readFileSync(
   fileURLToPath(new URL("../src/BacktestingPage.jsx", import.meta.url)),
   "utf8",
 );
+const styles = readFileSync(
+  fileURLToPath(new URL("../src/styles/backtesting.css", import.meta.url)),
+  "utf8",
+);
 const sectionStart = page.indexOf('<section className="backtest-kpis"');
 const sectionEnd = page.indexOf("</section>", sectionStart);
 const kpiSection = page.slice(sectionStart, sectionEnd);
@@ -98,6 +102,13 @@ test("Performance & Risk puts the headline figures first and the rest in grouped
   assert.match(summary, /metrics\?\.benchmarkRelative\?\.spmo/);
   assert.match(summary, /<Skeleton width="52px" height="12px" \/>/);
   assert.match(page, /<PerformanceAndRisk[\s\S]*?metrics=\{metrics\}[\s\S]*?state=/);
+});
+
+test("narrow desktop Performance & Risk groups use two roomy columns", () => {
+  assert.match(
+    styles,
+    /@media \(max-width: 1399px\) and \(min-width: 1101px\) \{\s*\.backtest-perf-columns \{\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);\s*gap: 4px 34px;[\s\S]*?\.backtest-perf-row__label \{ flex: 1 1 auto; \}/,
+  );
 });
 
 test("the monthly performance card and the separate risk card are gone", () => {
