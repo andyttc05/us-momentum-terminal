@@ -85,13 +85,16 @@ minutes, intraday bars 15 minutes, closed-market bars 6 hours and quote metadata
 - Float-adjusted model portfolio sized with `score × (float cap / median float cap) ^ 0.5`
   (Beta 0.5, not user-configurable), then a 9% single-stock cap and a 35% cap on combined sector groups.
 - Rebalancing choices: monthly, quarterly, semiannual and annual.
-- Historical books are equal-weighted research proxies unless a point-in-time float-cap lookup is
-  supplied; each rebalance records its `weighting_mode` so a proxy is never presented as validating
-  the production sizing rule.
+- Historical books use point-in-time shares outstanding × split-normalized price as a
+  `score-size-proxy` because historical float shares are unavailable. Each rebalance records its
+  `weighting_mode`; the proxy is never presented as validating the production float-cap rule.
 - Signals use the final trading session of the selected months; execution uses the next close.
 - Transaction costs are 0.10%; slippage and risk-free rate are 0%.
 - Adjusted-close and cash-dividend conventions remain separate.
 - CPI-U inflation adjustment uses published observations only.
+- Sortino, beta, correlation, tracking error and information ratio use the same aligned daily returns
+  as the selected backtest window. Metrics requiring 20 daily returns remain unavailable below that
+  threshold rather than being displayed as zero.
 
 The historical universe, current constituents, missing point-in-time float capitalisation and missing
 delisting returns remain research limitations. See `../docs/TECHNICAL_DOCUMENTATION.md`.

@@ -134,13 +134,28 @@ test("Backtesting CSV and workbook retain every configured trading date", async 
   assert.equal(data.csv.split("\r\n").length, block.dates.length + 1);
   assert.deepEqual(
     data.workbookSheets.map((sheet) => sheet.name),
-    ["Daily Performance", "Drawdown", "Rebalancing History", "Cash Flows", "Backtest Settings"],
+    [
+      "Daily Performance",
+      "Drawdown",
+      "Monthly Returns",
+      "Rebalancing History",
+      "Cash Flows",
+      "Performance Summary",
+      "Benchmark Comparison",
+      "Backtest Settings",
+    ],
   );
   assert.equal(data.workbookSheets[0].rows.length, block.dates.length + 1);
   assert.equal(
-    data.workbookSheets[2].rows.length,
+    data.workbookSheets[3].rows.length,
     block.rebalance_log.reduce((sum, event) => sum + Object.keys(event.holdings).length, 0) + 1,
   );
+  const benchmarkSheet = data.workbookSheets.find((sheet) => sheet.name === "Benchmark Comparison");
+  assert.deepEqual(benchmarkSheet.rows.slice(1).map((row) => row[0]), ["SPY", "SPMO"]);
+  const summarySheet = data.workbookSheets.find((sheet) => sheet.name === "Performance Summary");
+  const summary = new Map(summarySheet.rows.slice(1).map(([label, value]) => [label, value]));
+  assert.ok(Math.abs(summary.get("Total Return") - block.metrics.cumulative_return) < 0.02);
+  assert.equal(summary.get("Final Portfolio Value"), data.workbookSheets[0].rows.at(-1)[1]);
 
   const { workbook, archive } = await readWorkbook(data.workbookSheets);
   assert.deepEqual(workbook.SheetNames, data.workbookSheets.map((sheet) => sheet.name));

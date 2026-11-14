@@ -53,9 +53,12 @@ test("derived CAGR uses the same 365-day basis as the Python service", () => {
 });
 
 test("derived Sharpe matches a hand calculation", () => {
-  // Returns: +10%, -5%, +10% -> mean 5%, sample sd = sqrt(((5)^2+(10)^2+(5)^2)/2)/100
-  const values = [100, 110, 104.5, 114.95];
-  const returns = [0.1, -0.05, 0.1];
+  // Twenty returns are the backend's minimum for an annualized Sharpe ratio.
+  const returns = Array.from({ length: 20 }, (_, index) => (
+    index % 3 === 1 ? -0.005 : 0.01 + index / 10_000
+  ));
+  const values = [100];
+  returns.forEach((value) => values.push(values.at(-1) * (1 + value)));
   const mean = returns.reduce((total, value) => total + value, 0) / returns.length;
   const variance = returns.reduce((total, value) => total + (value - mean) ** 2, 0) / (returns.length - 1);
   const expected = (mean / Math.sqrt(variance)) * Math.sqrt(252);
@@ -73,12 +76,77 @@ test("max drawdown tracks the running peak, never the previous point", () => {
 
 test("a missing window reports nothing rather than zero", () => {
   const metrics = computeWindowMetrics(null);
-  assert.deepEqual(metrics, { totalReturn: null, cagr: null, maxDrawdown: null, sharpe: null, source: "none" });
+  assert.deepEqual(metrics, {
+    totalReturn: null,
+    cagr: null,
+    annualizedVolatility: null,
+    maxDrawdown: null,
+    sharpe: null,
+    sortino: null,
+    benchmarks: { spy: null, spmo: null },
+    benchmarkRelative: { spy: null, spmo: null },
+    source: "none",
+  });
 });
 
 test("a zero-variance window has no Sharpe ratio", () => {
-  const metrics = computeWindowMetrics(navWindow([100, 100, 100]));
+  const metrics = computeWindowMetrics(navWindow(Array.from({ length: 22 }, () => 100)));
   assert.equal(metrics.sharpe, null);
+});
+
+test("Sortino uses downside deviation over every return", () => {
+  const returns = Array.from({ length: 20 }, (_, index) => (
+    index % 4 === 0 ? -0.01 : 0.012
+  ));
+  const values = [100];
+  returns.forEach((value) => values.push(values.at(-1) * (1 + value)));
+  const mean = returns.reduce((total, value) => total + value, 0) / returns.length;
+  const downsideDeviation = Math.sqrt(
+    returns.reduce((total, value) => total + Math.min(value, 0) ** 2, 0) / returns.length,
+  );
+  const expected = (mean / downsideDeviation) * Math.sqrt(252);
+  const metrics = computeWindowMetrics(navWindow(values));
+  assert.ok(Math.abs(metrics.sortino - expected) < 1e-9);
+});
+
+test("benchmark beta, correlation and tracking error use aligned daily returns", () => {
+  const returns = Array.from({ length: 24 }, (_, index) => 0.004 + Math.sin(index) * 0.003);
+  const benchmarkReturns = returns.map((value, index) => value * 0.7 + (index % 2 ? 0.0005 : -0.0005));
+  const values = [100];
+  const benchmark = [100];
+  returns.forEach((value, index) => {
+    values.push(values.at(-1) * (1 + value));
+    benchmark.push(benchmark.at(-1) * (1 + benchmarkReturns[index]));
+  });
+  const window = {
+    dates: values.map((_, index) => new Date(Date.UTC(2020, 0, 2 + index)).toISOString().slice(0, 10)),
+    strategy: values,
+    spy: benchmark,
+    spmo: [],
+  };
+  const relative = computeWindowMetrics(window).benchmarkRelative.spy;
+  const meanStrategy = returns.reduce((total, value) => total + value, 0) / returns.length;
+  const meanBenchmark = benchmarkReturns.reduce((total, value) => total + value, 0) / benchmarkReturns.length;
+  const covariance = returns.reduce(
+    (total, value, index) => total + (value - meanStrategy) * (benchmarkReturns[index] - meanBenchmark),
+    0,
+  ) / (returns.length - 1);
+  const benchmarkVariance = benchmarkReturns.reduce(
+    (total, value) => total + (value - meanBenchmark) ** 2,
+    0,
+  ) / (benchmarkReturns.length - 1);
+  const correlation = covariance
+    / Math.sqrt(
+      benchmarkVariance
+      * returns.reduce((total, value) => total + (value - meanStrategy) ** 2, 0)
+      / (returns.length - 1),
+    );
+  const active = returns.map((value, index) => value - benchmarkReturns[index]);
+  const activeMean = active.reduce((total, value) => total + value, 0) / active.length;
+  const activeVariance = active.reduce((total, value) => total + (value - activeMean) ** 2, 0) / (active.length - 1);
+  assert.ok(Math.abs(relative.beta - covariance / benchmarkVariance) < 1e-9);
+  assert.ok(Math.abs(relative.correlation - correlation) < 1e-9);
+  assert.ok(Math.abs(relative.trackingError - Math.sqrt(activeVariance) * Math.sqrt(252) * 100) < 1e-9);
 });
 
 test("duration uses completed calendar months from the effective backtest dates", () => {

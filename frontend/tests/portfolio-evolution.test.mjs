@@ -110,7 +110,7 @@ test("the latest Top 20 event reconciles to the published 13 new, 7 retained and
   );
   assert.deepEqual(comparison.counts, { all: 20, new: 13, retained: 7, removed: 13 });
   assert.equal(
-    comparison.currentRows.every((row) => row.weightingMode === "score-size"),
+    comparison.currentRows.every((row) => row.weightingMode === "score-size-proxy"),
     true,
   );
   assert.equal(
@@ -351,8 +351,8 @@ test("changing the event updates the actual holdings snapshot", () => {
 test("Top 20 and Top 100 histories never share holdings or weights", () => {
   assert.equal(top20Events[0].count, 20);
   assert.equal(top100Events[0].count, 100);
-  assert.equal(top20Events[0].weightingMode, "score-size");
-  assert.equal(top100Events[0].weightingMode, "score-size");
+  assert.equal(top20Events[0].weightingMode, "score-size-proxy");
+  assert.equal(top100Events[0].weightingMode, "score-size-proxy");
   for (const events of [top20Events, top100Events]) {
     assert.ok(Math.abs(
       events[0].holdings.reduce((total, row) => total + row.weight, 0) - 100,

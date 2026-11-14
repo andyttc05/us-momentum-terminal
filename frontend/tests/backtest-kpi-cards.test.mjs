@@ -74,3 +74,25 @@ test("Performance Summary renders all six requested metrics once in compact tile
   assert.match(summary, /<Skeleton width="72px" height="16px" \/>/);
   assert.match(page, /<PerformanceSummary[\s\S]*?metrics=\{metrics\}[\s\S]*?state=/);
 });
+
+test("risk analysis exposes Sortino and benchmark-relative metrics from the shared window", () => {
+  const riskStart = page.indexOf("function RiskAnalysis");
+  const riskEnd = page.indexOf("function AdvancedSettings", riskStart);
+  const risk = page.slice(riskStart, riskEnd);
+  for (const label of [
+    "Annualized Volatility",
+    "Sortino Ratio",
+    "Beta vs. SPY",
+    "Correlation vs. SPY",
+    "Tracking Error vs. SPY",
+    "Information Ratio vs. SPY",
+    "Beta vs. SPMO",
+    "Tracking Error vs. SPMO",
+  ]) {
+    assert.equal(risk.split(`label: "${label}"`).length - 1, 1);
+  }
+  assert.match(risk, /metrics\?\.benchmarkRelative\?\.spy/);
+  assert.match(risk, /metrics\?\.benchmarkRelative\?\.spmo/);
+  assert.match(page, /<MonthlyReturnTable[\s\S]*?rows=\{report\?\.monthlyRows \?\? \[\]\}/);
+  assert.match(page, /<RiskAnalysis[\s\S]*?metrics=\{metrics\}/);
+});

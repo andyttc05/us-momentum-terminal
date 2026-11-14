@@ -437,6 +437,7 @@ export function sortPortfolioRows(rows, sort) {
 function weightingMethod(block, selectedEvent) {
   const mode = selectedEvent?.weightingMode ?? block?.methodology?.weighting_mode;
   if (mode === "equal-weight-proxy") return "Equal-weight research proxy";
+  if (mode === "score-size-proxy") return "Outstanding-share size research proxy";
   if (mode) return String(mode).replaceAll("-", " ");
   return "Not published";
 }

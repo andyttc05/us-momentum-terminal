@@ -16,6 +16,8 @@ from fastapi import HTTPException
 
 from app.backtest import (
     REBALANCE_FREQUENCIES,
+    _benchmark_relative,
+    _performance_statistics,
     _price_cash_frames,
     rebalance_schedule,
     run_backtest,
@@ -752,6 +754,33 @@ class PointInTimeWeightingTests(unittest.TestCase):
             self.assertEqual(list(sized["holdings"]), list(proxy["holdings"]), "selection must not move")
             self.assertNotEqual(sized["holdings"], proxy["holdings"], "sizing must move")
 
+    def test_outstanding_share_history_is_never_labelled_as_float_sizing(self):
+        series = self._series()
+        caps = {"AAA": 1e9, "BBB": 4e9, "CCC": 9e9, "DDD": 16e9, "EEE": 25e9, "FFF": 36e9}
+
+        def lookup(symbol, _date):
+            return caps.get(symbol)
+
+        lookup.size_input = "point-in-time share count x unadjusted close"
+        lookup.size_basis = "shares_outstanding"
+        result = run_backtest(
+            series,
+            top_n=3,
+            universe_symbols=set(self.SYMBOLS),
+            rebalance_frequency="quarterly",
+            float_cap_lookup=lookup,
+        )
+        methodology = result["methodology"]
+        self.assertEqual(methodology["weighting_mode"], "score-size-proxy")
+        self.assertFalse(methodology["live_weighting_tested"])
+        self.assertEqual(methodology["production_float_sized_rebalances"], 0)
+        self.assertGreater(methodology["outstanding_share_proxy_rebalances"], 0)
+        self.assertIn("not float-adjusted", methodology["historical_capitalisation"])
+        self.assertTrue(all(
+            event["weighting_mode"] == "score-size-proxy"
+            for event in result["holdings_log"]
+        ))
+
     def test_scores_and_caps_reproduce_the_raw_formula_exactly(self):
         # Without sector metadata the solver is skipped, so the published
         # weights are the normalized raw weights and can be recomputed here.
@@ -1145,6 +1174,30 @@ class BacktestTests(unittest.TestCase):
         self.assertTrue(all("BAD" not in event["leaders"] for event in result["holdings_log"]))
         self.assertTrue(np.isfinite(result["strategy"]).all())
 
+    def test_materially_stale_price_tail_blocks_the_backtest(self):
+        symbols = ["AAA", "BBB", "CCC", "DDD", "EEE", "FFF"]
+        series = {symbol: synthetic_series(symbol) for symbol in symbols}
+        original = series["AAA"]
+        truncated = original.frame.iloc[:-10].copy()
+        series["AAA"] = SymbolSeries(
+            symbol="AAA",
+            frame=truncated,
+            source=original.source,
+            source_label=original.source_label,
+            fetched_at=original.fetched_at,
+            adjusted=original.adjusted,
+            is_backup=original.is_backup,
+        )
+        result = run_backtest(
+            series,
+            top_n=3,
+            universe_symbols=set(symbols),
+            rebalance_frequency="quarterly",
+        )
+        self.assertFalse(result["available"])
+        self.assertIn("materially stale tails", result["reason"])
+        self.assertIn("AAA (10)", result["reason"])
+
     def test_backtest_api_validates_and_forwards_the_selected_frequency(self):
         with patch(
             "app.main.run_historical_backtest",
@@ -1314,9 +1367,17 @@ class BacktestMetricsTests(unittest.TestCase):
             year = entry["year"]
             same_year = self.nav[self.nav.index.year == year]
             prior = self.nav[self.nav.index.year < year]
-            base = float(prior.iloc[-1]) if not prior.empty else float(same_year.iloc[0])
+            base = float(prior.iloc[-1]) if not prior.empty else 100.0
             expected = (float(same_year.iloc[-1]) / base - 1.0) * 100.0
             self.assertAlmostEqual(entry["strategy"], expected, places=1, msg=f"year {year}")
+
+    def test_first_calendar_year_includes_the_initial_entry_cost(self):
+        first_year = self.result["annual"][0]
+        same_year = self.nav[self.nav.index.year == int(first_year["year"])]
+        expected = (float(same_year.iloc[-1]) / 100.0 - 1.0) * 100.0
+        wrong_old_basis = (float(same_year.iloc[-1]) / float(same_year.iloc[0]) - 1.0) * 100.0
+        self.assertAlmostEqual(first_year["strategy"], expected, places=1)
+        self.assertGreater(abs(first_year["strategy"] - wrong_old_basis), 0.05)
 
     def test_each_benchmark_is_rebased_to_100_on_the_first_strategy_date(self):
         for symbol, values in self.result["benchmarks"].items():
@@ -1332,6 +1393,74 @@ class BacktestMetricsTests(unittest.TestCase):
         self.assertIsNotNone(metrics["annualized_volatility"])
         self.assertGreater(metrics["annualized_volatility"], 0.0)
         self.assertEqual(metrics["transaction_cost_pct"] > 0, True)
+        self.assertIsNotNone(metrics["sortino"])
+        self.assertIsNotNone(metrics["benchmark_relative"]["spy"]["beta"])
+        self.assertIsNotNone(metrics["benchmark_relative"]["spy"]["information_ratio"])
+
+    def test_sortino_uses_every_non_negative_shortfall_as_zero(self):
+        returns = np.array([0.01 if index % 3 else -0.005 for index in range(20)])
+        values = [100.0]
+        for value in returns:
+            values.append(values[-1] * (1.0 + value))
+        nav = pd.Series(values, index=pd.bdate_range("2024-01-02", periods=len(values)))
+        statistics = _performance_statistics(nav)
+        returns = nav.pct_change().dropna()
+        mean = float(returns.mean())
+        downside = np.minimum(returns.to_numpy(dtype=float), 0.0)
+        downside_deviation = float(np.sqrt(np.mean(np.square(downside))))
+        expected = mean / downside_deviation * np.sqrt(252)
+        self.assertAlmostEqual(statistics["sortino"], expected, places=2)
+
+    def test_benchmark_beta_and_information_ratio_match_hand_formula(self):
+        strategy_returns = np.array([
+            0.004 + math.sin(index) * 0.003
+            for index in range(20)
+        ])
+        benchmark_returns = np.array([
+            value * 0.7 + (0.0005 if index % 2 else -0.0005)
+            for index, value in enumerate(strategy_returns)
+        ])
+        dates = pd.bdate_range("2024-01-02", periods=len(strategy_returns) + 1)
+        strategy_values = [100.0]
+        benchmark_values = [100.0]
+        for strategy_return, benchmark_return in zip(strategy_returns, benchmark_returns):
+            strategy_values.append(strategy_values[-1] * (1.0 + strategy_return))
+            benchmark_values.append(benchmark_values[-1] * (1.0 + benchmark_return))
+        strategy = pd.Series(strategy_values, index=dates)
+        benchmark = pd.Series(benchmark_values, index=dates)
+        covariance = np.cov(strategy_returns, benchmark_returns, ddof=1)[0, 1]
+        beta = covariance / np.var(benchmark_returns, ddof=1)
+        active = strategy_returns - benchmark_returns
+        information_ratio = active.mean() / active.std(ddof=1) * np.sqrt(252)
+        relative = _benchmark_relative(
+            strategy,
+            benchmark,
+            _performance_statistics(strategy, origin=100.0),
+        )
+        self.assertAlmostEqual(relative["beta"], beta, places=3)
+        self.assertAlmostEqual(relative["information_ratio"], information_ratio, places=2)
+
+
+class TransactionCostTests(unittest.TestCase):
+    def test_zero_normal_and_high_costs_are_applied_once_to_traded_notional(self):
+        symbols = ["AAA", "BBB", "CCC", "DDD", "EEE", "FFF"]
+        series = {symbol: synthetic_series(symbol) for symbol in symbols}
+        results = {
+            rate: run_backtest(
+                series,
+                top_n=3,
+                universe_symbols=set(symbols),
+                transaction_cost_rate=rate,
+            )
+            for rate in (0.0, 0.001, 0.005)
+        }
+        self.assertAlmostEqual(float(results[0.0]["strategy"].iloc[0]), 100.0, places=9)
+        self.assertAlmostEqual(float(results[0.001]["strategy"].iloc[0]), 99.9, places=9)
+        self.assertAlmostEqual(float(results[0.005]["strategy"].iloc[0]), 99.5, places=9)
+        costs = [results[rate]["metrics"]["transaction_cost_pct"] for rate in (0.0, 0.001, 0.005)]
+        self.assertEqual(costs[0], 0.0)
+        self.assertLess(costs[0], costs[1])
+        self.assertLess(costs[1], costs[2])
 
 
 class PortfolioWeightTests(unittest.TestCase):

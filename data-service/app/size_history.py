@@ -254,4 +254,5 @@ def market_cap_lookup(
         return price * count
 
     lookup.size_input = SIZE_INPUT_NOTE
+    lookup.size_basis = "shares_outstanding"
     return lookup

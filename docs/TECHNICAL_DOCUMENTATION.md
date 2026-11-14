@@ -209,13 +209,15 @@ Weighting depends on what is genuinely knowable at each signal date:
 | Condition | Weighting | Reported as |
 | --- | --- | --- |
 | A point-in-time float cap covers every selected name | `score × (cap/median)^0.5`, then the 9% / 35% caps | `score-size`, `live_weighting_tested: true` |
-| Any selected name lacks one | equal weights with the same caps | `equal-weight-proxy`, `live_weighting_tested: false` |
+| Point-in-time shares outstanding cover every selected name, but historical float shares do not | `score × (shares outstanding × split-normalized price / median)^0.5`, then the same caps | `score-size-proxy`, `live_weighting_tested: false` |
+| Float input is incomplete and no point-in-time size history exists | equal weights with the same caps | `equal-weight-proxy`, `live_weighting_tested: false` |
 
-The configured providers publish only *current* float shares, so the shipped publication has 0%
-point-in-time coverage and every rebalance in it is the equal-weight proxy. Each `holdings_log` entry
-records its own `weighting_mode`, and `methodology` records the counts, so a proxy result is never
-presented as a test of the production sizing rule. Current float caps are never substituted into a
-past date.
+The configured providers do not publish historical float shares. The shipped publication therefore
+has 0% point-in-time float coverage. It sizes from point-in-time shares outstanding so the historical
+book keeps a genuine, knowable size preference, but labels every event `score-size-proxy` and sets
+`live_weighting_tested: false`. Each `holdings_log` entry records its own `weighting_mode`, and
+`methodology` records float-sized, outstanding-share-proxy and equal-weight counts separately. Current
+float caps are never substituted into a past date.
 
 Universe selection uses exact `top_n` values of 100 and 20. A monthly Top 20 signal can be reported as
 infeasible when its 20 highest-ranked names occupy too few solver groups to reach 100% under the 35%
@@ -227,6 +229,16 @@ cap; the application reports that reason instead of substituting a different ran
 - Benchmarks: SPY and SPMO, measured over the strategy's own window.
 - Total-return path: provider adjusted closes.
 - Dividend-cash path: split-normalized closes with dividends retained as cash.
+
+Performance metrics use simple daily returns. Volatility and tracking error are sample standard
+deviations annualized by `sqrt(252)`. Sharpe and Sortino retain the documented 0% risk-free-rate
+assumption. Beta is covariance divided by benchmark variance; information ratio is mean active return
+divided by active-return volatility. The first calendar period is measured from the 100 starting
+capital, so the initial entry cost is included rather than silently omitted.
+
+The Backtesting workbook includes Daily Performance, Drawdown, Monthly Returns, Rebalancing History,
+Cash Flows, Performance Summary, Benchmark Comparison and Backtest Settings. The report and the
+on-screen tables read the same selected window and accounting simulator.
 
 The frontend supports date bounds, initial capital, recurring contributions, contribution frequency,
 dividend mode, CPI adjustment, rebalance frequency, chart window, linear/log scale and YTD rows.
@@ -295,11 +307,11 @@ comparison as unavailable when that coverage is zero rather than fabricating one
 - Yahoo Finance is unofficial and provides no SLA.
 - The universe is curated, not a complete securities master.
 - Current constituents introduce survivorship bias.
-- No historical float shares, shares outstanding or sector history is available, so point-in-time
-  float-adjusted market cap coverage is 0%.
-- The Beta 0.5 sizing rule is therefore **not** historically validated. The published backtest is an
-  equal-weight momentum proxy over the same selection rule, and it is labelled as such in
-  `methodology.weighting_mode`.
+- No historical float shares or sector history is available, so point-in-time float-adjusted market
+  cap coverage is 0%.
+- Historical shares outstanding are available and drive a point-in-time `score-size-proxy`. The Beta
+  0.5 float-cap sizing rule is therefore **not** historically validated; `methodology.weighting_mode`
+  and `live_weighting_tested` state that limitation explicitly.
 - Delisting returns, taxes, market impact and capacity constraints are not modelled.
 - The static production site updates after collection/deployment and is not a real-time trading feed.
 - Provider terms and redistribution permissions must be reviewed before commercial use.

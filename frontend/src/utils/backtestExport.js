@@ -1,4 +1,5 @@
-import { calculateCumulativeSeries } from "./backtestReport.js";
+import { computeWindowMetrics } from "./backtestMetrics.js";
+import { calculateCumulativeSeries, calculatePeriodReturns } from "./backtestReport.js";
 import { csvRow, downloadCsvFile } from "./csv.js";
 import { exportDateStamp, exportTimestamp, EXCEL_FORMAT } from "./exportFiles.js";
 import { rebalanceLabel } from "./rebalanceFrequency.js";
@@ -34,6 +35,13 @@ const REBALANCING_COLUMNS = [
   "Quantity / Shares",
 ];
 
+const MONTHLY_RETURN_COLUMNS = [
+  "Month",
+  "Strategy Return (%)",
+  "SPY Return (%)",
+  "SPMO Return (%)",
+];
+
 const CASH_FLOW_COLUMNS = [
   "Scheduled Date",
   "Actual Cash Inflow",
@@ -43,6 +51,16 @@ const CASH_FLOW_COLUMNS = [
   "Ending Portfolio Balance",
 ];
 
+const PERFORMANCE_SUMMARY_COLUMNS = ["Metric", "Value", "Unit"];
+const BENCHMARK_COMPARISON_COLUMNS = [
+  "Benchmark",
+  "Benchmark Return (%)",
+  "Strategy Excess Return (pp)",
+  "Beta",
+  "Correlation",
+  "Tracking Error (%)",
+  "Information Ratio",
+];
 const SETTINGS_COLUMNS = ["Setting", "Value"];
 
 function finite(value) {
@@ -162,6 +180,50 @@ function buildRebalanceRows(block, stocks, portfolios) {
   return rows;
 }
 
+function buildMonthlyReturnRows(rows) {
+  return rows.map((row) => [
+    row.label,
+    finite(row.strategy) ? row.strategy : null,
+    finite(row.spy) ? row.spy : null,
+    finite(row.spmo) ? row.spmo : null,
+  ]);
+}
+
+function buildPerformanceSummaryRows(metrics, account) {
+  return [
+    ["Initial Capital", account.initialCapital, "USD"],
+    ["Final Portfolio Value", account.finalValue, "USD"],
+    ["Total Return", metrics.totalReturn, "%"],
+    ["CAGR", metrics.cagr, "%"],
+    ["Annualized Volatility", metrics.annualizedVolatility, "%"],
+    ["Maximum Drawdown", metrics.maxDrawdown, "%"],
+    ["Sharpe Ratio (0% risk-free)", metrics.sharpe, "ratio"],
+    ["Sortino Ratio (0% risk-free)", metrics.sortino, "ratio"],
+    ["Time-Weighted Return", account.timeWeightedReturnPct, "%"],
+    ["Money-Weighted Return / XIRR", account.moneyWeightedReturnPct, "%"],
+    ["Total Cash Inflows", account.totalInflows, "USD"],
+    ["Requested Cash Outflows", account.requestedOutflows, "USD"],
+    ["Actual Cash Outflows", account.actualOutflows, "USD"],
+    ["Unpaid Cash Outflows", account.unpaidOutflows, "USD"],
+    ["Net Profit / Loss", account.netProfitLoss, "USD"],
+  ];
+}
+
+function buildBenchmarkComparisonRows(metrics) {
+  return ["spy", "spmo"].map((id) => {
+    const relative = metrics.benchmarkRelative?.[id];
+    return [
+      id.toUpperCase(),
+      relative?.benchmarkTotalReturn ?? null,
+      relative?.excessReturn ?? null,
+      relative?.beta ?? null,
+      relative?.correlation ?? null,
+      relative?.trackingError ?? null,
+      relative?.informationRatio ?? null,
+    ];
+  });
+}
+
 function buildSettingsRows({ block, config, account, meta, exportedAt }) {
   const direction = config.cashflowDirection === "outflow" ? "outflow" : "inflow";
   const cashflow = config.cashflowEnabled
@@ -215,6 +277,18 @@ export function buildBacktestExportData({
     throw new Error("No complete backtest window is available to export.");
   }
   const { daily, drawdowns, account } = buildDailyRows(window, config);
+  const metrics = computeWindowMetrics(
+    window,
+    window.fullWindow
+      && config?.reinvestDividends
+      && !config?.inflationAdjusted
+      ? block?.metrics ?? null
+      : null,
+  );
+  const monthlyReturns = calculatePeriodReturns({
+    ...window,
+    frequency: "monthly",
+  });
   const settings = buildSettingsRows({
     block,
     config,
@@ -253,6 +327,14 @@ export function buildBacktestExportData({
       freezeHeader: true,
     },
     {
+      name: "Monthly Returns",
+      rows: [MONTHLY_RETURN_COLUMNS, ...buildMonthlyReturnRows(monthlyReturns)],
+      widths: [16, 19, 15, 15],
+      formats: { 1: EXCEL_FORMAT.percent, 2: EXCEL_FORMAT.percent, 3: EXCEL_FORMAT.percent },
+      autoFilter: true,
+      freezeHeader: true,
+    },
+    {
       name: "Rebalancing History",
       rows: [REBALANCING_COLUMNS, ...buildRebalanceRows(block, stocks, portfolios)],
       widths: [17, 12, 32, 24, 22, 18],
@@ -270,6 +352,27 @@ export function buildBacktestExportData({
         3: EXCEL_FORMAT.currency,
         4: EXCEL_FORMAT.currency,
         5: EXCEL_FORMAT.currency,
+      },
+      autoFilter: true,
+      freezeHeader: true,
+    },
+    {
+      name: "Performance Summary",
+      rows: [PERFORMANCE_SUMMARY_COLUMNS, ...buildPerformanceSummaryRows(metrics, account.strategy)],
+      widths: [34, 20, 12],
+      freezeHeader: true,
+    },
+    {
+      name: "Benchmark Comparison",
+      rows: [BENCHMARK_COMPARISON_COLUMNS, ...buildBenchmarkComparisonRows(metrics)],
+      widths: [14, 21, 27, 12, 14, 20, 19],
+      formats: {
+        1: EXCEL_FORMAT.percent,
+        2: EXCEL_FORMAT.changePp,
+        3: EXCEL_FORMAT.number,
+        4: EXCEL_FORMAT.number,
+        5: EXCEL_FORMAT.percent,
+        6: EXCEL_FORMAT.number,
       },
       autoFilter: true,
       freezeHeader: true,

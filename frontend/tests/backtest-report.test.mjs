@@ -137,6 +137,27 @@ test("annual rows label a partial opening year and filter current YTD separately
   assert.ok(Math.abs(rows[1].strategy - 10) < 1e-9);
 });
 
+test("the opening period includes the initial entry transaction cost", () => {
+  const rows = calculatePeriodReturns({
+    dates: ["2020-01-02", "2020-12-31", "2021-01-04", "2021-12-31"],
+    strategy: [99.9, 120, 120, 132],
+    spy: [100, 110, 110, 121],
+    smpo: [],
+    frequency: "annual",
+    startsAtBacktestOrigin: true,
+  });
+  assert.ok(Math.abs(rows[0].strategy - 20) < 1e-9);
+  assert.ok(Math.abs(rows[0].strategy - (120 / 99.9 - 1) * 100) > 0.05);
+
+  const monthly = calculatePeriodReturns({
+    dates: ["2020-01-02", "2020-01-31", "2020-02-03", "2020-02-28"],
+    strategy: [99.9, 105, 105, 110],
+    frequency: "monthly",
+    startsAtBacktestOrigin: true,
+  });
+  assert.ok(Math.abs(monthly[0].strategy - 5) < 1e-9);
+});
+
 test("the report separates final account value, contributions and investment return", () => {
   const report = calculateBacktestReport(
     {

@@ -704,6 +704,55 @@ function AnnualReturnTable({ rows = [], includeYtd, state = "ready" }) {
   );
 }
 
+function MonthlyReturnTable({ rows = [], state = "ready" }) {
+  const visibleRows = rows.slice(-12).reverse();
+  return (
+    <DashboardCard title="Monthly Performance" className="backtest-annual-card backtest-monthly-card">
+      <div className="backtest-table-scroll">
+        <table className="backtest-annual-table backtest-monthly-table">
+          <thead>
+            <tr>
+              <th>Month</th>
+              <th className="backtest-annual-series backtest-annual-series--strategy"><span><i aria-hidden="true" />Strategy</span></th>
+              <th className="backtest-annual-series backtest-annual-series--spy"><span><i aria-hidden="true" />SPY</span></th>
+              <th className="backtest-annual-series backtest-annual-series--spmo"><span><i aria-hidden="true" />SPMO</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {state === "loading" ? (
+              <TableSkeletonRows columns={4} rows={6} />
+            ) : state !== "ready" ? (
+              <TableStateRow
+                columns={4}
+                state={state}
+                title={state === "error" ? "Monthly returns unavailable" : "No monthly returns"}
+                detail={state === "error"
+                  ? "The latest monthly results could not be loaded."
+                  : "No monthly returns were published for this window."}
+              />
+            ) : visibleRows.map((row) => (
+              <tr key={row.key}>
+                <th scope="row">{row.label}</th>
+                {SERIES.map((series) => {
+                  const value = row[series.id];
+                  return (
+                    <td key={series.id} className={`backtest-annual-series backtest-annual-series--${series.id} ${valueTone(value)}`}>
+                      {formatPercent(value)}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+            {state === "ready" && !visibleRows.length && (
+              <tr><td colSpan="4" className="backtest-table-empty">No completed monthly returns in this window.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </DashboardCard>
+  );
+}
+
 function PerformanceSummary({ report, reportWindow, metrics, config, state = "ready" }) {
   const cashflowDirection = config?.cashflowDirection === "outflow" ? "outflow" : "inflow";
   const cashflowLabel = config?.cashflowEnabled
@@ -818,6 +867,83 @@ function PerformanceSummary({ report, reportWindow, metrics, config, state = "re
           state={state}
           title="Performance summary unavailable"
           detail="The latest validated backtest results are not available."
+          className="backtest-summary-state"
+        />
+      )}
+    </DashboardCard>
+  );
+}
+
+function RiskAnalysis({ metrics, state = "ready" }) {
+  const spy = metrics?.benchmarkRelative?.spy;
+  const spmo = metrics?.benchmarkRelative?.spmo;
+  const ratio = (value, digits = 2) => (
+    typeof value === "number" && Number.isFinite(value) ? value.toFixed(digits) : "—"
+  );
+  const analysisMetrics = [
+    {
+      label: "Annualized Volatility",
+      value: formatPercent(metrics?.annualizedVolatility),
+      tip: "Sample standard deviation of daily strategy returns, annualized by √252.",
+    },
+    {
+      label: "Sortino Ratio",
+      value: ratio(metrics?.sortino),
+      tip: "Annualized excess return divided by downside deviation. The existing 0% risk-free assumption applies.",
+    },
+    {
+      label: "Beta vs. SPY",
+      value: ratio(spy?.beta),
+      tip: "Covariance of aligned daily strategy and SPY returns divided by SPY variance.",
+    },
+    {
+      label: "Correlation vs. SPY",
+      value: ratio(spy?.correlation),
+      tip: "Pearson correlation of aligned daily strategy and SPY returns.",
+    },
+    {
+      label: "Tracking Error vs. SPY",
+      value: formatPercent(spy?.trackingError),
+      tip: "Sample standard deviation of daily active returns versus SPY, annualized by √252.",
+    },
+    {
+      label: "Information Ratio vs. SPY",
+      value: ratio(spy?.informationRatio),
+      tip: "Annualized mean daily active return divided by active-return volatility.",
+    },
+    {
+      label: "Beta vs. SPMO",
+      value: ratio(spmo?.beta),
+      tip: "Covariance of aligned daily strategy and SPMO returns divided by SPMO variance.",
+    },
+    {
+      label: "Tracking Error vs. SPMO",
+      value: formatPercent(spmo?.trackingError),
+      tip: "Sample standard deviation of daily active returns versus SPMO, annualized by √252.",
+    },
+  ];
+  return (
+    <DashboardCard title="Risk & Benchmark Analysis" className="backtest-risk-card">
+      <div className="backtest-return-metrics backtest-risk-metrics" aria-label="Risk and benchmark metrics">
+        {analysisMetrics.map(({ label, value, tip }) => (
+          <div className="backtest-metric-tile" key={label}>
+            <span className="backtest-metric-tile__label">
+              {label}
+              <InfoTooltip label={label}>{tip}</InfoTooltip>
+            </span>
+            <strong>
+              {state === "loading"
+                ? <Skeleton width="72px" height="16px" />
+                : value}
+            </strong>
+          </div>
+        ))}
+      </div>
+      {state !== "ready" && state !== "loading" && (
+        <DataState
+          state={state}
+          title="Risk analysis unavailable"
+          detail="The latest validated benchmark series are not available."
           className="backtest-summary-state"
         />
       )}
@@ -1536,11 +1662,19 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
               state={resultsReady ? "ready" : resultsState}
             />
           </section>
+          <MonthlyReturnTable
+            rows={report?.monthlyRows ?? []}
+            state={resultsReady ? "ready" : resultsState}
+          />
           <PerformanceSummary
             report={report}
             reportWindow={reportWindow}
             metrics={metrics}
             config={submittedConfig}
+            state={resultsReady ? "ready" : resultsState}
+          />
+          <RiskAnalysis
+            metrics={metrics}
             state={resultsReady ? "ready" : resultsState}
           />
           <PortfolioEvolution

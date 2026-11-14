@@ -267,10 +267,11 @@ The backtest is a research proxy, and it says which proxy it is:
 - Top 100 and Top 20 use exact-ranked counts on every signal date;
 - changing Universe and not rerunning leaves existing results labelled with the universe that produced them;
 - current constituents introduce survivorship and selection bias;
-- no historical float shares, shares outstanding or point-in-time sector history is available, so
-  point-in-time float-adjusted market cap coverage is 0%;
-- historical books are therefore equal-weighted and flagged `live_weighting_tested: false`; the Beta 0.5
-  rule is **not** claimed to be historically validated;
+- historical float-share and point-in-time sector history are unavailable, so point-in-time
+  float-adjusted market-cap coverage is 0%;
+- historical books use point-in-time shares outstanding × split-normalized price as a
+  `score-size-proxy`, flagged `live_weighting_tested: false`; the production float-cap Beta 0.5 rule is
+  **not** claimed to be historically validated;
 - current fundamentals are never substituted into a past signal date;
 - no delisting-return model, taxes, market impact or capacity limit is included;
 - Yahoo Finance is unofficial and has no service-level guarantee or published quota;

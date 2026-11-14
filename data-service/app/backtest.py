@@ -58,6 +58,128 @@ REBALANCE_LABELS = {
 TRANSACTION_COST_RATE = 0.001
 SLIPPAGE_RATE = 0.0
 RISK_FREE_RATE = 0.0
+MAX_STALE_TAIL_SESSIONS = 5
+
+
+def _performance_statistics(values: pd.Series, *, origin: float | None = None) -> dict:
+    """Risk statistics from one unsmoothed daily NAV series.
+
+    Returns are simple daily changes. Volatility uses the sample standard
+    deviation (``ddof=1``) and 252 trading sessions. Sortino uses a downside
+    deviation over every observation, with non-negative daily shortfalls set to
+    zero rather than dropping calm observations from the denominator.
+    """
+    clean = pd.to_numeric(values, errors="coerce").dropna()
+    if len(clean) < 2 or (clean < 0).any():
+        return {
+            "total_return": None,
+            "cagr": None,
+            "annualized_volatility": None,
+            "max_drawdown": None,
+            "sharpe": None,
+            "sortino": None,
+        }
+
+    returns = clean.pct_change().dropna()
+    std = float(returns.std()) if len(returns) > 1 else 0.0
+    daily_risk_free = (1.0 + RISK_FREE_RATE) ** (1.0 / 252.0) - 1.0
+    excess = returns - daily_risk_free
+    downside = np.minimum(excess.to_numpy(dtype=float), 0.0)
+    downside_deviation = (
+        float(np.sqrt(np.mean(np.square(downside))))
+        if len(downside)
+        else 0.0
+    )
+    base = float(origin) if origin is not None else float(clean.iloc[0])
+    total = float(clean.iloc[-1]) / base - 1.0 if base > 0 else None
+    days = max(1, (clean.index[-1] - clean.index[0]).days)
+    drawdown = clean / clean.cummax() - 1.0
+
+    return {
+        "total_return": round(total * 100.0, 1) if total is not None else None,
+        "cagr": (
+            round(((1.0 + total) ** (365.0 / days) - 1.0) * 100.0, 1)
+            if total is not None and total > -1.0
+            else None
+        ),
+        "annualized_volatility": round(std * math.sqrt(252) * 100.0, 1) if std > 0 else None,
+        "max_drawdown": round(float(drawdown.min()) * 100.0, 1),
+        "sharpe": (
+            round(float(excess.mean() / std * math.sqrt(252)), 2)
+            if len(returns) >= 20 and std > 0
+            else None
+        ),
+        "sortino": (
+            round(float(excess.mean() / downside_deviation * math.sqrt(252)), 2)
+            if len(returns) >= 20 and downside_deviation > 0
+            else None
+        ),
+    }
+
+
+def _benchmark_relative(strategy: pd.Series, benchmark: pd.Series, strategy_stats: dict) -> dict:
+    """Strategy-versus-benchmark risk statistics on exactly aligned sessions."""
+    aligned = pd.concat(
+        [
+            pd.to_numeric(strategy, errors="coerce").rename("strategy"),
+            pd.to_numeric(benchmark, errors="coerce").rename("benchmark"),
+        ],
+        axis=1,
+        join="inner",
+    ).dropna()
+    if len(aligned) < 20:
+        return {
+            "benchmark_total_return": None,
+            "excess_return": None,
+            "beta": None,
+            "correlation": None,
+            "tracking_error": None,
+            "information_ratio": None,
+        }
+
+    strategy_returns = aligned["strategy"].pct_change().dropna()
+    benchmark_returns = aligned["benchmark"].pct_change().dropna()
+    if len(strategy_returns) < 2:
+        return {
+            "benchmark_total_return": None,
+            "excess_return": None,
+            "beta": None,
+            "correlation": None,
+            "tracking_error": None,
+            "information_ratio": None,
+        }
+
+    benchmark_total = float(aligned["benchmark"].iloc[-1] / aligned["benchmark"].iloc[0] - 1.0)
+    strategy_total = strategy_stats.get("total_return")
+    excess_return = (
+        strategy_total - benchmark_total * 100.0
+        if strategy_total is not None
+        else None
+    )
+    benchmark_variance = float(benchmark_returns.var())
+    covariance = float(strategy_returns.cov(benchmark_returns))
+    active = strategy_returns - benchmark_returns
+    active_std = float(active.std())
+    beta = covariance / benchmark_variance if benchmark_variance > 0 else None
+    correlation = (
+        covariance / math.sqrt(float(strategy_returns.var()) * benchmark_variance)
+        if benchmark_variance > 0 and float(strategy_returns.var()) > 0
+        else None
+    )
+    tracking_error = active_std * math.sqrt(252) * 100.0 if active_std > 0 else None
+    information_ratio = (
+        float(active.mean() / active_std * math.sqrt(252))
+        if active_std > 0
+        else None
+    )
+    return {
+        "benchmark_total_return": round(benchmark_total * 100.0, 1),
+        "excess_return": round(excess_return, 1) if excess_return is not None else None,
+        "beta": round(beta, 3) if beta is not None else None,
+        "correlation": round(correlation, 3) if correlation is not None else None,
+        "tracking_error": round(tracking_error, 1) if tracking_error is not None else None,
+        "information_ratio": round(information_ratio, 2) if information_ratio is not None else None,
+    }
 
 
 def _wide_frame(series_map) -> pd.DataFrame:
@@ -251,6 +373,7 @@ def _target_weights(
     scores: dict[str, float] | None = None,
     float_caps: dict[str, float] | None = None,
     market_cap_exponent: float = MARKET_CAP_EXPONENT,
+    sizing_mode: str = "score-size",
 ) -> tuple[dict[str, float], str | None, str]:
     """Size the selected names and apply the live caps.
 
@@ -286,7 +409,7 @@ def _target_weights(
         ]
         raw, _ = raw_weights(rows, market_cap_exponent=market_cap_exponent)
         if raw and all(value > 0 for value in raw.values()):
-            mode = "score-size"
+            mode = sizing_mode
         else:
             raw = {}
     else:
@@ -364,6 +487,34 @@ def run_backtest(
     prices = _wide_frame(series_map)
     if prices.empty:
         return {"available": False, "reason": "no price data"}
+    latest_stamp = prices.index[-1]
+    stale_tail_sessions = {}
+    for symbol in set(series_map) | set(benchmark_symbols):
+        series = series_map.get(symbol)
+        if series is None or not len(series.frame):
+            continue
+        last = series.frame.index[-1]
+        if last >= latest_stamp:
+            continue
+        tail = prices.index[(prices.index > last) & (prices.index <= latest_stamp)]
+        stale_tail_sessions[symbol] = len(tail)
+    material_stale = {
+        symbol: sessions
+        for symbol, sessions in stale_tail_sessions.items()
+        if sessions > MAX_STALE_TAIL_SESSIONS
+    }
+    if material_stale:
+        affected = ", ".join(
+            f"{symbol} ({sessions})"
+            for symbol, sessions in sorted(material_stale.items())
+        )
+        return {
+            "available": False,
+            "reason": (
+                "price history has materially stale tails beyond "
+                f"{MAX_STALE_TAIL_SESSIONS} sessions: {affected}"
+            ),
+        }
     prices = prices.ffill()
     price_prices, price_dividends = _price_cash_frames(series_map)
     price_prices = price_prices.reindex(prices.index).ffill()
@@ -385,6 +536,13 @@ def run_backtest(
         label = REBALANCE_LABELS[rebalance_frequency].split(" (", 1)[0]
         return {"available": False, "reason": f"no valid {label.lower()} signal dates in the selected period"}
 
+    size_input = getattr(float_cap_lookup, "size_input", None) if float_cap_lookup is not None else None
+    size_basis = getattr(float_cap_lookup, "size_basis", None) if float_cap_lookup is not None else None
+    historical_sizing_mode = (
+        "score-size"
+        if size_basis == "float-adjusted" or not size_input or "float" in size_input.lower()
+        else "score-size-proxy"
+    )
     events = []
     for scheduled_event in schedule:
         execution_position = scheduled_event["execution_position"]
@@ -416,6 +574,7 @@ def run_backtest(
             scores=selected_scores,
             float_caps=float_caps,
             market_cap_exponent=market_cap_exponent,
+            sizing_mode=historical_sizing_mode,
         )
         if constraint_error:
             return {
@@ -629,7 +788,9 @@ def run_backtest(
         if same_year.empty:
             continue
         prior = strategy[strategy.index.year < year]
-        base = float(prior.iloc[-1]) if not prior.empty else float(same_year.iloc[0])
+        # The first calendar row includes the initial entry cost. Its baseline
+        # is the 100 starting capital, not the first post-cost NAV of 99.9.
+        base = float(prior.iloc[-1]) if not prior.empty else 100.0
         entry = {"year": int(year), "strategy": round((float(same_year.iloc[-1]) / base - 1) * 100, 1)}
         for symbol, values in benchmark_series.items():
             benchmark_year = values[values.index.year == year]
@@ -646,37 +807,45 @@ def run_backtest(
         annual.append(entry)
     annual = annual[-8:]
 
-    returns = strategy.pct_change().dropna()
-    std = float(returns.std()) if len(returns) > 1 else 0.0
-    annualized_volatility = std * math.sqrt(252) * 100.0 if std > 0 else None
-    sharpe = None
-    if len(returns) >= 20 and std > 0:
-        daily_risk_free = (1.0 + RISK_FREE_RATE) ** (1.0 / 252.0) - 1.0
-        sharpe = round(float((returns.mean() - daily_risk_free) / std * math.sqrt(252)), 2)
-
     total = float(strategy.iloc[-1] / 100.0)
     days = max(1, (strategy.index[-1] - strategy.index[0]).days)
     cagr = round((total ** (365.0 / days) - 1.0) * 100.0, 1) if total > 0 else None
     max_drawdown = round(float(drawdown.min()), 1)
+    strategy_stats = _performance_statistics(strategy, origin=100.0)
+    benchmark_comparison = {
+        symbol.lower(): _benchmark_relative(strategy, values, strategy_stats)
+        for symbol, values in benchmark_series.items()
+    }
     years = max(len(strategy) / 252.0, 1.0 / 252.0)
     event_counts = {
         "initial_formation": sum(event["type"] == "initial_formation" for event in holdings_log),
         "scheduled": sum(event["type"] == "scheduled" for event in holdings_log),
         "total": len(holdings_log),
     }
-    sized_events = sum(1 for event in events if event["weighting_mode"] == "score-size")
-    proxy_events = len(events) - sized_events
-    size_input = getattr(float_cap_lookup, "size_input", None)
-    if sized_events and not proxy_events:
+    production_sized_events = sum(1 for event in events if event["weighting_mode"] == "score-size")
+    outstanding_sized_events = sum(
+        1 for event in events if event["weighting_mode"] == "score-size-proxy"
+    )
+    sized_events = production_sized_events + outstanding_sized_events
+    proxy_events = sum(1 for event in events if event["weighting_mode"] == "equal-weight-proxy")
+    if production_sized_events and not proxy_events and not outstanding_sized_events:
         weighting_label = (
             f"score x (point-in-time market cap / median) ^ {market_cap_exponent:g} "
             "with 9% stock and 35% sector-group caps"
         )
         live_weighting_tested = True
+    elif outstanding_sized_events and not proxy_events and not production_sized_events:
+        weighting_label = (
+            f"score x (point-in-time outstanding-share market cap / median) ^ "
+            f"{market_cap_exponent:g} with 9% stock and 35% sector-group caps "
+            "(research proxy; historical float shares unavailable)"
+        )
+        live_weighting_tested = False
     elif sized_events:
         weighting_label = (
-            f"mixed: {sized_events} rebalance(s) sized with the production formula at beta "
-            f"{market_cap_exponent:g}, {proxy_events} on the equal-weight research proxy"
+            f"mixed: {production_sized_events} rebalance(s) used point-in-time float caps, "
+            f"{outstanding_sized_events} used an outstanding-share size proxy, and "
+            f"{proxy_events} used equal weights"
         )
         live_weighting_tested = False
     else:
@@ -709,13 +878,18 @@ def run_backtest(
             "initial_formation": events[0]["kind"] == "initial_formation",
             "weighting": weighting_label,
             "weighting_mode": (
-                "score-size" if sized_events and not proxy_events
+                "score-size"
+                if production_sized_events and not proxy_events and not outstanding_sized_events
+                else "score-size-proxy"
+                if outstanding_sized_events and not proxy_events and not production_sized_events
                 else "mixed" if sized_events
                 else "equal-weight-proxy"
             ),
             "market_cap_exponent": market_cap_exponent,
             "live_weighting_tested": live_weighting_tested,
             "sized_rebalances": sized_events,
+            "production_float_sized_rebalances": production_sized_events,
+            "outstanding_share_proxy_rebalances": outstanding_sized_events,
             "proxy_rebalances": proxy_events,
             "size_input": size_input,
             "signal_months": sorted(rebalance_set),
@@ -725,23 +899,47 @@ def run_backtest(
             "risk_free_rate": RISK_FREE_RATE,
             "historical_capitalisation": (
                 (size_input or "point-in-time market cap supplied per signal date")
+                if production_sized_events
+                else (
+                    f"{size_input}; research proxy, not float-adjusted"
+                    if outstanding_sized_events
+                    else "not available point-in-time"
+                )
                 if sized_events
                 else "not available point-in-time"
+            ),
+            "weighting_limitation": (
+                "Historical float-share counts are unavailable; the point-in-time "
+                "outstanding-share cap proxy cannot validate the production float-cap rule."
+                if outstanding_sized_events
+                else None
             ),
         },
         "metrics": {
             "cumulative_return": round((total - 1.0) * 100.0, 1),
             "cagr": cagr,
-            "annualized_volatility": round(annualized_volatility, 1) if annualized_volatility is not None else None,
+            "annualized_volatility": strategy_stats["annualized_volatility"],
             "max_drawdown": max_drawdown,
-            "sharpe": sharpe,
+            "sharpe": strategy_stats["sharpe"],
+            "sortino": strategy_stats["sortino"],
             "risk_free_rate": RISK_FREE_RATE,
+            "benchmark_relative": benchmark_comparison,
             "transaction_cost_pct": round(total_cost, 4),
             "price_only_transaction_cost_pct": round(total_price_cost, 4),
             "total_one_way_turnover_pct": round(total_one_way_turnover * 100.0, 1),
             "annualized_one_way_turnover_pct": round(total_one_way_turnover / years * 100.0, 1),
         },
         "dividend_coverage": dividend_coverage,
+        "data_quality": {
+            "latest_observation": latest_stamp.strftime("%Y-%m-%d"),
+            "stale_tail_sessions": stale_tail_sessions,
+            "max_stale_tail_sessions": MAX_STALE_TAIL_SESSIONS,
+            "materially_stale_symbols": sorted(material_stale),
+            "forward_fill_policy": (
+                "Prices are carried only across provider holes; a tail beyond "
+                f"{MAX_STALE_TAIL_SESSIONS} sessions makes the backtest unavailable."
+            ),
+        },
     }
 
 

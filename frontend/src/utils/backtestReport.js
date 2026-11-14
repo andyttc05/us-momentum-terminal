@@ -54,10 +54,14 @@ function buildGroups(dates, frequency) {
   return groups;
 }
 
-function periodReturn(values, group, previousGroup) {
+function periodReturn(values, group, previousGroup, firstPeriodOrigin = null) {
   if (!values?.length) return null;
   const baseIndex = previousGroup?.endIndex ?? group.startIndex;
-  const base = values[baseIndex];
+  // The opening calendar period includes the initial entry transaction cost.
+  // Measure it from the 100 starting capital, not the first post-cost NAV.
+  const base = previousGroup || !finite(firstPeriodOrigin)
+    ? values[baseIndex]
+    : firstPeriodOrigin;
   const ending = values[group.endIndex];
   if (!finite(base) || !finite(ending) || base === 0) return null;
   return (ending / base - 1) * 100;
@@ -74,9 +78,11 @@ export function calculatePeriodReturns({
   spy = [],
   spmo = [],
   frequency = "annual",
+  startsAtBacktestOrigin = false,
 }) {
   if (!Array.isArray(dates) || !Array.isArray(strategy) || dates.length !== strategy.length) return [];
   const groups = buildGroups(dates, frequency);
+  const firstPeriodOrigin = startsAtBacktestOrigin ? 100 : null;
   return groups.map((group, index) => {
     const previousGroup = groups[index - 1] ?? null;
     const firstYear = dates[0]?.slice(0, 4);
@@ -86,9 +92,9 @@ export function calculatePeriodReturns({
       label: periodLabel(group.endDate, frequency),
       startDate: group.startDate,
       endDate: group.endDate,
-      strategy: periodReturn(strategy, group, previousGroup),
-      spy: periodReturn(spy, group, previousGroup),
-      spmo: periodReturn(spmo, group, previousGroup),
+      strategy: periodReturn(strategy, group, previousGroup, firstPeriodOrigin),
+      spy: periodReturn(spy, group, previousGroup, firstPeriodOrigin),
+      spmo: periodReturn(spmo, group, previousGroup, firstPeriodOrigin),
       partialStart: frequency === "annual"
         && group.endDate.slice(0, 4) === firstYear
         && dates[0]?.slice(5) > "01-07",

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-13T19:06:56+00:00",
+  "generated_at": "2026-11-14T09:51:21+00:00",
   "official_default_market_cap_exponent": 0.5,
   "selection_rule": "Momentum Score only; market cap never reorders the ranking",
   "classification": "research comparison; the production default stays Beta 0.5 and is not chosen by maximising historical CAGR",
@@ -35,17 +35,17 @@
         "totalWeightPct": 100.0,
         "largestHolding": {
           "ticker": "AAPL",
-          "weightPct": 6.4626
+          "weightPct": 6.4335
         },
         "smallestHolding": {
           "ticker": "COLM",
-          "weightPct": 0.0746
+          "weightPct": 0.0745
         },
-        "largestToSmallestRatio": 86.578,
+        "largestToSmallestRatio": 86.384,
         "topTenWeightPct": 37.38,
-        "herfindahlIndex": 0.023676,
-        "effectiveNames": 42.24,
-        "maxSectorGroupWeightPct": 34.722,
+        "herfindahlIndex": 0.023682,
+        "effectiveNames": 42.23,
+        "maxSectorGroupWeightPct": 34.736,
         "namesAtStockCap": 0,
         "constraintsPassed": true
       },
@@ -60,12 +60,12 @@
         },
         "smallestHolding": {
           "ticker": "COLM",
-          "weightPct": 0.0056
+          "weightPct": 0.0055
         },
-        "largestToSmallestRatio": 1616.379,
-        "topTenWeightPct": 56.67,
-        "herfindahlIndex": 0.041159,
-        "effectiveNames": 24.3,
+        "largestToSmallestRatio": 1622.791,
+        "topTenWeightPct": 56.64,
+        "herfindahlIndex": 0.041134,
+        "effectiveNames": 24.31,
         "maxSectorGroupWeightPct": 35.0,
         "namesAtStockCap": 1,
         "constraintsPassed": true
@@ -128,12 +128,31 @@
       "identicalHoldingsAcrossBetas": true,
       "identicalMetricsAcrossBetas": true,
       "proxyMetrics": {
-        "cumulative_return": 375.4,
+        "cumulative_return": 376.3,
         "cagr": 19.8,
         "annualized_volatility": 18.9,
         "max_drawdown": -34.3,
         "sharpe": 1.06,
+        "sortino": 1.5,
         "risk_free_rate": 0.0,
+        "benchmark_relative": {
+          "spy": {
+            "benchmark_total_return": 233.2,
+            "excess_return": 143.1,
+            "beta": 0.973,
+            "correlation": 0.976,
+            "tracking_error": 4.1,
+            "information_ratio": 1.01
+          },
+          "spmo": {
+            "benchmark_total_return": 325.1,
+            "excess_return": 51.2,
+            "beta": 0.714,
+            "correlation": 0.851,
+            "tracking_error": 11.8,
+            "information_ratio": 0.05
+          }
+        },
         "transaction_cost_pct": 1.0037,
         "price_only_transaction_cost_pct": 1.0408,
         "total_one_way_turnover_pct": 273.4,

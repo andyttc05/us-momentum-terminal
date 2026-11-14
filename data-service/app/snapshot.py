@@ -73,7 +73,7 @@ PERFORMANCE_PERIODS = ("1Y", "3Y", "5Y", "All")
 SERIES_COLORS = {"strategy": "#FFC83D", "spy": "#69A5F5", "spmo": "#AA8BF2"}
 SUPPORTED_EXCHANGES = {"NYSE", "NASDAQ", "NYSE American"}
 UNIVERSE_VERSION = "2026-11-12-live200-v2"
-PUBLICATION_VERSION = "2026-11-14-pit-sized-v12"
+PUBLICATION_VERSION = "2026-11-14-pit-size-proxy-v13"
 # The two published universes. Every page reads one of these datasets; there is
 # no third "20%" variant and no page-local selection.
 DATASET_UNIVERSES = ("top100", "top20")
@@ -359,11 +359,38 @@ def load_cached_backtest_series(
         else:
             missing.append(symbol)
 
-    if missing:
-        results, _ = load_series(missing, years=years)
+    # Every historical member is a currently listed core name, so a materially
+    # older tail than the freshest cached series is stale rather than delisting.
+    # Refresh those tails before simulation; the provider loader may return a
+    # stale cache after a failed refresh and its warning remains attached.
+    latest_strings = [
+        series.latest_date
+        for series in series_map.values()
+        if series.latest_date
+    ]
+    freshest = max(latest_strings, default="")
+    stale_tails = [
+        symbol
+        for symbol, series in series_map.items()
+        if freshest and series.latest_date < freshest
+    ]
+    refresh = list(dict.fromkeys([*missing, *stale_tails]))
+    if refresh:
+        results, _ = load_series(refresh, years=years)
         for symbol, result in results.items():
             converted = to_symbol_series(result)
             if converted:
+                if freshest and converted.latest_date < freshest:
+                    sessions_behind = len(
+                        pd.bdate_range(
+                            pd.Timestamp(converted.latest_date) + pd.Timedelta(days=1),
+                            pd.Timestamp(freshest),
+                        )
+                    )
+                    converted.warnings.append(
+                        f"history ends {converted.latest_date}, "
+                        f"{sessions_behind} business session(s) behind the freshest cached series"
+                    )
                 series_map[symbol] = converted
     return series_map
 
@@ -837,6 +864,7 @@ def _backtest_block(backtest: dict) -> dict:
         "rebalance_log": backtest["holdings_log"],
         "methodology": backtest.get("methodology"),
         "dividendCoverage": backtest.get("dividend_coverage"),
+        "dataQuality": backtest.get("data_quality"),
     }
 
 
@@ -1272,7 +1300,8 @@ def build_publication(force: bool = False, progress=None) -> dict:
                         "closes t-252 through t-21"
                     ),
                     "historical_weighting": (
-                        "equal-weight research proxy; point-in-time float cap unavailable"
+                        "score-size-proxy: point-in-time outstanding-share market cap; "
+                        "historical float shares unavailable"
                     ),
                 },
                 "dataset_universes": list(DATASET_UNIVERSES),

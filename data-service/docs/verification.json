@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-13T19:11:03+00:00",
+  "generated_at": "2026-11-14T09:58:16+00:00",
   "checks": {
     "universe": {
       "requested": 200,
@@ -58,8 +58,8 @@
           "momentum_12_1_recomputed": 25.4,
           "momentum_12_1_app": 25.4,
           "delta": 0.0,
-          "momentum_6m_recomputed": 19.64,
-          "momentum_6m_app": 19.6,
+          "momentum_6m_recomputed": 18.86,
+          "momentum_6m_app": 18.9,
           "volatility_recomputed": 24.7,
           "volatility_app": 24.7,
           "risk_adjusted_recomputed": 16.31,
@@ -83,8 +83,8 @@
           "momentum_12_1_recomputed": 6.4,
           "momentum_12_1_app": 6.4,
           "delta": 0.005,
-          "momentum_6m_recomputed": 24.79,
-          "momentum_6m_app": 24.8,
+          "momentum_6m_recomputed": 24.67,
+          "momentum_6m_app": 24.7,
           "volatility_recomputed": 33.8,
           "volatility_app": 33.8,
           "risk_adjusted_recomputed": 3.01,
@@ -108,8 +108,8 @@
           "momentum_12_1_recomputed": 12.36,
           "momentum_12_1_app": 12.4,
           "delta": 0.042,
-          "momentum_6m_recomputed": -27.71,
-          "momentum_6m_app": -27.7,
+          "momentum_6m_recomputed": -27.56,
+          "momentum_6m_app": -27.6,
           "volatility_recomputed": 37.0,
           "volatility_app": 37.0,
           "risk_adjusted_recomputed": 5.3,
@@ -133,8 +133,8 @@
           "momentum_12_1_recomputed": 21.38,
           "momentum_12_1_app": 21.4,
           "delta": 0.02,
-          "momentum_6m_recomputed": 4.71,
-          "momentum_6m_app": 4.7,
+          "momentum_6m_recomputed": 4.65,
+          "momentum_6m_app": 4.6,
           "volatility_recomputed": 41.5,
           "volatility_app": 41.5,
           "risk_adjusted_recomputed": 8.17,
@@ -158,8 +158,8 @@
           "momentum_12_1_recomputed": 6.74,
           "momentum_12_1_app": 6.7,
           "delta": 0.036,
-          "momentum_6m_recomputed": 16.75,
-          "momentum_6m_app": 16.8,
+          "momentum_6m_recomputed": 17.35,
+          "momentum_6m_app": 17.4,
           "volatility_recomputed": 22.6,
           "volatility_app": 22.6,
           "risk_adjusted_recomputed": 4.73,
@@ -294,9 +294,9 @@
     "portfolio": {
       "holdings": 100,
       "total_weight": 100.0,
-      "max_single_weight": 6.462737,
-      "max_sector_weight": 34.72,
-      "max_sector_group_weight": 34.72,
+      "max_single_weight": 6.433632,
+      "max_sector_weight": 34.74,
+      "max_sector_group_weight": 34.74,
       "sector_group_totals": {
         "Others": 25.7,
         "Technology": 34.7,
@@ -305,11 +305,11 @@
         "Healthcare": 11.9,
         "Communication": 7.7
       },
-      "median_float_cap": 60297433414.635,
+      "median_float_cap": 60556433394.990005,
       "published_market_cap_exponent": 0.5,
       "published_methodology": "risk-adjusted-momentum-sqrt-float-cap-v1",
       "selection_rule": "Momentum Score, descending",
-      "raw_formula_max_error": 4.9e-05,
+      "raw_formula_max_error": 5e-05,
       "selection_is_score_ordered": true,
       "float_caps_available": true,
       "sector_totals": {
@@ -327,24 +327,11 @@
       },
       "all_constraints_pass": true,
       "excluded_without_market_cap": [
-        "RPM",
-        "AAL",
-        "EEFT",
-        "BAH",
-        "CNX",
         "HIMS",
-        "NXST",
         "PINS",
-        "ADC",
-        "IRT",
-        "SR",
-        "BYD",
         "CNM",
-        "ORA",
         "DOCS",
         "ACI",
-        "CELH",
-        "BWXT",
         "DKS",
         "AVAV",
         "POST",
@@ -364,16 +351,35 @@
       "starts_below_100_by_initial_cost": true,
       "drawdown_non_positive": true,
       "metrics": {
-        "cumulative_return": 363.6,
-        "cagr": 19.5,
-        "annualized_volatility": 18.8,
-        "max_drawdown": -34.7,
-        "sharpe": 1.04,
+        "cumulative_return": 406.1,
+        "cagr": 20.7,
+        "annualized_volatility": 20.2,
+        "max_drawdown": -32.1,
+        "sharpe": 1.03,
+        "sortino": 1.48,
         "risk_free_rate": 0.0,
-        "transaction_cost_pct": 0.9538,
-        "price_only_transaction_cost_pct": 0.9911,
-        "total_one_way_turnover_pct": 266.5,
-        "annualized_one_way_turnover_pct": 31.0
+        "benchmark_relative": {
+          "spy": {
+            "benchmark_total_return": 233.2,
+            "excess_return": 172.9,
+            "beta": 1.028,
+            "correlation": 0.963,
+            "tracking_error": 5.5,
+            "information_ratio": 0.94
+          },
+          "spmo": {
+            "benchmark_total_return": 325.1,
+            "excess_return": 81.0,
+            "beta": 0.848,
+            "correlation": 0.944,
+            "tracking_error": 7.5,
+            "information_ratio": 0.21
+          }
+        },
+        "transaction_cost_pct": 2.1482,
+        "price_only_transaction_cost_pct": 2.1641,
+        "total_one_way_turnover_pct": 510.5,
+        "annualized_one_way_turnover_pct": 59.3
       },
       "rebalances": 18,
       "rebalance_months": [
@@ -395,16 +401,35 @@
       ]
     },
     "backtest_top20": {
-      "cumulative_return": 419.2,
-      "cagr": 21.1,
-      "annualized_volatility": 22.4,
-      "max_drawdown": -32.2,
+      "cumulative_return": 440.2,
+      "cagr": 21.6,
+      "annualized_volatility": 23.0,
+      "max_drawdown": -31.8,
       "sharpe": 0.97,
+      "sortino": 1.39,
       "risk_free_rate": 0.0,
-      "transaction_cost_pct": 5.4746,
-      "price_only_transaction_cost_pct": 5.4657,
-      "total_one_way_turnover_pct": 1205.3,
-      "annualized_one_way_turnover_pct": 140.0
+      "benchmark_relative": {
+        "spy": {
+          "benchmark_total_return": 233.2,
+          "excess_return": 207.0,
+          "beta": 1.039,
+          "correlation": 0.855,
+          "tracking_error": 12.0,
+          "information_ratio": 0.54
+        },
+        "spmo": {
+          "benchmark_total_return": 325.1,
+          "excess_return": 115.1,
+          "beta": 0.96,
+          "correlation": 0.938,
+          "tracking_error": 8.1,
+          "information_ratio": 0.36
+        }
+      },
+      "transaction_cost_pct": 5.5414,
+      "price_only_transaction_cost_pct": 5.5346,
+      "total_one_way_turnover_pct": 1203.2,
+      "annualized_one_way_turnover_pct": 139.8
     },
     "backtest_return_modes": {
       "price_points": 2169,
@@ -424,13 +449,13 @@
       "nav_points": 2169,
       "dates_match_points": true,
       "drawdown_matches_points": true,
-      "cumulative_return_series": 363.6,
-      "cumulative_return_published": 363.6,
+      "cumulative_return_series": 406.1,
+      "cumulative_return_published": 406.1,
       "cumulative_return_delta": 0.0,
-      "cagr_series": 19.5,
-      "cagr_published": 19.5,
-      "max_drawdown_series": -34.7,
-      "max_drawdown_published": -34.7,
+      "cagr_series": 20.7,
+      "cagr_published": 20.7,
+      "max_drawdown_series": -32.1,
+      "max_drawdown_published": -32.1,
       "benchmarks_rebased_to_100": {
         "spy": true,
         "spmo": true
@@ -440,43 +465,43 @@
       "annual_return_deltas": [
         {
           "year": 2019,
-          "published": 36.2,
-          "recomputed": 36.2
+          "published": 33.4,
+          "recomputed": 33.4
         },
         {
           "year": 2020,
-          "published": 27.6,
-          "recomputed": 27.7
+          "published": 38.6,
+          "recomputed": 38.6
         },
         {
           "year": 2021,
-          "published": 34.1,
-          "recomputed": 34.1
+          "published": 28.0,
+          "recomputed": 28.0
         },
         {
           "year": 2022,
-          "published": -12.0,
-          "recomputed": -12.0
+          "published": -13.5,
+          "recomputed": -13.5
         },
         {
           "year": 2023,
-          "published": 26.2,
-          "recomputed": 26.1
+          "published": 24.5,
+          "recomputed": 24.5
         },
         {
           "year": 2024,
-          "published": 26.2,
-          "recomputed": 26.2
+          "published": 39.9,
+          "recomputed": 39.9
         },
         {
           "year": 2025,
-          "published": 17.6,
-          "recomputed": 17.6
+          "published": 22.7,
+          "recomputed": 22.7
         },
         {
           "year": 2026,
-          "published": 17.8,
-          "recomputed": 17.8
+          "published": 14.9,
+          "recomputed": 14.9
         }
       ],
       "all_reconcile": true
@@ -504,13 +529,13 @@
       "holdings": 100,
       "total_final_weight": 100.0,
       "weights_sum_to_100": true,
-      "max_stock_weight": 6.462737,
-      "max_sector_weight": 34.7224,
+      "max_stock_weight": 6.433632,
+      "max_sector_weight": 34.7357,
       "donut_matches_holdings": {
         "Communication": {
           "donut": 7.7,
           "holdings": 7.7,
-          "delta": 0.0
+          "delta": 0.01
         },
         "Consumer Discretionary": {
           "donut": 1.4,
@@ -520,12 +545,12 @@
         "Consumer Staples": {
           "donut": 12.3,
           "holdings": 12.3,
-          "delta": 0.04
+          "delta": 0.03
         },
         "Energy": {
           "donut": 13.6,
           "holdings": 13.6,
-          "delta": 0.03
+          "delta": 0.02
         },
         "Financials": {
           "donut": 6.1,
@@ -535,12 +560,12 @@
         "Healthcare": {
           "donut": 11.9,
           "holdings": 11.9,
-          "delta": 0.01
+          "delta": 0.02
         },
         "Industrials": {
           "donut": 6.3,
           "holdings": 6.3,
-          "delta": 0.01
+          "delta": 0.0
         },
         "Materials": {
           "donut": 2.7,
@@ -555,7 +580,7 @@
         "Technology": {
           "donut": 34.7,
           "holdings": 34.7,
-          "delta": 0.02
+          "delta": 0.04
         },
         "Utilities": {
           "donut": 1.0,
@@ -623,8 +648,8 @@
           "screener_ticker": "MPC",
           "score": "4.00",
           "screener_score": "4.00",
-          "price": "$411.79",
-          "screener_price": "$411.79",
+          "price": "$414.65",
+          "screener_price": "$414.65",
           "consistent": true
         },
         {
@@ -633,8 +658,8 @@
           "screener_ticker": "MU",
           "score": "4.00",
           "screener_score": "4.00",
-          "price": "$766.90",
-          "screener_price": "$766.90",
+          "price": "$778.31",
+          "screener_price": "$778.31",
           "consistent": true
         },
         {
@@ -643,8 +668,8 @@
           "screener_ticker": "HPE",
           "score": "3.56",
           "screener_score": "3.56",
-          "price": "$48.21",
-          "screener_price": "$48.21",
+          "price": "$48.29",
+          "screener_price": "$48.29",
           "consistent": true
         },
         {
@@ -653,8 +678,8 @@
           "screener_ticker": "ARW",
           "score": "3.52",
           "screener_score": "3.52",
-          "price": "$192.33",
-          "screener_price": "$192.33",
+          "price": "$192.90",
+          "screener_price": "$192.90",
           "consistent": true
         },
         {
@@ -663,8 +688,8 @@
           "screener_ticker": "TGT",
           "score": "3.39",
           "screener_score": "3.39",
-          "price": "$161.09",
-          "screener_price": "$161.09",
+          "price": "$161.45",
+          "screener_price": "$161.45",
           "consistent": true
         }
       ],
@@ -676,8 +701,8 @@
       "tickers": {
         "MPC": {
           "price": {
-            "screener": 411.79,
-            "stock": 411.79,
+            "screener": 414.65,
+            "stock": 414.65,
             "equal": true
           },
           "marketCap": {
@@ -709,8 +734,8 @@
         },
         "MU": {
           "price": {
-            "screener": 766.9,
-            "stock": 766.9,
+            "screener": 778.31,
+            "stock": 778.31,
             "equal": true
           },
           "marketCap": {
@@ -742,8 +767,8 @@
         },
         "HPE": {
           "price": {
-            "screener": 48.21,
-            "stock": 48.21,
+            "screener": 48.29,
+            "stock": 48.29,
             "equal": true
           },
           "marketCap": {
@@ -775,8 +800,8 @@
         },
         "NVDA": {
           "price": {
-            "screener": 162.5051,
-            "stock": 162.5051,
+            "screener": 162.85,
+            "stock": 162.85,
             "equal": true
           },
           "marketCap": {
@@ -808,8 +833,8 @@
         },
         "JPM": {
           "price": {
-            "screener": 344.42,
-            "stock": 344.42,
+            "screener": 346.19,
+            "stock": 346.19,
             "equal": true
           },
           "marketCap": {
@@ -847,18 +872,18 @@
       "AAPL": {
         "twelve_data": {
           "date": "2026-11-13",
-          "close": 358.555
+          "close": 356.26999
         },
         "yahoo_via_app": {
           "date": "2026-11-13",
-          "close": 358.605
+          "close": 356.27
         },
-        "difference_pct": 0.014
+        "difference_pct": 0.0
       },
       "QQQ": {
         "twelve_data": {
           "date": "2026-11-13",
-          "close": 680.11
+          "close": 679.89001
         },
         "yahoo_via_app": null
       }
@@ -870,8 +895,8 @@
       "primary": "Yahoo Finance",
       "is_backup": false,
       "backup_symbols": [],
-      "timeliness": "delayed",
-      "generated_at": "2026-11-13T19:05:41+00:00",
+      "timeliness": "end-of-day",
+      "generated_at": "2026-11-14T09:47:18+00:00",
       "all_rows_carry_source": true
     },
     "passed": true
