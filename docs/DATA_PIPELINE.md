@@ -30,11 +30,13 @@ sent to the new one instead of seeing old weights presented as current.
 | --- | --- |
 | `publication.json` | Snapshot, rankings, portfolio, charts and backtest series |
 | `manifest.json` | Versions, timestamps, coverage and file sizes |
-| `stocks/{TICKER}.json` | Weekly price, returns and rank history loaded on demand |
+| `stocks/{TICKER}.json` | Full weekly price history, returns and rank history loaded on demand |
 
 All files are written without indentation to reduce transfer size. The current initial publication
-is about 0.95 MB and all stock details together are about 1.2 MB. A Stock Analysis page loads only
-its own detail file. The four monthly/quarterly/semiannual/annual schedules for each portfolio are
+is about 3.8 MB and all stock details together are about 4.6 MB, because each detail file carries
+every weekly observation the provider returned (up to ten years, 24–31 KB per ticker) so the chart
+can offer 1M through ALL without a second request. A Stock Analysis page loads only its own detail
+file. The four monthly/quarterly/semiannual/annual schedules for each portfolio are
 stored as separate files under `backtests/` and load only when Run Backtest needs them.
 
 ## Update schedule

@@ -449,16 +449,27 @@ def run_historical_backtest(
     }
 
 
-def _weekly_price_history(series: SymbolSeries, weeks: int = 52) -> dict:
+# Bumped whenever the shape of priceHistory changes, so a cached detail from an
+# older build is rebuilt instead of served with the previous coverage.
+HISTORY_VERSION = 2
+
+
+def _weekly_price_history(series: SymbolSeries, weeks: int | None = 52) -> dict:
     """Weekly chart observations plus the exact prior-session daily move.
 
-    The plotted values remain the trailing weekly adjusted closes. The two
-    metadata arrays let the tooltip identify the real session behind each
-    Friday sample and calculate that session's daily move without changing the
-    chart series or any momentum calculation.
+    The plotted values remain the weekly adjusted closes. The two metadata
+    arrays let the tooltip identify the real session behind each Friday sample
+    and calculate that session's daily move without changing the chart series
+    or any momentum calculation.
+
+    ``weeks=None`` publishes every week the provider actually returned, so the
+    chart can offer long ranges without inventing observations. The available
+    depth is whatever the source has: nothing is back-filled or extrapolated.
     """
     frame = series.frame
-    weekly = frame["adj"].resample("W-FRI").last().dropna().tail(weeks)
+    weekly = frame["adj"].resample("W-FRI").last().dropna()
+    if weeks is not None:
+        weekly = weekly.tail(weeks)
     values = []
     dates = []
     observation_dates = []
@@ -1459,7 +1470,12 @@ def build_stock_detail(ticker: str) -> dict | None:
         len(cached_history.get("observationDates") or []) == len(cached_values)
         and len(cached_history.get("dailyChanges") or []) == len(cached_values)
     )
-    if cached and cached.get("_snapshot") == publication_stamp and has_tooltip_history:
+    if (
+        cached
+        and cached.get("_snapshot") == publication_stamp
+        and cached.get("_history_version") == HISTORY_VERSION
+        and has_tooltip_history
+    ):
         return cached
 
     results, _ = load_series([ticker])
@@ -1474,7 +1490,9 @@ def build_stock_detail(ticker: str) -> dict | None:
     rank_history = (cache.read("derived", "rank_history", ttl=-1) or {}).get(ticker, [])
     rank_by_date = {point["date"]: point for point in rank_history}
 
-    price_history = _weekly_price_history(series)
+    # Every week the source holds: the page slices it by range, so 10Y and ALL
+    # are bounded by real coverage rather than by the default one-year window.
+    price_history = _weekly_price_history(series, weeks=None)
 
     detail = {
         **stock,
@@ -1498,6 +1516,7 @@ def build_stock_detail(ticker: str) -> dict | None:
             for point in history
         ],
         "_snapshot": publication_stamp,
+        "_history_version": HISTORY_VERSION,
         "bars_url": f"/api/bars/{ticker}",
         "observations": series.rows,
         "source": series.source,

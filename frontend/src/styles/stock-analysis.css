@@ -81,10 +81,20 @@
 .stock-rank-pill strong { font-weight: var(--font-weight-black); }
 
 .stock-price-card { display: flex; min-height: 0; flex-direction: column; padding: 14px 14px 10px; }
-.stock-price-toolbar { display: inline-flex; width: max-content; max-width: 100%; min-height: 42px; align-items: center; gap: 3px; padding: 4px; border: 1px solid transparent; border-radius: var(--radius-pill); background: var(--color-surface-soft); }
-.stock-price-toolbar button { min-width: 54px; min-height: 34px; padding: 0 14px; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--color-ink); cursor: pointer; font-size: 0.94rem; font-weight: var(--font-weight-black); transition: background-color 180ms ease, color 180ms ease; }
+/* Eight ranges plus a scale switch: the row wraps rather than shrinking the
+   pills into unreadable targets, and never scrolls horizontally. */
+.stock-price-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.stock-price-toolbar { display: inline-flex; width: max-content; max-width: 100%; min-height: 42px; align-items: center; gap: 2px; padding: 4px; border: 1px solid transparent; border-radius: var(--radius-pill); background: var(--color-surface-soft); }
+.stock-price-toolbar button { min-width: 44px; min-height: 34px; padding: 0 11px; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--color-ink); cursor: pointer; font-size: 0.9rem; font-weight: var(--font-weight-black); transition: background-color 180ms ease, color 180ms ease; }
 .stock-price-toolbar button:hover:not([aria-pressed="true"]) { background: var(--color-nav-hover); }
 .stock-price-toolbar button[aria-pressed="true"] { background: var(--color-yellow); }
+.stock-price-scale-toggle { display: inline-flex; min-height: 38px; align-items: center; gap: 9px; padding: 0 13px; border: 1px solid var(--color-line); border-radius: var(--radius-pill); background: var(--color-surface-soft); color: var(--color-ink); cursor: pointer; font-size: 0.84rem; font-weight: var(--font-weight-black); transition: background-color 180ms ease, border-color 180ms ease; }
+.stock-price-scale-toggle:hover:not([aria-pressed="true"]) { background: var(--color-nav-hover); }
+.stock-price-scale-toggle[aria-pressed="true"] { border-color: transparent; background: var(--color-yellow); }
+.stock-switch { display: inline-flex; width: 30px; height: 18px; padding: 2px; border-radius: var(--radius-pill); background: #E4DED5; transition: background-color 180ms ease; }
+.stock-switch i { width: 14px; height: 14px; border-radius: 50%; background: #FFFFFF; box-shadow: 0 1px 2px rgb(0 0 0 / 18%); transition: transform 180ms ease; }
+.stock-price-scale-toggle[aria-pressed="true"] .stock-switch { background: #14110D; }
+.stock-price-scale-toggle[aria-pressed="true"] .stock-switch i { transform: translateX(12px); }
 .stock-price-chart-wrap { display: flex; min-height: 0; flex: 1 1 auto; margin-top: 3px; }
 /* The canvas is the measured box; the SVG draws itself 1:1 inside it so no
    element is ever stretched by a viewBox scale. */
@@ -268,7 +278,8 @@
   .stock-rank-pill { min-height: 37px; padding-inline: 12px; font-size: 0.85rem; }
   .stock-price-card { padding: 9px 11px 7px; }
   .stock-price-toolbar { min-height: 36px; }
-  .stock-price-toolbar button { min-width: 48px; min-height: 29px; padding-inline: 11px; font-size: 0.85rem; }
+  .stock-price-toolbar button { min-width: 42px; min-height: 29px; padding-inline: 9px; font-size: 0.8rem; }
+  .stock-price-scale-toggle { min-height: 34px; padding-inline: 11px; font-size: 0.79rem; }
   .stock-returns-card { padding-block: 6px; }
   .stock-return { gap: 4px; }
   .stock-return > span { font-size: 0.75rem; }

@@ -23,9 +23,15 @@ import {
   sideForMovement,
 } from "./utils/priceTooltip.js";
 import { getRankTier } from "./utils/rankTier.js";
-
-const priceRanges = ["1M", "3M", "6M", "12M"];
-const monthsBack = { "1M": 1, "3M": 3, "6M": 6, "12M": 12 };
+import {
+  DEFAULT_RANGE,
+  formatAxisPrice,
+  logPosition,
+  priceLogAxis,
+  priceRanges,
+  rangeStartIndex,
+  timeTicks,
+} from "./utils/priceRange.js";
 
 function smoothPath(points) {
   if (points.length < 2) return "";
@@ -68,24 +74,6 @@ function PriceTooltipContent({ date, price, change, compact = false, width }) {
   );
 }
 
-function monthlyTicks(dates) {
-  // One tick per calendar month, taken at the first observation of that month.
-  const ticks = [];
-  let lastKey = "";
-  dates.forEach((iso, index) => {
-    const key = iso.slice(0, 7);
-    if (key === lastKey) return;
-    lastKey = key;
-    const date = new Date(`${iso}T00:00:00`);
-    ticks.push({
-      index,
-      label: date.toLocaleDateString("en-US", { month: "short" }),
-      year: date.getFullYear(),
-    });
-  });
-  return ticks;
-}
-
 function getPriceTicks(values) {
   const minValue = Math.min(...values);
   const maxValue = Math.max(...values);
@@ -99,7 +87,7 @@ function getPriceTicks(values) {
   return { min, max: max === min ? min + step : max, step };
 }
 
-function PriceChart({ stock, range }) {
+function PriceChart({ stock, range, logScale = false }) {
   const [boxRef, box] = useElementSize();
   const [selectedIndex, setSelectedIndex] = useState(null);
   const [tooltipSide, setTooltipSide] = useState("left");
@@ -109,15 +97,31 @@ function PriceChart({ stock, range }) {
   // there is no hover to preview with, so the detail is pinned instead.
   const stableTouchDetail = useMediaQuery("(hover: none), (pointer: coarse)");
   const history = stock.priceHistory;
-  const total = history.values.length;
-  const months = monthsBack[range];
-  const startIndex = Math.max(0, Math.round(total - (months / 12) * (total - 1)));
-  const visible = history.values.slice(startIndex);
-  const visibleDates = history.dates.slice(startIndex);
-  const observationDates = (history.observationDates ?? history.dates).slice(startIndex);
-  const dailyChanges = (history.dailyChanges ?? []).slice(startIndex);
-  const axis = getPriceTicks(visible);
-
+  const allObservationDates = history.observationDates ?? history.dates;
+  const allChanges = history.dailyChanges ?? [];
+  const startIndex = rangeStartIndex(history.dates, range);
+  // One row per observation, so slicing and filtering keep the tooltip's date,
+  // price and daily move aligned no matter which range or scale is active.
+  const rows = history.dates.slice(startIndex).map((date, offset) => {
+    const index = startIndex + offset;
+    return {
+      date,
+      value: history.values[index],
+      observationDate: allObservationDates[index] ?? date,
+      change: allChanges[index] ?? null,
+    };
+  });
+  // A logarithmic axis cannot plot a non-positive price, so those points are
+  // dropped instead of being clamped to a fake floor.
+  const plottable = logScale
+    ? rows.filter((row) => typeof row.value === "number" && Number.isFinite(row.value) && row.value > 0)
+    : rows;
+  const drawn = plottable.length >= 2 ? plottable : rows;
+  const useLog = logScale && drawn === plottable;
+  const visible = drawn.map((row) => row.value);
+  const visibleDates = drawn.map((row) => row.date);
+  const observationDates = drawn.map((row) => row.observationDate);
+  const dailyChanges = drawn.map((row) => row.change);
   const width = Math.round(box.width);
   const height = Math.round(box.height);
   const ready = width > 0 && height > 0;
@@ -137,15 +141,31 @@ function PriceChart({ stock, range }) {
   };
   const plotRight = plot.left + plot.width;
 
+  const linearAxis = getPriceTicks(visible);
+  const logAxis = useLog ? priceLogAxis(visible) : null;
+  // Six evenly spaced labels on a linear axis; the log axis brings its own
+  // ladder ticks because equal pixel steps are not equal price steps.
+  const axisTicks = logAxis
+    ? logAxis.ticks
+    : Array.from(
+      { length: compact ? 4 : 6 },
+      (_, index) => linearAxis.min + (linearAxis.max - linearAxis.min) * index / (compact ? 3 : 5),
+    );
+  const yFor = (value) => (
+    logAxis
+      ? logPosition(value, logAxis, top, plot.height)
+      : plot.top + ((linearAxis.max - value) / (linearAxis.max - linearAxis.min)) * plot.height
+  );
+
   const points = visible.map((value, index) => ({
     x: plot.left + (index / Math.max(1, visible.length - 1)) * plot.width,
-    y: plot.top + ((axis.max - value) / (axis.max - axis.min)) * plot.height,
+    y: yFor(value),
   }));
   const line = smoothPath(points);
   const area = points.length
     ? `${line} L ${points.at(-1).x} ${plot.top + plot.height} L ${points[0].x} ${plot.top + plot.height} Z`
     : "";
-  const ticks = monthlyTicks(visibleDates);
+  const ticks = timeTicks(visibleDates, range);
 
   // The price pill sits right beside the last point, clamped inside the box.
   const pillWidth = 84;
@@ -159,7 +179,7 @@ function PriceChart({ stock, range }) {
   useEffect(() => {
     setSelectedIndex(null);
     movementOriginX.current = Number.NaN;
-  }, [range, stock.ticker]);
+  }, [range, logScale, stock.ticker]);
 
   const activeIndex = selectedIndex != null && selectedIndex < points.length ? selectedIndex : null;
   const selectedPoint = activeIndex == null ? null : points[activeIndex];
@@ -216,7 +236,7 @@ function PriceChart({ stock, range }) {
           viewBox={`0 0 ${width} ${height}`}
           preserveAspectRatio="xMidYMid meet"
           role="img"
-          aria-label={`${stock.ticker} adjusted close over ${range}`}
+          aria-label={`${stock.ticker} adjusted close over ${range}${logScale ? " on a logarithmic scale" : ""}`}
         >
           <defs>
             <linearGradient id={`price-fill-${stock.ticker}`} x1="0" y1="0" x2="0" y2="1">
@@ -224,9 +244,16 @@ function PriceChart({ stock, range }) {
               <stop offset="100%" stopColor="#FFE59A" stopOpacity="0.035" />
             </linearGradient>
           </defs>
-          {Array.from({ length: compact ? 4 : 6 }, (_, index) => axis.min + (axis.max - axis.min) * index / (compact ? 3 : 5)).map((tick) => {
-            const y = plot.top + ((axis.max - tick) / (axis.max - axis.min)) * plot.height;
-            return <g key={tick}><line x1={plot.left} x2={plotRight} y1={y} y2={y} className="stock-chart-gridline" /><text x={plot.left - 10} y={y + 5} textAnchor="end" className="stock-chart-axis-label">${Math.round(tick)}</text></g>;
+          {axisTicks.map((tick) => {
+            const y = yFor(tick);
+            return (
+              <g key={tick}>
+                <line x1={plot.left} x2={plotRight} y1={y} y2={y} className="stock-chart-gridline" />
+                <text x={plot.left - 10} y={y + 5} textAnchor="end" className="stock-chart-axis-label">
+                  {logAxis ? formatAxisPrice(tick) : `$${Math.round(tick)}`}
+                </text>
+              </g>
+            );
           })}
           {ticks.reduce((kept, tick) => {
             const x = plot.left + (tick.index / Math.max(1, visible.length - 1)) * plot.width;
@@ -482,7 +509,10 @@ export function StockAnalysisPage({ ticker = "NVDA", onBack, backLabel = "Screen
     error: marketError,
     refresh,
   } = useMarket();
-  const [range, setRange] = useState("12M");
+  // 1Y is the documented default: it is the window the momentum column refers
+  // to, so the chart and the 12M figures agree on first paint.
+  const [range, setRange] = useState(DEFAULT_RANGE);
+  const [logScale, setLogScale] = useState(false);
   const [stockErrorDismissed, setStockErrorDismissed] = useState(false);
 
   // The badge colour follows the stock's percentile inside the eligible
@@ -592,12 +622,24 @@ export function StockAnalysisPage({ ticker = "NVDA", onBack, backLabel = "Screen
           </section>
 
           <section className="dashboard-card stock-price-card" aria-label={`${ticker} historical price chart`}>
-            <div className="stock-price-toolbar" role="group" aria-label="Stock price history range">
-              {priceRanges.map((item) => <button key={item} type="button" aria-pressed={range === item} onClick={() => setRange(item)}>{item}</button>)}
+            <div className="stock-price-controls">
+              <div className="stock-price-toolbar" role="group" aria-label="Stock price history range">
+                {priceRanges.map((item) => <button key={item} type="button" aria-pressed={range === item} onClick={() => setRange(item)}>{item}</button>)}
+              </div>
+              <button
+                type="button"
+                className="stock-price-scale-toggle"
+                aria-pressed={logScale}
+                aria-label="Logarithmic price scale"
+                onClick={() => setLogScale((current) => !current)}
+              >
+                <span>Log Scale</span>
+                <span className="stock-switch" aria-hidden="true"><i /></span>
+              </button>
             </div>
             <div className="stock-price-chart-wrap">
               {priceState === "ready"
-                ? <PriceChart stock={stock} range={range} />
+                ? <PriceChart stock={stock} range={range} logScale={logScale} />
                 : (
                   <ChartState
                     state={priceState}
@@ -649,8 +691,8 @@ export function StockAnalysisPage({ ticker = "NVDA", onBack, backLabel = "Screen
 
           <DashboardCard title="Ranking History" className="stock-ranking-card">
             <div className="stock-ranking-legend" aria-label="Ranking history series">
-              <span><i className="stock-ranking-legend__rank" aria-hidden="true" />Rank (Left)</span>
-              <span><i className="stock-ranking-legend__score" aria-hidden="true" />Momentum Score (Right)</span>
+              <span><i className="stock-ranking-legend__rank" aria-hidden="true" />Rank</span>
+              <span><i className="stock-ranking-legend__score" aria-hidden="true" />Momentum Score</span>
             </div>
             {stock?.history?.length
               ? <RankingHistoryChart stock={stock} />
