@@ -4,6 +4,7 @@ import { AppButton } from "./components/AppButton.jsx";
 import { ChartState, Skeleton } from "./components/DataState.jsx";
 import { DashboardCard } from "./components/DashboardCard.jsx";
 import { Mascot, MascotDuo } from "./components/Mascot.jsx";
+import { useChartPointer } from "./components/useChartPointer.js";
 import { useChartTooltipSize } from "./components/useChartTooltipSize.js";
 import { useElementSize } from "./components/useElementSize.js";
 import { useMediaQuery } from "./components/useMediaQuery.js";
@@ -104,7 +105,6 @@ function PriceChart({ stock, range }) {
   const [tooltipSide, setTooltipSide] = useState("left");
   const [tooltipRef, tooltipSize] = useChartTooltipSize();
   const movementOriginX = useRef(Number.NaN);
-  const touchStart = useRef(null);
   // A touch or pen pointer needs the tap-to-inspect path even on a wide screen:
   // there is no hover to preview with, so the detail is pinned instead.
   const stableTouchDetail = useMediaQuery("(hover: none), (pointer: coarse)");
@@ -183,21 +183,6 @@ function PriceChart({ stock, range }) {
     const rect = boxRef.current?.getBoundingClientRect();
     if (!rect || !points.length) return;
     const pointerX = Math.min(Math.max(clientX - rect.left, plot.left), plotRight);
-    setSelectedIndex(nearestObservationIndex(points, pointerX));
-  }
-
-  function handlePointerMove(event) {
-    if (event.pointerType === "touch" || event.pointerType === "pen") {
-      const start = touchStart.current;
-      if (start && start.pointerId === event.pointerId
-        && Math.hypot(event.clientX - start.x, event.clientY - start.y) > 8) {
-        touchStart.current = null;
-      }
-      return;
-    }
-    const rect = boxRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const pointerX = event.clientX - rect.left;
     const nextMovement = sideForMovement({
       pointerX,
       movementOriginX: movementOriginX.current,
@@ -205,45 +190,25 @@ function PriceChart({ stock, range }) {
     });
     movementOriginX.current = nextMovement.movementOriginX;
     if (nextMovement.side !== tooltipSide) setTooltipSide(nextMovement.side);
-    selectPointerPosition(event.clientX);
+    setSelectedIndex(nearestObservationIndex(points, pointerX));
   }
 
-  function handlePointerLeave(event) {
-    if (stableTouchDetail && (event.pointerType === "touch" || event.pointerType === "pen")) return;
+  function clearSelection() {
     setSelectedIndex(null);
     movementOriginX.current = Number.NaN;
   }
 
-  function handlePointerDown(event) {
-    if (event.pointerType === "touch" || event.pointerType === "pen") {
-      touchStart.current = { x: event.clientX, y: event.clientY, pointerId: event.pointerId };
-    }
-  }
-
-  function handlePointerUp(event) {
-    if (event.pointerType !== "touch" && event.pointerType !== "pen") return;
-    const start = touchStart.current;
-    touchStart.current = null;
-    if (start && start.pointerId === event.pointerId
-      && Math.hypot(event.clientX - start.x, event.clientY - start.y) <= 8) {
-      selectPointerPosition(event.clientX);
-    }
-  }
-
-  function handlePointerCancel() {
-    touchStart.current = null;
-  }
+  const chartPointer = useChartPointer({
+    onSelect: selectPointerPosition,
+    onDismiss: clearSelection,
+  });
 
   return (
     <div
       className="stock-price-chart-canvas"
       ref={boxRef}
       data-testid="stock-price-chart"
-      onPointerMove={handlePointerMove}
-      onPointerLeave={handlePointerLeave}
-      onPointerDown={handlePointerDown}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerCancel}
+      {...chartPointer}
     >
       {ready && (
         <svg
@@ -336,6 +301,7 @@ function RankingHistoryChart({ stock }) {
   const [selectedIndex, setSelectedIndex] = useState(null);
   const [tooltipSide, setTooltipSide] = useState(null);
   const [tooltipRef, tooltipSize] = useChartTooltipSize();
+  const coarsePointer = useMediaQuery("(hover: none), (pointer: coarse)");
   const movementOriginX = useRef(Number.NaN);
   const tooltipSideRef = useRef(null);
   const width = Math.round(box.width);
@@ -417,21 +383,23 @@ function RankingHistoryChart({ stock }) {
     setSelectedIndex(nearestObservationIndex(xPoints, pointerX));
   }
 
+  function clearSelection() {
+    setSelectedIndex(null);
+    movementOriginX.current = Number.NaN;
+    tooltipSideRef.current = null;
+    setTooltipSide(null);
+  }
+
+  const chartPointer = useChartPointer({
+    onSelect: selectAt,
+    onDismiss: clearSelection,
+  });
+
   return (
     <div
       className="ranking-chart-canvas"
       ref={boxRef}
-      onPointerMove={(event) => {
-        if (event.pointerType !== "touch" && event.pointerType !== "pen") selectAt(event.clientX);
-      }}
-      onPointerLeave={(event) => {
-        if (event.pointerType === "touch" || event.pointerType === "pen") return;
-        setSelectedIndex(null);
-        movementOriginX.current = Number.NaN;
-        tooltipSideRef.current = null;
-        setTooltipSide(null);
-      }}
-      onPointerDown={(event) => selectAt(event.clientX)}
+      {...chartPointer}
     >
       {ready && (
         <svg
@@ -479,7 +447,7 @@ function RankingHistoryChart({ stock }) {
       {ready && selectedPoint && (
         <div
           className="backtest-floating-tooltip"
-          style={{ left: tooltipPlacement.x, top: tooltipPlacement.y }}
+          style={{ left: tooltipPlacement.x, top: coarsePointer ? 8 : tooltipPlacement.y }}
           data-testid="ranking-history-tooltip"
         >
           <div

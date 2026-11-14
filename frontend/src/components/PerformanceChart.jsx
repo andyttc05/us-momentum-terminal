@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useElementSize } from "./useElementSize.js";
 import { useChartTooltipSize } from "./useChartTooltipSize.js";
+import { useChartPointer } from "./useChartPointer.js";
+import { useMediaQuery } from "./useMediaQuery.js";
 import { createDateScale, placeTicks } from "../utils/timeAxis.js";
 import {
   fitTooltipWidth,
@@ -65,6 +67,7 @@ export function PerformanceChart({ period, data }) {
   const [selectedIndex, setSelectedIndex] = useState(null);
   const [tooltipSide, setTooltipSide] = useState(null);
   const [tooltipRef, tooltipSize] = useChartTooltipSize();
+  const coarsePointer = useMediaQuery("(hover: none), (pointer: coarse)");
   const movementOriginX = useRef(Number.NaN);
   const tooltipSideRef = useRef(null);
   const width = Math.round(box.width);
@@ -176,13 +179,16 @@ export function PerformanceChart({ period, data }) {
     setSelectedIndex(nearestObservationIndex(primaryPoints, pointerX));
   }
 
-  function handleLeave(event) {
-    if (event.pointerType === "touch" || event.pointerType === "pen") return;
+  function clearSelection() {
     setSelectedIndex(null);
     movementOriginX.current = Number.NaN;
     tooltipSideRef.current = null;
     setTooltipSide(null);
   }
+  const chartPointer = useChartPointer({
+    onSelect: selectAt,
+    onDismiss: clearSelection,
+  });
 
   const endLabels = data.series
     .map((series) => ({
@@ -214,11 +220,7 @@ export function PerformanceChart({ period, data }) {
       <div
         className="performance-chart__canvas"
         ref={boxRef}
-        onPointerMove={(event) => {
-          if (event.pointerType !== "touch" && event.pointerType !== "pen") selectAt(event.clientX);
-        }}
-        onPointerLeave={handleLeave}
-        onPointerDown={(event) => selectAt(event.clientX)}
+        {...chartPointer}
       >
       {ready && (
       <svg
@@ -287,7 +289,7 @@ export function PerformanceChart({ period, data }) {
       {ready && selectedPoint && (
         <div
           className="backtest-floating-tooltip"
-          style={{ left: tooltipPlacement.x, top: tooltipPlacement.y }}
+          style={{ left: tooltipPlacement.x, top: coarsePointer ? 8 : tooltipPlacement.y }}
           data-testid="performance-chart-tooltip"
         >
           <div className="backtest-chart-tooltip" role="tooltip" ref={tooltipRef} style={{ width: tooltipWidth }}>

@@ -16,6 +16,9 @@
 /* Loaded last on purpose: it owns the hover/focus states of every editable
    field, and those states have to beat the pages' resting border colours. */
 @import "./styles/forms.css";
+/* Coarse-pointer sizing loads after the page and form rules, but before the
+   shared table state so desktop densities and interaction colours stay intact. */
+@import "./styles/touch.css";
 /* Also last: the Screener and Holdings tables share one row interaction and one
    heading-alignment contract, so those rules have to win over the page sheets. */
 @import "./styles/tables.css";

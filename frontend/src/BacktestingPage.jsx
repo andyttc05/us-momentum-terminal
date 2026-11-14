@@ -19,6 +19,7 @@ import { KpiCard } from "./components/KpiCard.jsx";
 import { MascotDuo } from "./components/Mascot.jsx";
 import { PageHeader } from "./components/PageHeader.jsx";
 import { PortfolioEvolution } from "./components/PortfolioEvolution.jsx";
+import { useChartPointer } from "./components/useChartPointer.js";
 import { useChartTooltipSize } from "./components/useChartTooltipSize.js";
 import {
   CurrencyInput,
@@ -31,6 +32,7 @@ import {
 import { Toast } from "./components/Toast.jsx";
 import { UpdateBar } from "./components/UpdateBar.jsx";
 import { useElementSize } from "./components/useElementSize.js";
+import { useMediaQuery } from "./components/useMediaQuery.js";
 import { useMarket } from "./api/MarketProvider.jsx";
 import { useUniverse } from "./api/UniverseProvider.jsx";
 import {
@@ -302,6 +304,7 @@ function CumulativeChart({ dates, range, view, logScale, seriesValues, onLogUnav
   const [selectedIndex, setSelectedIndex] = useState(null);
   const [tooltipSide, setTooltipSide] = useState(null);
   const [tooltipRef, tooltipSize] = useChartTooltipSize();
+  const coarsePointer = useMediaQuery("(hover: none), (pointer: coarse)");
   const movementOriginX = useRef(Number.NaN);
   const tooltipSideRef = useRef(null);
   const width = Math.round(box.width);
@@ -445,16 +448,19 @@ function CumulativeChart({ dates, range, view, logScale, seriesValues, onLogUnav
     setSelectedIndex(nearestObservationIndex(pointsFor(leadValues), x));
   }
 
-  function handleLeave(event) {
-    if (event.pointerType === "touch" || event.pointerType === "pen") return;
+  function clearSelection() {
     setSelectedIndex(null);
     movementOriginX.current = Number.NaN;
     tooltipSideRef.current = null;
     setTooltipSide(null);
   }
+  const chartPointer = useChartPointer({
+    onSelect: selectAt,
+    onDismiss: clearSelection,
+  });
 
   return (
-    <div className="backtest-chart-frame" ref={boxRef}>
+    <div className="backtest-chart-frame" ref={boxRef} {...chartPointer}>
       {ready && computedSeries.length > 0 && (
         <svg
           className="backtest-chart-svg"
@@ -464,11 +470,6 @@ function CumulativeChart({ dates, range, view, logScale, seriesValues, onLogUnav
           aria-label={isPercent
             ? `${range} return on invested capital for strategy, SPY and SPMO`
             : `${range} account balance comparison for strategy, SPY and SPMO`}
-          onPointerMove={(event) => {
-            if (event.pointerType !== "touch" && event.pointerType !== "pen") selectAt(event.clientX);
-          }}
-          onPointerLeave={handleLeave}
-          onPointerDown={(event) => selectAt(event.clientX)}
         >
           <defs>
             {computedSeries.map((series) => (
@@ -541,7 +542,7 @@ function CumulativeChart({ dates, range, view, logScale, seriesValues, onLogUnav
         <div
           className="backtest-floating-tooltip"
           ref={tooltipRef}
-          style={{ left: placement.x, top: tooltipTop }}
+          style={{ left: placement.x, top: coarsePointer ? tooltipMargin : tooltipTop }}
           data-testid="backtest-cumulative-tooltip"
         >
           <CumulativeTooltip
@@ -559,6 +560,7 @@ function DrawdownChart({ dates, values }) {
   const [boxRef, box] = useElementSize();
   const [selectedIndex, setSelectedIndex] = useState(null);
   const [tooltipRef, tooltipSize] = useChartTooltipSize();
+  const coarsePointer = useMediaQuery("(hover: none), (pointer: coarse)");
   const width = Math.round(box.width);
   const height = Math.round(box.height);
   const ready = width > 0 && height > 0;
@@ -622,9 +624,17 @@ function DrawdownChart({ dates, values }) {
     const x = Math.min(Math.max(clientX - rect.left, left), left + plotWidth);
     setSelectedIndex(nearestObservationIndex(points, x));
   }
+  const chartPointer = useChartPointer({
+    onSelect: selectAt,
+    onDismiss: () => setSelectedIndex(null),
+  });
 
   return (
-    <div className="backtest-chart-frame backtest-drawdown-frame" ref={boxRef}>
+    <div
+      className="backtest-chart-frame backtest-drawdown-frame"
+      ref={boxRef}
+      {...chartPointer}
+    >
       {/* No in-frame caption: a static label inside the fixed-height frame
           pushed the 100%-height SVG below its own box and dropped the x-axis
           onto it. The card title and the aria-label already name the measure. */}
@@ -635,13 +645,6 @@ function DrawdownChart({ dates, values }) {
           preserveAspectRatio="xMidYMid meet"
           role="img"
           aria-label={`Investment drawdown, maximum ${formatPercent(values[maxIndex])} on ${formatDate(dates[maxIndex])}`}
-          onPointerMove={(event) => {
-            if (event.pointerType !== "touch" && event.pointerType !== "pen") selectAt(event.clientX);
-          }}
-          onPointerLeave={(event) => {
-            if (event.pointerType !== "touch" && event.pointerType !== "pen") setSelectedIndex(null);
-          }}
-          onPointerDown={(event) => selectAt(event.clientX)}
         >
           <defs>
             <linearGradient id="drawdown-fill" x1="0" y1="0" x2="0" y2="1">
@@ -678,7 +681,7 @@ function DrawdownChart({ dates, values }) {
         </svg>
       )}
       {ready && selectedPoint && (
-        <div className="backtest-floating-tooltip" style={{ left: placement.x, top: placement.y }} data-testid="backtest-drawdown-tooltip">
+        <div className="backtest-floating-tooltip" style={{ left: placement.x, top: coarsePointer ? 8 : placement.y }} data-testid="backtest-drawdown-tooltip">
           <div
             className="backtest-chart-tooltip backtest-chart-tooltip--compact"
             role="tooltip"

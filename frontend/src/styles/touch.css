@@ -1,0 +1,68 @@
+/* Shared touch sizing. Scoped to coarse pointers so desktop density is
+   unchanged while iPhone and iPad controls reach a comfortable 44px target. */
+@media (hover: none) and (pointer: coarse) {
+  :root { --control-height: 44px; }
+
+  .period-control button,
+  .stock-price-toolbar button,
+  .backtest-segmented button,
+  .backtest-view-control button,
+  .backtest-range-control button,
+  .backtest-log-toggle,
+  .backtest-cashflow-direction__segment,
+  .filter-reset-button,
+  .filter-apply-button,
+  .view-all-button {
+    min-height: 44px;
+  }
+
+  .backtest-date-control,
+  .currency-input,
+  .dropdown-control select,
+  .screener-filter-field select,
+  .screener-filter-field input {
+    min-height: 44px;
+  }
+
+  .screener-search__clear {
+    width: 40px;
+    height: 40px;
+  }
+
+  .toggle-control {
+    min-width: 51px;
+    min-height: 44px;
+    align-items: center;
+  }
+
+  .info-tooltip__trigger {
+    position: relative;
+  }
+  .info-tooltip__trigger::after {
+    position: absolute;
+    inset: -7px;
+    border-radius: 50%;
+    content: "";
+  }
+
+  .stock-heading button,
+  .portfolio-table th button,
+  .portfolio-evolution__holdings-table th button {
+    min-height: 44px;
+    padding-block: 10px;
+  }
+
+  .pagination-page-list button,
+  .pagination-arrow {
+    width: 44px;
+    height: 44px;
+    flex-basis: 44px;
+  }
+  .pagination-ellipsis { width: 44px; flex-basis: 44px; }
+
+  .portfolio-evolution__filters {
+    height: auto;
+    min-height: 50px;
+  }
+  .portfolio-evolution__filters button { min-height: 44px; }
+}

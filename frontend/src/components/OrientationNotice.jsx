@@ -17,7 +17,15 @@ export function OrientationNotice() {
             between the phones, rather than wrapping around a single handset,
             makes the result unambiguous at notification size and avoids the
             reload-icon silhouette of a near-complete circle. */}
-        <svg className="orientation-notice__icon" viewBox="0 0 120 120" aria-hidden="true" focusable="false">
+        <svg
+          className="orientation-notice__icon"
+          width="120"
+          height="120"
+          viewBox="0 0 120 120"
+          preserveAspectRatio="xMidYMid meet"
+          aria-hidden="true"
+          focusable="false"
+        >
           <circle cx="60" cy="60" r="58" fill="var(--color-yellow)" />
           <g
             fill="var(--color-surface)"
@@ -45,14 +53,18 @@ export function OrientationNotice() {
             strokeLinejoin="round"
           />
           <path
-            d="M26.3 33.3H34.7"
+            className="orientation-notice__home-indicator"
+            data-indicator="portrait"
+            d="M25.5 61.5H35.5"
             fill="none"
             stroke="var(--color-ink)"
             strokeWidth="2.2"
             strokeLinecap="round"
-            transform="rotate(-7 30.5 33.3)"
+            transform="rotate(-7 30.5 61.5)"
           />
           <path
+            className="orientation-notice__home-indicator"
+            data-indicator="landscape"
             d="M77 88H88"
             fill="none"
             stroke="var(--color-ink)"

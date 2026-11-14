@@ -123,8 +123,13 @@ test("phone portrait renders the notice and nothing else", () => {
   // Cream ground, ink type, the pastel-yellow accent.
   assert.match(portrait, /background: var\(--color-cream\)/);
   assert.match(portrait, /color: var\(--color-ink\)/);
-  assert.match(source("../src/components/OrientationNotice.jsx"), /fill="var\(--color-yellow\)"/);
-  assert.equal((source("../src/components/OrientationNotice.jsx").match(/<rect\b/g) ?? []).length, 2);
+  const orientation = source("../src/components/OrientationNotice.jsx");
+  assert.match(orientation, /fill="var\(--color-yellow\)"/);
+  assert.equal((orientation.match(/<rect\b/g) ?? []).length, 2);
+  assert.match(orientation, /width="120"[\s\S]*?height="120"[\s\S]*?viewBox="0 0 120 120"/);
+  assert.match(orientation, /data-indicator="portrait"[\s\S]*?d="M25\.5 61\.5H35\.5"/);
+  assert.doesNotMatch(orientation, /M26\.3 33\.3H34\.7/);
+  assert.match(portrait, /\.orientation-notice__icon \{[\s\S]*?min-width: 108px;[\s\S]*?max-width: 124px;[\s\S]*?max-height: 124px;[\s\S]*?aspect-ratio: 1 \/ 1;/);
 });
 
 test("tablet portrait cannot be classified as a phone", () => {

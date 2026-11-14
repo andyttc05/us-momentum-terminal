@@ -1,6 +1,11 @@
 #root { min-height: 100vh; min-height: 100dvh; }
 
-.app-shell { min-height: 100vh; min-height: 100dvh; }
+.app-shell {
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: clip;
+}
 .app-main {
   min-height: 100vh;
   min-height: 100dvh;
