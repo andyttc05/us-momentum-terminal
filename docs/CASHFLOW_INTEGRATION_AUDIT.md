@@ -180,6 +180,10 @@ shallower than the NAV drawdown over the same episode.
 | Annual Return | flow-neutral calendar-year returns per account |
 | Performance & Risk | four headline figures, then Return / Cash Flow / Risk / Benchmarks rows |
 
+The configuration card keeps the cashflow controls mounted and fades them out when the switch is off.
+Collapsing them changed the card height on every toggle and left an empty box where the grid still
+stretched the card.
+
 ### Portfolio Performance
 
 Two views over the same simulation, both of which respond to the cashflow configuration:
@@ -192,10 +196,11 @@ Two views over the same simulation, both of which respond to the cashflow config
 - The range filter slices the single simulation. A `1Y` view shows the balance the investor actually
   held one year ago, not fresh opening capital.
 - The tooltip reports the balance and the return on capital for the hovered date.
-- Log scale is available on the dollar view and is withdrawn automatically when a balance is not
-  positive. The axis uses **log-spaced ticks** (1/2/5 per decade); an earlier build placed linear
-  ticks on a log plot, which bunched every label at the top. The percentage view hides the switch
-  because a return that can go negative has no log axis.
+- Log scale sits to the left of the view switch and applies to the dollar view. The axis uses
+  **log-spaced ticks** (1/2/5 per decade); an earlier build placed linear ticks on a log plot, which
+  bunched every label at the top. On the percentage view the switch stays in place but is disabled —
+  removing it reflowed the header on every view change, and a return that can go negative has no
+  logarithm.
 - The Total Return KPI is the endpoint of the percentage view, so the card and the chart always agree.
 
 ### Return on capital
@@ -341,6 +346,7 @@ The local application was exercised against the local FastAPI engine (publicatio
 | Same run, `1Y` range | Axis `$150K … $350K`; the balance is the real one, not restarting at `$10,000` |
 | Same run, Return on Capital view | Ends at `+177.0%`, exactly the KPI value |
 | Drawdown | Max `−32.1%`, single investment basis, no toggle |
+| Cashflows off | Card height unchanged (`341 px` before and after), controls at `0.32` opacity |
 | Log scale | Axis `$5K / $10K / $20K / $50K / $100K / $200K / $500K`, log-spaced |
 | Monthly `$1,000` outflow, 2y 10m window | Start `$10,000`, End `$0`, Total Return **`N/A`**, `Fully withdrawn · capital +26.1%` |
 | Same run, backend | 12 events (all funded), `fully_depleted: true`, TWR `+416.5%` |

@@ -23,8 +23,12 @@ test("each chart view plots its own account series", () => {
   assert.match(page, /\{ id: "value", label: "Portfolio Value" \}/);
   assert.match(page, /\{ id: "capital", label: "Return on Capital" \}/);
   assert.match(page, /const \[chartView, setChartView\] = useState\("value"\);/);
-  // Log scale is a dollar-axis feature; the percentage view hides the switch.
-  assert.match(page, /\{chartView === "value" && \(/);
+  // Log scale is a dollar-axis feature: the switch stays in place but is
+  // disabled on the percentage view so the header never reflows.
+  assert.match(page, /disabled=\{chartView !== "value"\}/);
+  assert.match(page, /reason="Log scale applies to dollar balances/);
+  // It sits to the left of the view switch.
+  assert.ok(page.indexOf("<LogScaleToggle") < page.indexOf('aria-label="Chart view"'));
 });
 
 test("the plot has no redundant cumulative-return caption", () => {

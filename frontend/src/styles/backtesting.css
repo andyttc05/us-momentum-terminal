@@ -289,15 +289,24 @@
 .backtest-advanced__lower-settings .settings-card__title { gap: 12px; }
 .backtest-rebalance-control { width: clamp(250px, 27vw, 360px); }
 .backtest-cashflow-controls {
-  display: none;
-}
-.backtest-cashflow-controls[data-open] {
   display: grid;
   min-height: 0;
   flex: 1 1 auto;
   grid-template-rows: auto auto;
   align-content: space-between;
   gap: 9px;
+  transition: opacity 180ms ease;
+}
+/* The controls stay mounted while cashflows are off. Collapsing them changed
+   the card height by 11px on every toggle and left a 128px empty box where the
+   grid still stretched the card, so instead they fade out and go inert. */
+.backtest-cashflow-controls:not([data-open]) {
+  opacity: 0.32;
+  filter: saturate(0.25);
+  pointer-events: none;
+}
+.backtest-cashflow-controls[data-open] {
+  display: grid;
 }
 .backtest-cashflow-direction {
   display: grid;
@@ -594,6 +603,10 @@
   min-height: 31px;
   padding-inline: 13px;
   font-size: 0.78rem;
+}
+.backtest-log-toggle[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 .backtest-log-toggle {
   display: inline-flex;

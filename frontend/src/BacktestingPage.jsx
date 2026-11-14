@@ -279,13 +279,16 @@ function CumulativeTooltip({ dates, index, width, seriesValues }) {
     </div>
   );
 }
-function LogScaleToggle({ checked, onChange }) {
+function LogScaleToggle({ checked, onChange, disabled = false, reason }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
       className="backtest-log-toggle"
+      disabled={disabled}
+      aria-disabled={disabled || undefined}
+      title={disabled ? reason : undefined}
       onClick={() => onChange(!checked)}
     >
       <span>Log Scale</span>
@@ -818,6 +821,8 @@ function PerformanceAndRisk({ report, reportWindow, metrics, config, state = "re
     },
     {
       title: "Cash flow",
+      // Only the rows that can be non-zero for the configured direction: an
+      // outflow run has no deposits, and an inflow run has no withdrawals.
       rows: [
         {
           label: "Schedule",
@@ -825,22 +830,29 @@ function PerformanceAndRisk({ report, reportWindow, metrics, config, state = "re
           plain: true,
           tip: "The external flow applied to Strategy, SPY and SPMO on identical dates.",
         },
-        {
-          label: "Total Cash Inflows",
-          value: money(report?.totalInflows),
-          tip: "Every deposit executed into the account. Opening capital is not a deposit and is reported separately.",
-        },
-        {
-          label: "Actual Withdrawals",
-          value: money(report?.actualOutflows),
-          tip: "Withdrawals that were funded by the account balance.",
-        },
-        {
-          label: "Unpaid Withdrawals",
-          value: money(report?.unpaidOutflows),
-          tone: report?.unpaidOutflows > 0 ? "negative" : "",
-          tip: "Requests the account could not fund. They never left the account, so they are excluded from XIRR and net P&L.",
-        },
+        ...(config?.cashflowEnabled && config.cashflowDirection === "outflow"
+          ? [
+            {
+              label: "Actual Withdrawals",
+              value: money(report?.actualOutflows),
+              tip: "Withdrawals that were funded by the account balance.",
+            },
+            ...(report?.unpaidOutflows > 0
+              ? [{
+                label: "Unpaid Withdrawals",
+                value: money(report.unpaidOutflows),
+                tone: "negative",
+                tip: "Requests the account could not fund. They never left the account, so they are excluded from XIRR and net P&L, and the schedule stops once the balance reaches zero.",
+              }]
+              : []),
+          ]
+          : config?.cashflowEnabled
+            ? [{
+              label: "Total Cash Inflows",
+              value: money(report?.totalInflows),
+              tip: "Every deposit executed into the account. Opening capital is not a deposit and is reported separately.",
+            }]
+            : []),
       ],
     },
     {
@@ -1649,6 +1661,16 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
             className="backtest-cumulative-card"
             action={(
               <div className="backtest-chart-controls">
+                {/* Disabled rather than hidden on the percentage view: removing
+                    the control shifted the whole row every time the view
+                    changed. A negative return has no logarithm, so it stays off
+                    and says why. */}
+                <LogScaleToggle
+                  checked={logScale && chartView === "value"}
+                  onChange={setLogScale}
+                  disabled={chartView !== "value"}
+                  reason="Log scale applies to dollar balances; a percentage can be negative"
+                />
                 <div className="period-control backtest-view-control" role="group" aria-label="Chart view">
                   {CHART_VIEWS.map((item) => (
                     <button
@@ -1659,11 +1681,6 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
                     >{item.label}</button>
                   ))}
                 </div>
-                {/* A log axis cannot draw a percentage that goes negative, so
-                    the switch is only offered for the dollar view. */}
-                {chartView === "value" && (
-                  <LogScaleToggle checked={logScale} onChange={setLogScale} />
-                )}
                 <div className="period-control backtest-range-control" role="group" aria-label="Chart time range">
                   {RANGES.map((item) => (
                     <button key={item} type="button" aria-pressed={range === item} onClick={() => setRange(item)}>{item}</button>
