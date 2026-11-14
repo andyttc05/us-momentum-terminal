@@ -8,16 +8,8 @@ function nonNegativeBalance(value) {
   return finite(value) && value > 0 ? value : 0;
 }
 
-function marketFactor(previousNav, currentNav) {
-  if (
-    !finite(previousNav)
-    || !finite(currentNav)
-    || previousNav <= 0
-    || currentNav < 0
-  ) {
-    return 0;
-  }
-  return currentNav / previousNav;
+function maxNonNegative(value) {
+  return finite(value) && value > 0 ? value : 0;
 }
 
 function quarterFor(date) {
@@ -37,6 +29,129 @@ export function periodLabel(date, frequency) {
   const month = new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "UTC" })
     .format(new Date(`${date}T00:00:00Z`));
   return `${month} ${year}`;
+}
+
+export function cashflowSchedule(dates, {
+  enabled = false,
+  amount = 0,
+  frequency = "monthly",
+} = {}) {
+  if (!Array.isArray(dates) || !enabled || !finite(amount) || amount <= 0 || dates.length < 2) {
+    return [];
+  }
+  const normalizedFrequency = FREQUENCIES.includes(frequency) ? frequency : "monthly";
+  const events = [];
+  for (let index = 1; index < dates.length; index += 1) {
+    if (
+      periodKey(dates[index], normalizedFrequency)
+      !== periodKey(dates[index - 1], normalizedFrequency)
+    ) {
+      events.push({ index, date: dates[index], requestedAmount: amount });
+    }
+  }
+  return events;
+}
+
+function normalizedFrequency(value) {
+  return value === "annually" ? "annual" : value;
+}
+
+/**
+ * Convert the Python account contract into the browser's cash-flow report
+ * shape. When the submitted configuration and observation count do not match,
+ * return null so the identical local engine remains the deterministic fallback.
+ */
+export function normalizeBackendCashflowAccounts(payload, config, dates) {
+  const accounts = payload?.accounts;
+  const backendConfig = payload?.config;
+  if (!accounts || !backendConfig || !Array.isArray(dates)) return null;
+  const expectedEnabled = Boolean(config?.cashflowEnabled);
+  const expectedDirection = config?.cashflowDirection === "outflow" ? "outflow" : "inflow";
+  const expectedFrequency = normalizedFrequency(config?.contributionFrequency ?? "monthly");
+  if (
+    Boolean(backendConfig.enabled) !== expectedEnabled
+    || backendConfig.direction !== expectedDirection
+    || backendConfig.frequency !== expectedFrequency
+    || Math.abs(Number(backendConfig.initial_capital) - Number(config?.initialCapital)) > 1e-9
+    || (
+      expectedEnabled
+      && Math.abs(Number(backendConfig.amount) - Number(config?.contributionAmount)) > 1e-9
+    )
+  ) {
+    return null;
+  }
+
+  const normalize = (account) => {
+    if (!account || !Array.isArray(account.balances) || account.balances.length !== dates.length) {
+      return null;
+    }
+    const totalInflows = Number(account.total_inflows ?? 0);
+    const actualOutflows = Number(account.actual_outflows ?? 0);
+    return {
+      finalValue: Number(account.final_value),
+      initialCapital: Number(account.initial_capital),
+      nominalInitialCapital: Number(account.initial_capital),
+      totalInflows,
+      totalCashInflows: totalInflows,
+      totalContributions: totalInflows - actualOutflows,
+      nominalTotalInflows: totalInflows,
+      nominalTotalContributions: totalInflows - actualOutflows,
+      requestedOutflows: Number(account.requested_outflows ?? 0),
+      totalOutflows: Number(account.requested_outflows ?? 0),
+      totalCashOutflows: Number(account.requested_outflows ?? 0),
+      actualOutflows,
+      unpaidOutflows: Number(account.unpaid_outflows ?? 0),
+      totalUnpaidOutflows: Number(account.unpaid_outflows ?? 0),
+      nominalRequestedOutflows: Number(account.requested_outflows ?? 0),
+      nominalActualOutflows: actualOutflows,
+      nominalUnpaidOutflows: Number(account.unpaid_outflows ?? 0),
+      netCashflows: Number(account.net_cashflow ?? 0),
+      netProfitLoss: Number(account.net_profit_loss),
+      endingHoldingsValue: Number(account.ending_holdings_value),
+      endingCash: Number(account.ending_cash),
+      remainingUnits: Number(account.remaining_units),
+      grossInvestedCapital: Number(account.gross_invested_capital),
+      cashflowDirection: account.cashflow_direction,
+      timeWeightedReturnPct: account.time_weighted_return_pct,
+      moneyWeightedReturnPct: account.money_weighted_return_pct,
+      cashflowEvents: (account.events ?? []).map((event) => ({
+        date: event.date,
+        direction: event.direction,
+        requestedAmount: event.requested_amount,
+        actualAmount: event.actual_amount,
+        unpaidAmount: event.unpaid_amount,
+        endingBalance: event.balance_after,
+        balanceBefore: event.balance_before,
+        endingHoldingsValue: Math.max(0, Number(event.balance_after) - Number(event.available_cash)),
+        availableCash: event.available_cash,
+        units: event.units,
+      })),
+      timeline: dates.map((date, index) => ({
+        date,
+        value: Number(account.balances[index]),
+        holdingsValue: Number(account.holdings_values?.[index] ?? account.balances[index]),
+        availableCash: Number(account.cash_values?.[index] ?? 0),
+        units: Number(account.units?.[index] ?? 0),
+      })),
+      investorFlows: (account.investor_flows ?? []).map((flow) => ({
+        date: flow.date,
+        amount: Number(flow.amount),
+      })),
+      dailyReturns: (account.daily_returns ?? []).map(Number),
+      twrValues: (account.twr_values ?? []).map(Number),
+      values: account.balances.map(Number),
+      returns: (account.twr_values ?? []).map(Number),
+      inflationAdjusted: false,
+    };
+  };
+
+  const strategy = normalize(accounts.strategy);
+  if (!strategy) return null;
+  return {
+    strategy,
+    spy: normalize(accounts.spy),
+    spmo: normalize(accounts.spmo),
+  };
 }
 
 function buildGroups(dates, frequency) {
@@ -139,6 +254,12 @@ export function simulateCashflows({
       netProfitLoss: null,
       timeWeightedReturnPct: null,
       moneyWeightedReturnPct: null,
+      endingHoldingsValue: null,
+      endingCash: null,
+      remainingUnits: null,
+      grossInvestedCapital: null,
+      dailyReturns: [],
+      twrValues: [],
       cashflowEvents: [],
       timeline: [],
       investorFlows: [],
@@ -153,11 +274,17 @@ export function simulateCashflows({
       ? purchasingPower[index]
       : 1
   );
-  const costRatio = startsAtBacktestOrigin && finite(strategy[0]) && strategy[0] > 0
-    ? strategy[0] / 100
-    : startsAtBacktestOrigin ? 0 : 1;
   const initialCapitalReal = capital * powerAt(0);
-  let value = nonNegativeBalance(initialCapitalReal * costRatio);
+  const initialNav = strategy[0];
+  const origin = startsAtBacktestOrigin ? 100 : strategy[0];
+  let units = (
+    finite(initialNav)
+    && initialNav > 0
+    && finite(origin)
+    && origin > 0
+  ) ? initialCapitalReal / origin : 0;
+  let availableCash = 0;
+  let value = nonNegativeBalance(units * initialNav);
   let totalInflows = 0;
   let nominalTotalInflows = 0;
   let requestedOutflows = 0;
@@ -166,28 +293,65 @@ export function simulateCashflows({
   let nominalActualOutflows = 0;
   let unpaidOutflows = 0;
   let nominalUnpaidOutflows = 0;
-  const timeline = [{ date: dates[0], value }];
+  const timeline = [{
+    date: dates[0],
+    value,
+    holdingsValue: value,
+    availableCash,
+    units,
+  }];
   const investorFlows = [{ date: dates[0], amount: -initialCapitalReal }];
   const cashflowEvents = [];
+  const scheduled = cashflowSchedule(dates, {
+    enabled: contributionEnabled,
+    amount: contribution,
+    frequency,
+  });
+  const scheduleByIndex = new Map(scheduled.map((event) => [event.index, event]));
 
   for (let index = 1; index < dates.length; index += 1) {
-    // Investment return is applied before the close cashflow. A zero balance
-    // therefore cannot compound or regain value from an index change.
-    value = nonNegativeBalance(value * marketFactor(strategy[index - 1], strategy[index]));
-    if (
-      contributionEnabled
-      && contribution > 0
-      && periodKey(dates[index], frequency) !== periodKey(dates[index - 1], frequency)
-    ) {
+    const currentNav = strategy[index];
+    // Units of the total-return wealth index stay constant through market
+    // moves; the NAV already contains the investment return. Cash flows change
+    // units at the close and therefore preserve the current allocation.
+    if (!finite(currentNav) || currentNav <= 0) units = 0;
+    // A contribution received while NAV is unavailable stays in cash and is
+    // invested once a valid close exists. It never earns that day's return.
+    if (availableCash > 0 && finite(currentNav) && currentNav > 0) {
+      units += availableCash / currentNav;
+      availableCash = 0;
+    }
+    let holdingsValue = finite(currentNav) && currentNav > 0
+      ? maxNonNegative(units * currentNav)
+      : 0;
+    value = nonNegativeBalance(holdingsValue + availableCash);
+    const scheduledEvent = scheduleByIndex.get(index);
+    if (scheduledEvent) {
       const power = powerAt(index);
       const requestedReal = contribution * power;
       let actualReal = requestedReal;
       let unpaidReal = 0;
+      const balanceBefore = value;
 
       if (direction === "outflow") {
         actualReal = Math.min(requestedReal, value);
         unpaidReal = Math.max(0, requestedReal - actualReal);
-        value = nonNegativeBalance(value - actualReal);
+        const cashUsed = Math.min(availableCash, actualReal);
+        availableCash -= cashUsed;
+        const unitsSoldValue = actualReal - cashUsed;
+        if (unitsSoldValue > 0 && finite(currentNav) && currentNav > 0) {
+          units = Math.max(0, units - unitsSoldValue / currentNav);
+        }
+        holdingsValue = finite(currentNav) && currentNav > 0
+          ? maxNonNegative(units * currentNav)
+          : 0;
+        value = nonNegativeBalance(holdingsValue + availableCash);
+        if (value <= 1e-12) {
+          value = 0;
+          units = 0;
+          availableCash = 0;
+          holdingsValue = 0;
+        }
         requestedOutflows += requestedReal;
         nominalRequestedOutflows += contribution;
         actualOutflows += actualReal;
@@ -196,7 +360,13 @@ export function simulateCashflows({
         nominalUnpaidOutflows += unpaidReal / power;
         investorFlows.push({ date: dates[index], amount: actualReal });
       } else {
-        value = nonNegativeBalance(value + actualReal);
+        if (finite(currentNav) && currentNav > 0) {
+          units += actualReal / currentNav;
+          holdingsValue = maxNonNegative(units * currentNav);
+        } else {
+          availableCash += actualReal;
+        }
+        value = nonNegativeBalance(holdingsValue + availableCash);
         totalInflows += actualReal;
         nominalTotalInflows += contribution;
         investorFlows.push({ date: dates[index], amount: -actualReal });
@@ -209,17 +379,42 @@ export function simulateCashflows({
         actualAmount: actualReal,
         unpaidAmount: unpaidReal,
         endingBalance: value,
+        balanceBefore,
+        endingHoldingsValue: holdingsValue,
+        availableCash,
+        units,
       });
     }
-    timeline.push({ date: dates[index], value });
+    holdingsValue = finite(currentNav) && currentNav > 0
+      ? maxNonNegative(units * currentNav)
+      : 0;
+    value = nonNegativeBalance(holdingsValue + availableCash);
+    timeline.push({
+      date: dates[index],
+      value,
+      holdingsValue,
+      availableCash,
+      units,
+    });
   }
 
   investorFlows.push({ date: dates.at(-1), amount: value });
-  const origin = startsAtBacktestOrigin ? 100 : strategy[0];
   const endingNav = strategy.at(-1);
   const timeWeightedReturnPct = finite(origin) && origin > 0 && finite(endingNav) && endingNav >= 0
     ? (endingNav / origin - 1) * 100
     : null;
+  const twrValues = strategy.map((navValue) => (
+    finite(origin) && origin > 0 && finite(navValue) && navValue >= 0
+      ? (navValue / origin - 1) * 100
+      : null
+  ));
+  const dailyReturns = strategy.slice(1).map((navValue, index) => (
+    finite(strategy[index]) && strategy[index] > 0 && finite(navValue) && navValue >= 0
+      ? (navValue / strategy[index] - 1) * 100
+      : null
+  ));
+  const endingHoldingsValue = timeline.at(-1).holdingsValue;
+  const endingCash = timeline.at(-1).availableCash;
 
   return {
     finalValue: value,
@@ -242,12 +437,18 @@ export function simulateCashflows({
     nominalUnpaidOutflows,
     netCashflows: totalInflows - actualOutflows,
     netProfitLoss: value + actualOutflows - initialCapitalReal - totalInflows,
+    endingHoldingsValue,
+    endingCash,
+    remainingUnits: units,
+    grossInvestedCapital: initialCapitalReal + totalInflows,
     cashflowDirection: direction,
     timeWeightedReturnPct,
     moneyWeightedReturnPct: calculateXirr(investorFlows),
     cashflowEvents,
     timeline,
     investorFlows,
+    dailyReturns,
+    twrValues,
     inflationAdjusted: purchasingPower.length > 0,
   };
 }
@@ -257,8 +458,13 @@ export function simulateCashflows({
  * tooltip. Every series uses the same opening capital, contribution schedule,
  * entry timing and purchasing-power basis; only its investment path differs.
  */
-export function calculateCumulativeSeries(window, config = {}) {
+export function calculateCumulativeSeries(window, config = {}, backendAccounts = null) {
   if (!window || !Array.isArray(window.dates)) return {};
+  const authoritative = normalizeBackendCashflowAccounts(
+    backendAccounts,
+    config,
+    window.dates,
+  );
   return Object.fromEntries(
     ["strategy", "spy", "spmo"].map((id) => {
       const investmentPath = window[id];
@@ -269,6 +475,7 @@ export function calculateCumulativeSeries(window, config = {}) {
       ) {
         return [id, { values: [], returns: [] }];
       }
+      if (authoritative?.[id]) return [id, authoritative[id]];
       const account = simulateCashflows({
         dates: window.dates,
         strategy: investmentPath,
@@ -277,7 +484,9 @@ export function calculateCumulativeSeries(window, config = {}) {
         contributionAmount: config.contributionAmount,
         contributionFrequency: config.contributionFrequency,
         cashflowDirection: config.cashflowDirection,
-        startsAtBacktestOrigin: window.startsAtBacktestOrigin,
+        // The strategy NAV has already paid its initial entry cost. SPY and
+        // SPMO start at their own first close with the same investor capital.
+        startsAtBacktestOrigin: id === "strategy" && window.startsAtBacktestOrigin,
         purchasingPower: window.purchasingPower ?? [],
       });
       return [
@@ -285,7 +494,7 @@ export function calculateCumulativeSeries(window, config = {}) {
         {
           ...account,
           values: account.timeline.map((point) => point.value),
-          returns: investmentPath.map((value) => finite(value) ? value - 100 : null),
+          returns: account.twrValues,
         },
       ];
     }),
@@ -341,9 +550,14 @@ export function calculateXirr(cashflows) {
   return ((low + high) / 2) * 100;
 }
 
-export function calculateBacktestReport(window, config) {
+export function calculateBacktestReport(window, config, backendAccounts = null) {
   if (!window) return null;
-  const cashflow = simulateCashflows({
+  const authoritative = normalizeBackendCashflowAccounts(
+    backendAccounts,
+    config,
+    window.dates,
+  );
+  const cashflow = authoritative?.strategy ?? simulateCashflows({
     dates: window.dates,
     strategy: window.strategy,
     initialCapital: config.initialCapital,

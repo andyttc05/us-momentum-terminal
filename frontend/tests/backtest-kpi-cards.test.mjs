@@ -31,7 +31,7 @@ test("duration uses the effective report dates and CAGR is no longer a top KPI",
     /label="Duration"[\s\S]*?value=\{formatBacktestDuration\(reportWindow\?\.dates\?\.\[0\], reportWindow\?\.dates\?\.at\(-1\)\)\}/,
   );
   assert.doesNotMatch(kpiSection, /label="CAGR"/);
-  assert.match(kpiSection, /label="Total Return"[\s\S]*?value=\{formatPercent\(metrics\.totalReturn\)\}/);
+  assert.match(kpiSection, /label="Total Return"[\s\S]*?value=\{formatPercent\(report\?\.timeWeightedReturnPct \?\? metrics\.totalReturn\)\}/);
   assert.doesNotMatch(kpiSection, /Profit \/ Loss|Sharpe Ratio/);
 });
 
@@ -51,7 +51,7 @@ test("monetary balances stay neutral while performance figures keep their tone",
     kpiSection.indexOf("<KpiCard", kpiSection.indexOf('label="Duration"')),
   );
   assert.doesNotMatch(durationCard, /valueTone=/);
-  assert.match(kpiSection, /label="Total Return"[\s\S]*?valueTone=\{valueTone\(metrics\.totalReturn\)\}/);
+  assert.match(kpiSection, /label="Total Return"[\s\S]*?valueTone=\{valueTone\(report\?\.timeWeightedReturnPct \?\? metrics\.totalReturn\)\}/);
 });
 
 test("Performance Summary renders all six requested metrics once in compact tiles", () => {

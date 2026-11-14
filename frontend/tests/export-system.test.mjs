@@ -137,6 +137,7 @@ test("Backtesting CSV and workbook retain every configured trading date", async 
     [
       "Daily Performance",
       "Drawdown",
+      "Account Balances",
       "Monthly Returns",
       "Rebalancing History",
       "Cash Flows",
@@ -147,9 +148,23 @@ test("Backtesting CSV and workbook retain every configured trading date", async 
   );
   assert.equal(data.workbookSheets[0].rows.length, block.dates.length + 1);
   assert.equal(
-    data.workbookSheets[3].rows.length,
+    data.workbookSheets[4].rows.length,
     block.rebalance_log.reduce((sum, event) => sum + Object.keys(event.holdings).length, 0) + 1,
   );
+  const accountSheet = data.workbookSheets.find((sheet) => sheet.name === "Account Balances");
+  assert.equal(accountSheet.rows.length, block.dates.length + 1);
+  assert.deepEqual(accountSheet.rows[0].slice(0, 5), [
+    "Date",
+    "Strategy Balance",
+    "Strategy Holdings Value",
+    "Strategy Available Cash",
+    "Strategy Units",
+  ]);
+  for (const row of accountSheet.rows.slice(1)) {
+    assert.ok(Math.abs(row[1] - (row[2] + row[3])) < 1e-6);
+    assert.ok(Math.abs(row[5] - (row[6] + row[7])) < 1e-6);
+    assert.ok(Math.abs(row[9] - (row[10] + row[11])) < 1e-6);
+  }
   const benchmarkSheet = data.workbookSheets.find((sheet) => sheet.name === "Benchmark Comparison");
   assert.deepEqual(benchmarkSheet.rows.slice(1).map((row) => row[0]), ["SPY", "SPMO"]);
   const summarySheet = data.workbookSheets.find((sheet) => sheet.name === "Performance Summary");

@@ -6,6 +6,7 @@ Run from the repository root with ``npm run data:serve``.
 from __future__ import annotations
 
 import json
+import math
 import sys
 import threading
 import time
@@ -24,6 +25,7 @@ from app import cache  # noqa: E402
 from app.clock import market_state  # noqa: E402
 from app.config import DOCS_DIR, SEED_PATH, settings  # noqa: E402
 from app.backtest import REBALANCE_FREQUENCIES, REBALANCE_LABELS  # noqa: E402
+from app.cashflow import normalize_frequency as normalize_cashflow_frequency  # noqa: E402
 from app.providers.registry import registry  # noqa: E402
 from app.snapshot import (  # noqa: E402
     PUBLICATION_VERSION,
@@ -291,6 +293,24 @@ def backtest(payload: dict = Body(default={})) -> JSONResponse:
     frequency = str(payload.get("rebalance_frequency", "semiannual")).strip().lower()
     start_text = str(payload.get("start", "")).strip()
     end_text = str(payload.get("end", "")).strip()
+    try:
+        initial_capital = float(payload.get("initial_capital", 10_000.0))
+        cashflow_amount = float(payload.get("cashflow_amount", 0.0))
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="initial_capital and cashflow_amount must be numeric",
+        ) from exc
+    cashflow_enabled = payload.get("cashflow_enabled", False)
+    if not isinstance(cashflow_enabled, bool):
+        raise HTTPException(status_code=400, detail="cashflow_enabled must be a boolean")
+    cashflow_direction = str(payload.get("cashflow_direction", "inflow")).strip().lower()
+    try:
+        cashflow_frequency = normalize_cashflow_frequency(
+            str(payload.get("cashflow_frequency", "monthly"))
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     if portfolio not in {"top100", "top20"}:
         raise HTTPException(status_code=400, detail="portfolio must be top100 or top20")
     if frequency not in REBALANCE_FREQUENCIES:
@@ -305,6 +325,17 @@ def backtest(payload: dict = Body(default={})) -> JSONResponse:
         raise HTTPException(status_code=400, detail="start and end must use YYYY-MM-DD") from exc
     if start >= end:
         raise HTTPException(status_code=400, detail="end must be after start")
+    if not math.isfinite(initial_capital) or initial_capital <= 0:
+        raise HTTPException(status_code=400, detail="initial_capital must be greater than zero")
+    if cashflow_direction not in {"inflow", "outflow"}:
+        raise HTTPException(status_code=400, detail="cashflow_direction must be inflow or outflow")
+    if not math.isfinite(cashflow_amount) or cashflow_amount < 0:
+        raise HTTPException(status_code=400, detail="cashflow_amount must be finite and non-negative")
+    if cashflow_enabled and cashflow_amount <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="cashflow_amount must be greater than zero when cashflows are enabled",
+        )
 
     with _BACKTEST_LOCK:
         result = run_historical_backtest(
@@ -312,6 +343,11 @@ def backtest(payload: dict = Body(default={})) -> JSONResponse:
             rebalance_frequency=frequency,
             start=start.isoformat(),
             end=end.isoformat(),
+            initial_capital=initial_capital,
+            cashflow_enabled=cashflow_enabled,
+            cashflow_amount=cashflow_amount,
+            cashflow_frequency=cashflow_frequency,
+            cashflow_direction=cashflow_direction,
         )
     result["rebalanceLabel"] = REBALANCE_LABELS[frequency]
     response = JSONResponse(result)

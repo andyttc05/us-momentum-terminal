@@ -95,6 +95,9 @@ minutes, intraday bars 15 minutes, closed-market bars 6 hours and quote metadata
 - Sortino, beta, correlation, tracking error and information ratio use the same aligned daily returns
   as the selected backtest window. Metrics requiring 20 daily returns remain unavailable below that
   threshold rather than being displayed as zero.
+- Strategy, SPY and SPMO accounts receive the same external cash-flow schedule. Deposits and
+  withdrawals execute after the daily return at the close through fractional total-return units.
+  Account value is units times NAV plus cash; TWR is independent of external flows and MWR is XIRR.
 
 The historical universe, current constituents, missing point-in-time float capitalisation and missing
 delisting returns remain research limitations. See `../docs/TECHNICAL_DOCUMENTATION.md`.

@@ -316,6 +316,53 @@ def main() -> int:
         "cpi_missing_months": cpi.get("missing_months") or [],
         "cpi_source": cpi.get("source"),
     }
+    cashflow_accounts = bt.get("cashflowAccounts") or {}
+    cashflow_by_id = cashflow_accounts.get("accounts") or {}
+    cashflow_dates = {
+        key: [event.get("date") for event in account.get("events", [])]
+        for key, account in cashflow_by_id.items()
+    }
+    checks["backtest_cashflow_accounts"] = {
+        "config": cashflow_accounts.get("config"),
+        "accounts": sorted(cashflow_by_id),
+        "timeline_lengths": {
+            key: len(account.get("balances") or [])
+            for key, account in cashflow_by_id.items()
+        },
+        "timeline_lengths_match": all(
+            len(account.get("balances") or []) == len(bt["dates"])
+            for account in cashflow_by_id.values()
+        ),
+        "identical_requested_dates": len({
+            tuple(cashflow_dates.get(key, []))
+            for key in ("strategy", "spy", "spmo")
+        }) == 1,
+        "balances_reconcile": all(
+            abs(
+                float(account.get("final_value", 0.0))
+                - (
+                    float(account.get("ending_holdings_value", 0.0))
+                    + float(account.get("ending_cash", 0.0))
+                )
+            ) < 1e-8
+            for account in cashflow_by_id.values()
+        ),
+        "no_negative_balances": all(
+            all(float(value) >= 0.0 for value in account.get("balances") or [])
+            for account in cashflow_by_id.values()
+        ),
+        "strategy_twr_matches_nav": abs(
+            float(cashflow_by_id.get("strategy", {}).get("time_weighted_return_pct", 0.0))
+            - float(bt["metrics"]["cumulative_return"])
+        ) < 0.15,
+        "benchmark_twr_matches_series": {
+            key: abs(
+                float(cashflow_by_id.get(key, {}).get("time_weighted_return_pct", 0.0))
+                - ((bt[key][-1] / bt[key][0] - 1.0) * 100.0)
+            ) < 0.15
+            for key in ("spy", "spmo")
+        },
+    }
 
     # 6b. Every backtest chart reconciles with the published NAV series ------ #
     nav = bt["strategy"]
@@ -573,6 +620,14 @@ def main() -> int:
             checks["backtest_return_modes"]["modes_are_distinct"],
             checks["backtest_return_modes"]["dividend_coverage_complete"],
             checks["backtest_return_modes"]["cpi_available"],
+            checks["backtest_cashflow_accounts"]["config"]["enabled"] is True,
+            checks["backtest_cashflow_accounts"]["accounts"] == ["spmo", "spy", "strategy"],
+            checks["backtest_cashflow_accounts"]["timeline_lengths_match"],
+            checks["backtest_cashflow_accounts"]["identical_requested_dates"],
+            checks["backtest_cashflow_accounts"]["balances_reconcile"],
+            checks["backtest_cashflow_accounts"]["no_negative_balances"],
+            checks["backtest_cashflow_accounts"]["strategy_twr_matches_nav"],
+            all(checks["backtest_cashflow_accounts"]["benchmark_twr_matches_series"].values()),
             checks["overview_performance"]["strategy_end_matches_backtest"],
             checks["portfolio_charts"]["all_consistent"],
             checks["overview_top_momentum"]["all_consistent"],

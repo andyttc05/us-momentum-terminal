@@ -26,6 +26,22 @@ const DRAWDOWN_COLUMNS = [
   "SPMO Drawdown (%)",
 ];
 
+const ACCOUNT_BALANCE_COLUMNS = [
+  "Date",
+  "Strategy Balance",
+  "Strategy Holdings Value",
+  "Strategy Available Cash",
+  "Strategy Units",
+  "SPY Balance",
+  "SPY Holdings Value",
+  "SPY Available Cash",
+  "SPY Units",
+  "SPMO Balance",
+  "SPMO Holdings Value",
+  "SPMO Available Cash",
+  "SPMO Units",
+];
+
 const REBALANCING_COLUMNS = [
   "Rebalance Date",
   "Ticker",
@@ -130,8 +146,8 @@ function buildCashFlowRows(account) {
   return rows;
 }
 
-function buildDailyRows(window, config) {
-  const account = calculateCumulativeSeries(window, config);
+function buildDailyRows(window, config, backendAccounts = null) {
+  const account = calculateCumulativeSeries(window, config, backendAccounts);
   const strategyDrawdown = drawdown(window.strategy);
   const spyDrawdown = drawdown(window.spy);
   const spmoDrawdown = drawdown(window.spmo);
@@ -139,14 +155,14 @@ function buildDailyRows(window, config) {
     date,
     account.strategy?.values?.[index] ?? null,
     percentChange(window.strategy, index),
-    window.strategy?.[index] - 100,
+    account.strategy?.returns?.[index] ?? (window.strategy?.[index] - 100),
     strategyDrawdown[index],
     account.spy?.values?.[index] ?? null,
     percentChange(window.spy, index),
-    window.spy?.length ? window.spy[index] - 100 : null,
+    account.spy?.returns?.[index] ?? (window.spy?.length ? window.spy[index] - 100 : null),
     account.spmo?.values?.[index] ?? null,
     percentChange(window.spmo, index),
-    window.spmo?.length ? window.spmo[index] - 100 : null,
+    account.spmo?.returns?.[index] ?? (window.spmo?.length ? window.spmo[index] - 100 : null),
   ]);
 
   return {
@@ -186,6 +202,24 @@ function buildMonthlyReturnRows(rows) {
     finite(row.strategy) ? row.strategy : null,
     finite(row.spy) ? row.spy : null,
     finite(row.spmo) ? row.spmo : null,
+  ]);
+}
+
+function buildAccountBalanceRows(window, account) {
+  return window.dates.map((date, index) => [
+    date,
+    account.strategy?.values?.[index] ?? null,
+    account.strategy?.timeline?.[index]?.holdingsValue ?? null,
+    account.strategy?.timeline?.[index]?.availableCash ?? null,
+    account.strategy?.timeline?.[index]?.units ?? null,
+    account.spy?.values?.[index] ?? null,
+    account.spy?.timeline?.[index]?.holdingsValue ?? null,
+    account.spy?.timeline?.[index]?.availableCash ?? null,
+    account.spy?.timeline?.[index]?.units ?? null,
+    account.spmo?.values?.[index] ?? null,
+    account.spmo?.timeline?.[index]?.holdingsValue ?? null,
+    account.spmo?.timeline?.[index]?.availableCash ?? null,
+    account.spmo?.timeline?.[index]?.units ?? null,
   ]);
 }
 
@@ -276,7 +310,11 @@ export function buildBacktestExportData({
   if (!window?.dates?.length || !window.strategy?.length) {
     throw new Error("No complete backtest window is available to export.");
   }
-  const { daily, drawdowns, account } = buildDailyRows(window, config);
+  const { daily, drawdowns, account } = buildDailyRows(
+    window,
+    config,
+    config?.inflationAdjusted ? null : block?.cashflowAccounts,
+  );
   const metrics = computeWindowMetrics(
     window,
     window.fullWindow
@@ -323,6 +361,27 @@ export function buildBacktestExportData({
       rows: [DRAWDOWN_COLUMNS, ...drawdowns],
       widths: [12, 24, 18, 18],
       formats: { 1: EXCEL_FORMAT.percent, 2: EXCEL_FORMAT.percent, 3: EXCEL_FORMAT.percent },
+      autoFilter: true,
+      freezeHeader: true,
+    },
+    {
+      name: "Account Balances",
+      rows: [ACCOUNT_BALANCE_COLUMNS, ...buildAccountBalanceRows(window, account)],
+      widths: [12, 20, 24, 22, 16, 18, 22, 20, 14, 18, 22, 20, 14],
+      formats: {
+        1: EXCEL_FORMAT.currency,
+        2: EXCEL_FORMAT.currency,
+        3: EXCEL_FORMAT.currency,
+        4: EXCEL_FORMAT.number,
+        5: EXCEL_FORMAT.currency,
+        6: EXCEL_FORMAT.currency,
+        7: EXCEL_FORMAT.currency,
+        8: EXCEL_FORMAT.number,
+        9: EXCEL_FORMAT.currency,
+        10: EXCEL_FORMAT.currency,
+        11: EXCEL_FORMAT.currency,
+        12: EXCEL_FORMAT.number,
+      },
       autoFilter: true,
       freezeHeader: true,
     },

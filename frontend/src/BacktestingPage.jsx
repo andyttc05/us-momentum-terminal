@@ -295,7 +295,9 @@ function CumulativeChart({ window, range, logScale, seriesValues, onLogUnavailab
     .filter((series) => window[series.id]?.length)
     .map((series) => ({
       ...series,
-      values: window[series.id].map((value) => value - 100),
+      values: seriesValues?.[series.id]?.returns?.length === window[series.id].length
+        ? seriesValues[series.id].returns
+        : window[series.id].map((value) => value - 100),
     }));
 
   useEffect(() => {
@@ -1316,8 +1318,12 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
     [cpi, nominalChartWindow, submittedConfig?.inflationAdjusted],
   );
   const cumulativeSeries = useMemo(
-    () => calculateCumulativeSeries(chartWindow, submittedConfig),
-    [chartWindow, submittedConfig],
+    () => calculateCumulativeSeries(
+      chartWindow,
+      submittedConfig,
+      submittedConfig?.inflationAdjusted ? null : resultBlock?.cashflowAccounts,
+    ),
+    [chartWindow, resultBlock, submittedConfig],
   );
   const metrics = useMemo(
     () => computeWindowMetrics(
@@ -1330,9 +1336,13 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
   );
   const report = useMemo(
     () => reportWindow && submittedConfig
-      ? calculateBacktestReport(reportWindow, submittedConfig)
+      ? calculateBacktestReport(
+        reportWindow,
+        submittedConfig,
+        submittedConfig.inflationAdjusted ? null : resultBlock?.cashflowAccounts,
+      )
       : null,
-    [reportWindow, submittedConfig],
+    [reportWindow, resultBlock, submittedConfig],
   );
   const resultsReady = Boolean(report && reportWindow && chartWindow);
   const resultsState = isRunning
@@ -1366,6 +1376,11 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
         start: normalizedDraft.startDate,
         end: normalizedDraft.endDate,
         rebalance_frequency: normalizedDraft.rebalanceFrequency,
+        initial_capital: normalizedDraft.initialCapital,
+        cashflow_enabled: normalizedDraft.cashflowEnabled,
+        cashflow_amount: normalizedDraft.contributionAmount,
+        cashflow_frequency: normalizedDraft.contributionFrequency,
+        cashflow_direction: normalizedDraft.cashflowDirection,
       });
       if (runSequence.current !== sequence) return;
       if (!block?.available) {
@@ -1577,8 +1592,8 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
             <KpiCard
               loading={resultsLoading}
               label="Total Return"
-              value={formatPercent(metrics.totalReturn)}
-              valueTone={valueTone(metrics.totalReturn)}
+              value={formatPercent(report?.timeWeightedReturnPct ?? metrics.totalReturn)}
+              valueTone={valueTone(report?.timeWeightedReturnPct ?? metrics.totalReturn)}
               icon={Stack}
               tint="mint"
               mascotVariant="mint"

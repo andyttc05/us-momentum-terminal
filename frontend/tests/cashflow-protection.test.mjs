@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   calculateBacktestReport,
   calculateCumulativeSeries,
+  normalizeBackendCashflowAccounts,
   simulateCashflows,
 } from "../src/utils/backtestReport.js";
 import { buildBacktestExportData } from "../src/utils/backtestExport.js";
@@ -88,6 +89,10 @@ test("D. an outflow above available capital is capped and the shortfall is recor
     actualAmount: 10_000,
     unpaidAmount: 2_000,
     endingBalance: 0,
+    balanceBefore: 10_000,
+    endingHoldingsValue: 0,
+    availableCash: 0,
+    units: 0,
   });
   assertProtected(result);
 });
@@ -274,6 +279,24 @@ test("L. all cumulative series use the protected shared simulator and match the 
   assert.equal(calculateBacktestReport(window, config).finalValue, series.strategy.values.at(-1));
 });
 
+test("only the strategy pays its entry cost; benchmarks start with the full capital", () => {
+  const series = calculateCumulativeSeries({
+    dates: monthDates.slice(0, 3),
+    strategy: [99.9, 110, 121],
+    spy: [100, 101, 102],
+    spmo: [100, 99, 103],
+    startsAtBacktestOrigin: true,
+  }, {
+    initialCapital: 10_000,
+    cashflowEnabled: false,
+  });
+  assert.equal(series.strategy.values[0], 9_990);
+  assert.equal(series.spy.values[0], 10_000);
+  assert.equal(series.spmo.values[0], 10_000);
+  assert.ok(Math.abs(series.strategy.returns.at(-1) - 21) < 1e-9);
+  assert.ok(Math.abs(series.spy.returns.at(-1) - 2) < 1e-9);
+});
+
 test("Cash Flow export reports requested, actual and unpaid outflows with the simulated balance", () => {
   const window = {
     dates: monthDates.slice(0, 4),
@@ -319,4 +342,95 @@ test("Cash Flow export reports requested, actual and unpaid outflows with the si
     2_000,
     0,
   ]);
+});
+
+test("matching Python account simulations drive the UI report and chart", () => {
+  const dates = monthDates.slice(0, 3);
+  const config = {
+    initialCapital: 10_000,
+    cashflowEnabled: true,
+    contributionAmount: 1_000,
+    contributionFrequency: "monthly",
+    cashflowDirection: "inflow",
+  };
+  const backend = {
+    config: {
+      initial_capital: 10_000,
+      enabled: true,
+      amount: 1_000,
+      frequency: "monthly",
+      direction: "inflow",
+    },
+    accounts: {
+      strategy: {
+        initial_capital: 10_000,
+        final_value: 11_000,
+        ending_holdings_value: 11_000,
+        ending_cash: 0,
+        remaining_units: 110,
+        total_inflows: 1_000,
+        requested_outflows: 0,
+        actual_outflows: 0,
+        unpaid_outflows: 0,
+        net_cashflow: 1_000,
+        net_profit_loss: 0,
+        gross_invested_capital: 11_000,
+        time_weighted_return_pct: 0,
+        money_weighted_return_pct: 0,
+        balances: [10_000, 10_000, 11_000],
+        holdings_values: [10_000, 10_000, 11_000],
+        cash_values: [0, 0, 0],
+        units: [100, 100, 110],
+        twr_values: [0, 0, 0],
+        daily_returns: [0, 0],
+        events: [{
+          date: dates[1],
+          direction: "inflow",
+          requested_amount: 1_000,
+          actual_amount: 1_000,
+          unpaid_amount: 0,
+          balance_before: 10_000,
+          balance_after: 11_000,
+          units: 110,
+          available_cash: 0,
+        }],
+        investor_flows: [
+          { date: dates[0], amount: -10_000 },
+          { date: dates[1], amount: -1_000 },
+          { date: dates[2], amount: 11_000 },
+        ],
+      },
+      spy: {
+        balances: [10_000, 10_000, 11_000],
+        holdings_values: [10_000, 10_000, 11_000],
+        cash_values: [0, 0, 0],
+        units: [100, 100, 110],
+        twr_values: [0, 0, 0],
+      },
+      spmo: {
+        balances: [10_000, 10_000, 11_000],
+        holdings_values: [10_000, 10_000, 11_000],
+        cash_values: [0, 0, 0],
+        units: [100, 100, 110],
+        twr_values: [0, 0, 0],
+      },
+    },
+  };
+  const window = {
+    dates,
+    strategy: [100, 100, 100],
+    spy: [100, 101, 102],
+    spmo: [100, 99, 103],
+    startsAtBacktestOrigin: false,
+  };
+  const normalized = normalizeBackendCashflowAccounts(backend, config, dates);
+  assert.equal(normalized.strategy.finalValue, 11_000);
+  assert.equal(normalized.strategy.cashflowEvents[0].endingBalance, 11_000);
+  assert.equal(calculateBacktestReport(window, config, backend).finalValue, 11_000);
+  const series = calculateCumulativeSeries(window, config, backend);
+  assert.deepEqual(series.strategy.values, backend.accounts.strategy.balances);
+  assert.deepEqual(series.spy.values, backend.accounts.spy.balances);
+
+  const mismatched = { ...backend, config: { ...backend.config, amount: 2_000 } };
+  assert.equal(normalizeBackendCashflowAccounts(mismatched, config, dates), null);
 });

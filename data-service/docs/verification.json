@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-14T09:58:16+00:00",
+  "generated_at": "2026-11-14T10:27:02+00:00",
   "checks": {
     "universe": {
       "requested": 200,
@@ -294,7 +294,7 @@
     "portfolio": {
       "holdings": 100,
       "total_weight": 100.0,
-      "max_single_weight": 6.433632,
+      "max_single_weight": 6.433627,
       "max_sector_weight": 34.74,
       "max_sector_group_weight": 34.74,
       "sector_group_totals": {
@@ -445,6 +445,34 @@
       ],
       "cpi_source": "U.S. Bureau of Labor Statistics via FRED"
     },
+    "backtest_cashflow_accounts": {
+      "config": {
+        "initial_capital": 10000.0,
+        "enabled": true,
+        "amount": 1000.0,
+        "frequency": "monthly",
+        "direction": "inflow"
+      },
+      "accounts": [
+        "spmo",
+        "spy",
+        "strategy"
+      ],
+      "timeline_lengths": {
+        "strategy": 2169,
+        "spy": 2169,
+        "spmo": 2169
+      },
+      "timeline_lengths_match": true,
+      "identical_requested_dates": true,
+      "balances_reconcile": true,
+      "no_negative_balances": true,
+      "strategy_twr_matches_nav": true,
+      "benchmark_twr_matches_series": {
+        "spy": true,
+        "spmo": true
+      }
+    },
     "backtest_chart_reconciliation": {
       "nav_points": 2169,
       "dates_match_points": true,
@@ -529,7 +557,7 @@
       "holdings": 100,
       "total_final_weight": 100.0,
       "weights_sum_to_100": true,
-      "max_stock_weight": 6.433632,
+      "max_stock_weight": 6.433627,
       "max_sector_weight": 34.7357,
       "donut_matches_holdings": {
         "Communication": {
@@ -706,8 +734,8 @@
             "equal": true
           },
           "marketCap": {
-            "screener": 112411738112.0,
-            "stock": 112411738112.0,
+            "screener": 112901840896.0,
+            "stock": 112901840896.0,
             "equal": true
           },
           "momentum": {
@@ -739,8 +767,8 @@
             "equal": true
           },
           "marketCap": {
-            "screener": 903373586432.0,
-            "stock": 903373586432.0,
+            "screener": 880597991424.0,
+            "stock": 880597991424.0,
             "equal": true
           },
           "momentum": {
@@ -772,8 +800,8 @@
             "equal": true
           },
           "marketCap": {
-            "screener": 66585636864.0,
-            "stock": 66585636864.0,
+            "screener": 64103276544.0,
+            "stock": 64103276544.0,
             "equal": true
           },
           "momentum": {
@@ -805,8 +833,8 @@
             "equal": true
           },
           "marketCap": {
-            "screener": 4012989743104.0,
-            "stock": 4012989743104.0,
+            "screener": 3932339044352.0,
+            "stock": 3932339044352.0,
             "equal": true
           },
           "momentum": {
@@ -838,8 +866,8 @@
             "equal": true
           },
           "marketCap": {
-            "screener": 910396096512.0,
-            "stock": 910396096512.0,
+            "screener": 919345496064.0,
+            "stock": 919345496064.0,
             "equal": true
           },
           "momentum": {
@@ -896,7 +924,7 @@
       "is_backup": false,
       "backup_symbols": [],
       "timeliness": "end-of-day",
-      "generated_at": "2026-11-14T09:47:18+00:00",
+      "generated_at": "2026-11-14T10:23:22+00:00",
       "all_rows_carry_source": true
     },
     "passed": true

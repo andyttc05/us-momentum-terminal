@@ -97,6 +97,18 @@ test("the selector exposes only Inflow and Outflow and preserves the full config
   assert.match(page, /report\.unpaidOutflows/);
 });
 
+test("Run Backtest forwards the complete cashflow configuration to the Python engine", () => {
+  for (const field of [
+    "initial_capital: normalizedDraft.initialCapital",
+    "cashflow_enabled: normalizedDraft.cashflowEnabled",
+    "cashflow_amount: normalizedDraft.contributionAmount",
+    "cashflow_frequency: normalizedDraft.contributionFrequency",
+    "cashflow_direction: normalizedDraft.cashflowDirection",
+  ]) {
+    assert.match(page, new RegExp(field.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+});
+
 test("the advanced grid shares explicit top and lower rows across both columns", () => {
   assert.match(
     styles,

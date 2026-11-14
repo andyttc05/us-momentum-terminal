@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-14T09:49:47+00:00",
+  "generated_at": "2026-11-14T10:32:33+00:00",
   "provider": "Yahoo Finance via yfinance (cached records)",
   "history_years_requested": 10,
   "summary": {
@@ -128,7 +128,7 @@
       },
       {
         "symbol": "GOOGL",
-        "float_shares": 10951741080.0,
+        "float_shares": 10951864020.0,
         "shares_outstanding": 5888000000.0,
         "ratio": 1.86
       },
@@ -141,8 +141,8 @@
       {
         "symbol": "NWSA",
         "float_shares": 473014936.0,
-        "shares_outstanding": 357956075.0,
-        "ratio": 1.321
+        "shares_outstanding": 357898997.0,
+        "ratio": 1.322
       }
     ],
     "single_as_of_date": true,
@@ -8097,7 +8097,7 @@
       "date": "2024-09-24",
       "adjusted_return_pct": 96.19,
       "close": 1648.0,
-      "adjusted_close": 56.9364128112793,
+      "adjusted_close": 56.93641662597656,
       "volume": 311864.0,
       "recorded_split": 0.0,
       "recorded_dividend": 0.0,
@@ -8295,7 +8295,7 @@
       "date": "2025-01-29",
       "adjusted_return_pct": 54.4,
       "close": 386.0,
-      "adjusted_close": 13.335835456848145,
+      "adjusted_close": 13.335836410522461,
       "volume": 151341.0,
       "recorded_split": 0.0,
       "recorded_dividend": 0.0,
@@ -8603,7 +8603,7 @@
       "date": "2023-12-15",
       "adjusted_return_pct": -40.78,
       "close": 64900.0,
-      "adjusted_close": 2242.216796875,
+      "adjusted_close": 2242.217041015625,
       "volume": 8.0,
       "recorded_split": 0.0,
       "recorded_dividend": 0.0,

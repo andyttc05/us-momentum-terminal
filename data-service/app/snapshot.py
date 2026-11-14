@@ -73,7 +73,7 @@ PERFORMANCE_PERIODS = ("1Y", "3Y", "5Y", "All")
 SERIES_COLORS = {"strategy": "#FFC83D", "spy": "#69A5F5", "spmo": "#AA8BF2"}
 SUPPORTED_EXCHANGES = {"NYSE", "NASDAQ", "NYSE American"}
 UNIVERSE_VERSION = "2026-11-12-live200-v2"
-PUBLICATION_VERSION = "2026-11-14-pit-size-proxy-v13"
+PUBLICATION_VERSION = "2026-11-14-cashflow-accounts-v14"
 # The two published universes. Every page reads one of these datasets; there is
 # no third "20%" variant and no page-local selection.
 DATASET_UNIVERSES = ("top100", "top20")
@@ -401,6 +401,11 @@ def run_historical_backtest(
     rebalance_frequency: str,
     start: str,
     end: str,
+    initial_capital: float = 10_000.0,
+    cashflow_enabled: bool = False,
+    cashflow_amount: float = 0.0,
+    cashflow_frequency: str = "monthly",
+    cashflow_direction: str = "inflow",
 ) -> dict:
     """Run one requested historical backtest against cache-backed provider bars."""
     series_map = load_cached_backtest_series()
@@ -416,6 +421,11 @@ def run_historical_backtest(
         "start": start,
         "end": end,
         "sector_by_symbol": sector_by_symbol,
+        "initial_capital": initial_capital,
+        "cashflow_enabled": cashflow_enabled,
+        "cashflow_amount": cashflow_amount,
+        "cashflow_frequency": cashflow_frequency,
+        "cashflow_direction": cashflow_direction,
     }
     size_history.ensure_share_history(universe_set, end=end)
     options["float_cap_lookup"] = size_history.market_cap_lookup(series_map)
@@ -430,6 +440,11 @@ def run_historical_backtest(
             "rebalanceFrequency": rebalance_frequency,
             "start": start,
             "end": end,
+            "initialCapital": initial_capital,
+            "cashflowEnabled": cashflow_enabled,
+            "cashflowAmount": cashflow_amount,
+            "cashflowFrequency": cashflow_frequency,
+            "cashflowDirection": cashflow_direction,
         },
     }
 
@@ -865,6 +880,8 @@ def _backtest_block(backtest: dict) -> dict:
         "methodology": backtest.get("methodology"),
         "dividendCoverage": backtest.get("dividend_coverage"),
         "dataQuality": backtest.get("data_quality"),
+        "cashflowAccounts": backtest.get("cashflow_accounts"),
+        "priceCashflowAccounts": backtest.get("price_cashflow_accounts"),
     }
 
 
@@ -1138,6 +1155,11 @@ def build_publication(force: bool = False, progress=None) -> dict:
             universe_symbols=backtest_universe,
             sector_by_symbol=backtest_sectors,
             float_cap_lookup=float_cap_lookup,
+            initial_capital=10_000,
+            cashflow_enabled=True,
+            cashflow_amount=1_000,
+            cashflow_frequency="monthly",
+            cashflow_direction="inflow",
         )
         top20 = run_backtest(
             backtest_map,
@@ -1145,6 +1167,11 @@ def build_publication(force: bool = False, progress=None) -> dict:
             universe_symbols=backtest_universe,
             sector_by_symbol=backtest_sectors,
             float_cap_lookup=float_cap_lookup,
+            initial_capital=10_000,
+            cashflow_enabled=True,
+            cashflow_amount=1_000,
+            cashflow_frequency="monthly",
+            cashflow_direction="inflow",
         )
         backtest_schedules = {
             "top100": {"semiannual": top100},
@@ -1165,6 +1192,11 @@ def build_publication(force: bool = False, progress=None) -> dict:
                     start=top100["start"],
                     end=top100["end"],
                     float_cap_lookup=float_cap_lookup,
+                    initial_capital=10_000,
+                    cashflow_enabled=True,
+                    cashflow_amount=1_000,
+                    cashflow_frequency="monthly",
+                    cashflow_direction="inflow",
                     **selection,
                 )
 
@@ -1303,6 +1335,14 @@ def build_publication(force: bool = False, progress=None) -> dict:
                         "score-size-proxy: point-in-time outstanding-share market cap; "
                         "historical float shares unavailable"
                     ),
+                    "cashflow_accounting": (
+                        "strategy and benchmarks hold fractional total-return units; flows "
+                        "execute after the daily return at the close"
+                    ),
+                    "time_weighted_return": (
+                        "linked underlying NAV return, independent of external cash flows"
+                    ),
+                    "money_weighted_return": "XIRR of actual dated investor cash flows",
                 },
                 "dataset_universes": list(DATASET_UNIVERSES),
                 "default_dataset_universe": DATASET_UNIVERSES[0],

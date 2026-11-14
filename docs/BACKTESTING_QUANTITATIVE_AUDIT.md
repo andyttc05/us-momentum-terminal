@@ -4,7 +4,9 @@ Audit date: 14 November 2026
 
 Audited branch: `feat/backtesting-completion`
 
-Publication audited: `2026-11-14-pit-size-proxy-v13`
+Publication audited: `2026-11-14-cashflow-accounts-v14`
+
+Cash-flow follow-up evidence: [CASHFLOW_INTEGRATION_AUDIT.md](CASHFLOW_INTEGRATION_AUDIT.md).
 
 ## A. Executive Summary
 
@@ -275,10 +277,10 @@ Canonical commands and results at the end of this audit:
 
 ```text
 npm run data:test
-122 Python tests passed
+138 Python tests passed
 
 npm run test:frontend
-282 frontend tests passed
+286 frontend tests passed
 
 npm run data:audit
 exit 0; 311 series and 741,458 rows inspected

@@ -30,6 +30,7 @@ from typing import Callable
 import numpy as np
 import pandas as pd
 
+from .cashflow import simulate_accounts
 from .momentum import cross_section_at
 from .portfolio import (
     MARKET_CAP_EXPONENT,
@@ -457,6 +458,11 @@ def run_backtest(
     slippage_rate: float = SLIPPAGE_RATE,
     market_cap_exponent: float = MARKET_CAP_EXPONENT,
     float_cap_lookup: Callable[[str, pd.Timestamp], float | None] | None = None,
+    initial_capital: float = 10_000.0,
+    cashflow_enabled: bool = False,
+    cashflow_amount: float = 0.0,
+    cashflow_frequency: str = "monthly",
+    cashflow_direction: str = "inflow",
 ) -> dict:
     """Run a ranking simulation with explicit schedule and execution timing.
 
@@ -816,6 +822,26 @@ def run_backtest(
         symbol.lower(): _benchmark_relative(strategy, values, strategy_stats)
         for symbol, values in benchmark_series.items()
     }
+    cashflow_accounts = simulate_accounts(
+        strategy.index,
+        strategy,
+        benchmark_series,
+        initial_capital=initial_capital,
+        cashflow_enabled=cashflow_enabled,
+        cashflow_amount=cashflow_amount,
+        cashflow_frequency=cashflow_frequency,
+        cashflow_direction=cashflow_direction,
+    )
+    price_cashflow_accounts = simulate_accounts(
+        price_strategy.index,
+        price_strategy,
+        price_benchmark_series,
+        initial_capital=initial_capital,
+        cashflow_enabled=cashflow_enabled,
+        cashflow_amount=cashflow_amount,
+        cashflow_frequency=cashflow_frequency,
+        cashflow_direction=cashflow_direction,
+    )
     years = max(len(strategy) / 252.0, 1.0 / 252.0)
     event_counts = {
         "initial_formation": sum(event["type"] == "initial_formation" for event in holdings_log),
@@ -894,6 +920,12 @@ def run_backtest(
             "size_input": size_input,
             "signal_months": sorted(rebalance_set),
             "execution": "next available adjusted close",
+            "cashflow_execution": (
+                "external flows apply after the daily return at the close; deposits buy "
+                "fractional units and withdrawals redeem them proportionally"
+            ),
+            "time_weighted_return": "underlying NAV return, independent of external cash flows",
+            "money_weighted_return": "XIRR of actual dated investor cash flows",
             "transaction_cost_bps": transaction_cost_rate * 10_000,
             "slippage_bps": slippage_rate * 10_000,
             "risk_free_rate": RISK_FREE_RATE,
@@ -930,6 +962,8 @@ def run_backtest(
             "annualized_one_way_turnover_pct": round(total_one_way_turnover / years * 100.0, 1),
         },
         "dividend_coverage": dividend_coverage,
+        "cashflow_accounts": cashflow_accounts,
+        "price_cashflow_accounts": price_cashflow_accounts,
         "data_quality": {
             "latest_observation": latest_stamp.strftime("%Y-%m-%d"),
             "stale_tail_sessions": stale_tail_sessions,

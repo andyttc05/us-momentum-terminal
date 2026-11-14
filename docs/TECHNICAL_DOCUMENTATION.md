@@ -236,12 +236,39 @@ assumption. Beta is covariance divided by benchmark variance; information ratio 
 divided by active-return volatility. The first calendar period is measured from the 100 starting
 capital, so the initial entry cost is included rather than silently omitted.
 
-The Backtesting workbook includes Daily Performance, Drawdown, Monthly Returns, Rebalancing History,
-Cash Flows, Performance Summary, Benchmark Comparison and Backtest Settings. The report and the
-on-screen tables read the same selected window and accounting simulator.
+The Backtesting workbook includes Daily Performance, Drawdown, Account Balances, Monthly Returns,
+Rebalancing History, Cash Flows, Performance Summary, Benchmark Comparison and Backtest Settings. The
+report and the on-screen tables read the same selected window and accounting simulator.
 
 The frontend supports date bounds, initial capital, recurring contributions, contribution frequency,
 dividend mode, CPI adjustment, rebalance frequency, chart window, linear/log scale and YTD rows.
+
+## Cash-flow accounts
+
+Cash flows are part of the Python backtest response, not a display-only adjustment. Strategy, SPY and
+SPMO each receive the same requested monthly, quarterly or annual schedule. The configured flow is
+applied after that session's investment return at the close:
+
+- an inflow buys additional fractional total-return units at the close;
+- an outflow first uses any available cash, then redeems fractional units;
+- requested withdrawals are capped at account value, with any shortfall recorded as unpaid;
+- an account depleted to zero has zero units and cash and cannot recover from market movement alone;
+- a later valid inflow buys units and can rebuild the account.
+
+The response includes daily balances, holdings value, cash, units, cumulative TWR, events and the
+investor cash-flow ledger for every account. The full-window UI consumes these backend accounts; a
+narrower chart range uses the same deterministic unit-account simulator in the browser.
+
+```text
+account value = units * NAV + available cash
+TWR           = linked NAV return, independent of external flows
+MWR / XIRR    = IRR of dated actual investor cash flows
+net P&L       = ending balance + actual withdrawals
+                - initial capital - total inflows
+```
+
+The export contains a day-by-day Account Balances sheet in addition to Cash Flows, so holdings value
+plus available cash can be reconciled to each account balance.
 
 CPI-U All Items (`CPIAUCNS`) comes from FRED/BLS. Values are treated as available on the 15th day of
 the following month and previous published observations are used rather than interpolation.
@@ -262,6 +289,12 @@ the following month and previous published observations are used rather than int
 | POST | `/api/refresh` | Forced background refresh |
 
 Live responses that must show current freshness use `Cache-Control: no-store`.
+
+`POST /api/backtest` accepts `initial_capital`, `cashflow_enabled`, `cashflow_amount`,
+`cashflow_frequency` (`monthly`, `quarterly`, `annually`) and `cashflow_direction` (`inflow`,
+`outflow`) in addition to portfolio, dates and rebalance frequency. Invalid or non-finite capital,
+amounts, frequencies and directions return HTTP 400. The response includes `cashflowAccounts` for all
+three accounts.
 
 ## Configuration
 

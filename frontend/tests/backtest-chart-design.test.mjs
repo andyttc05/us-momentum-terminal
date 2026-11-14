@@ -13,6 +13,14 @@ test("the cumulative chart uses the approved concise legend labels", () => {
   assert.doesNotMatch(page, /US Momentum Strategy/);
 });
 
+test("the cumulative line consumes account TWR values rather than raw balances", () => {
+  assert.match(
+    page,
+    /values: seriesValues\?\.\[series\.id\]\?\.returns\?\.length === window\[series\.id\]\.length/,
+  );
+  assert.match(page, /seriesValues\[series\.id\]\.returns/);
+});
+
 test("the plot has no redundant cumulative-return caption", () => {
   const chartStart = page.indexOf("function CumulativeChart");
   const chartEnd = page.indexOf("function DrawdownChart", chartStart);

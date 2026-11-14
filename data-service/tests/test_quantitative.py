@@ -1217,6 +1217,11 @@ class BacktestTests(unittest.TestCase):
                     "start": "2024-01-02",
                     "end": "2025-12-31",
                     "rebalance_frequency": "quarterly",
+                    "initial_capital": 25_000,
+                    "cashflow_enabled": True,
+                    "cashflow_amount": 250,
+                    "cashflow_frequency": "quarterly",
+                    "cashflow_direction": "outflow",
                 }
             )
         runner.assert_called_once_with(
@@ -1224,6 +1229,11 @@ class BacktestTests(unittest.TestCase):
             rebalance_frequency="quarterly",
             start="2024-01-02",
             end="2025-12-31",
+            initial_capital=25000.0,
+            cashflow_enabled=True,
+            cashflow_amount=250.0,
+            cashflow_frequency="quarterly",
+            cashflow_direction="outflow",
         )
         self.assertEqual(json.loads(response.body)["rebalanceLabel"], "Quarterly (Mar / Jun / Sep / Dec)")
 
@@ -1235,6 +1245,17 @@ class BacktestTests(unittest.TestCase):
                     "start": "2024-01-02",
                     "end": "2025-12-31",
                     "rebalance_frequency": "weekly",
+                }
+            )
+        with self.assertRaises(HTTPException):
+            run_backtest_endpoint(
+                {
+                    "portfolio": "top100",
+                    "start": "2024-01-02",
+                    "end": "2025-12-31",
+                    "rebalance_frequency": "quarterly",
+                    "cashflow_enabled": True,
+                    "cashflow_amount": 0,
                 }
             )
         with self.assertRaises(HTTPException):
@@ -1461,6 +1482,46 @@ class TransactionCostTests(unittest.TestCase):
         self.assertEqual(costs[0], 0.0)
         self.assertLess(costs[0], costs[1])
         self.assertLess(costs[1], costs[2])
+
+    def test_backtest_accounts_share_cashflow_dates_and_reconcile(self):
+        symbols = ["AAA", "BBB", "CCC", "DDD", "EEE", "FFF"]
+        series = {symbol: synthetic_series(symbol) for symbol in symbols}
+        for symbol in ("SPY", "SPMO"):
+            series[symbol] = synthetic_series(symbol)
+        result = run_backtest(
+            series,
+            top_n=3,
+            universe_symbols=set(symbols),
+            rebalance_frequency="quarterly",
+            initial_capital=12_345,
+            cashflow_enabled=True,
+            cashflow_amount=750,
+            cashflow_frequency="monthly",
+            cashflow_direction="outflow",
+        )
+        self.assertTrue(result["available"], result.get("reason"))
+        accounts = result["cashflow_accounts"]["accounts"]
+        self.assertEqual(set(accounts), {"strategy", "spy", "spmo"})
+        dates = [
+            [event["date"] for event in accounts[key]["events"]]
+            for key in ("strategy", "spy", "spmo")
+        ]
+        self.assertEqual(dates[0], dates[1])
+        self.assertEqual(dates[1], dates[2])
+        self.assertEqual(len(accounts["strategy"]["balances"]), len(result["strategy"]))
+        self.assertAlmostEqual(
+            accounts["strategy"]["time_weighted_return_pct"],
+            result["metrics"]["cumulative_return"],
+            places=1,
+        )
+        for account in accounts.values():
+            self.assertAlmostEqual(
+                account["final_value"],
+                account["ending_holdings_value"] + account["ending_cash"],
+            )
+            self.assertGreaterEqual(account["final_value"], 0)
+            self.assertTrue(all(value >= 0 for value in account["balances"]))
+        self.assertEqual(set(result["price_cashflow_accounts"]["accounts"]), {"strategy", "spy", "spmo"})
 
 
 class PortfolioWeightTests(unittest.TestCase):

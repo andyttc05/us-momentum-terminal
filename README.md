@@ -257,6 +257,11 @@ the active dataset described above. Top 100 and Top 20 mean exactly 100 and exac
 stocks, rebuilt from the same candidate universe with the same weighting rule, so a Top 20 book is
 never a filtered copy of the Top 100 one.
 
+Cash-flow accounts are simulated independently for Strategy, SPY and SPMO. Deposits buy fractional
+total-return units after the daily return at the close; withdrawals redeem units and are capped at the
+available balance. Unpaid withdrawals are reported separately. TWR links the underlying NAV return and
+is independent of external flows, while XIRR uses actual dated deposits and withdrawals.
+
 Temporary state — a universe mismatch, an outdated backtest, a missing price history, an export result —
 is reported through the single black notification card in the bottom-right corner. Important errors
 stay until dismissed and offer Retry. The persistent data-freshness pill in the page header is not a

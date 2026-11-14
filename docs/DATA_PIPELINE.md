@@ -118,8 +118,9 @@ Environment:
 
 Snapshot reads and backtest schedule selection remain static. The default semiannual backtest is in
 the publication; monthly, quarterly and annual schedules are loaded from `backtests/` only when the
-user runs them. Date-window slicing and account cashflow calculations happen in the browser from the
-published daily series.
+user runs them. Published schedule files include backend Strategy/SPY/SPMO cash-flow accounts. A
+custom date window uses the API when available; the identical deterministic unit-account simulator
+in the browser preserves cash-flow behavior when only static schedule data is available.
 
 Backtesting's persisted Universe choice selects the universe for the *next* run. The publication
 carries one dataset per universe (`datasets.top100`, `datasets.top20`); each dataset holds its own
