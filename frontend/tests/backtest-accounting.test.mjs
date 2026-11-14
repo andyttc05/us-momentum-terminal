@@ -389,3 +389,52 @@ test("critical: 10,000 -> 12,000, withdraw 12,000 leaves exactly zero", () => {
   );
   assert.deepEqual(auditAccount(result, dates), []);
 });
+
+test("21. direction changes balances and investor return, never the TWR series", () => {
+  const window = {
+    dates: DATES,
+    strategy: RISING,
+    spy: [100, 101, 102, 103, 104, 105],
+    spmo: [100, 99, 98, 97, 96, 95],
+    startsAtBacktestOrigin: true,
+  };
+  const base = {
+    initialCapital: 10_000,
+    cashflowEnabled: true,
+    contributionAmount: 1_000,
+    contributionFrequency: "monthly",
+  };
+  const off = buildBacktestAnalysis(window, { ...base, cashflowEnabled: false });
+  const inflow = buildBacktestAnalysis(window, { ...base, cashflowDirection: "inflow" });
+  const outflow = buildBacktestAnalysis(window, { ...base, cashflowDirection: "outflow" });
+
+  // The percentage chart must be immune to the flow schedule: same line, same
+  // end label, for inflow, outflow and no cashflows at all.
+  for (const analysis of [inflow, outflow, off]) {
+    analysis.strategy.returns.forEach((value, index) => {
+      assert.ok(
+        Math.abs(value - off.strategy.returns[index]) < 1e-9,
+        `return ${index} moved with the flow direction: ${value}`,
+      );
+    });
+  }
+  assert.ok(Math.abs(inflow.strategy.timeWeightedReturnPct - outflow.strategy.timeWeightedReturnPct) < 1e-9);
+  assert.ok(Math.abs(inflow.strategy.timeWeightedReturnPct - 33.1) < 1e-9);
+
+  // The dollar view and the investor figures must move, in opposite directions.
+  assert.ok(inflow.strategy.finalValue > off.strategy.finalValue);
+  assert.ok(outflow.strategy.finalValue < off.strategy.finalValue);
+  assert.notDeepEqual(inflow.strategy.values, outflow.strategy.values);
+  assert.ok(inflow.strategy.moneyWeightedReturnPct !== outflow.strategy.moneyWeightedReturnPct);
+  assert.ok(inflow.strategy.netProfitLoss !== outflow.strategy.netProfitLoss);
+
+  // Slicing for a chart range keeps that separation intact.
+  const inflowSlice = sliceAccountSeries(inflow.strategy, 2, 5);
+  const outflowSlice = sliceAccountSeries(outflow.strategy, 2, 5);
+  assert.notDeepEqual(inflowSlice.values, outflowSlice.values);
+  assert.deepEqual(inflowSlice.returns, outflowSlice.returns);
+
+  for (const analysis of [inflow, outflow, off]) {
+    assert.deepEqual(auditAccount(analysis.strategy, DATES), []);
+  }
+});

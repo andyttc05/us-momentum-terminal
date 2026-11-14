@@ -657,9 +657,10 @@ function DrawdownChart({ dates, values, basis }) {
 
   return (
     <div className="backtest-chart-frame backtest-drawdown-frame" ref={boxRef}>
-      <span className="backtest-axis-caption">
-        {basis === "account" ? "Account balance drawdown (%)" : "Investment drawdown (%)"}
-      </span>
+      {/* No in-frame caption: the basis is already stated by the segmented
+          control, the card's aria-label and the episode line under the chart.
+          An extra static label inside the fixed-height frame pushed the 100%
+          SVG below its own box and dropped the x-axis onto that line. */}
       {ready && (
         <svg
           className="backtest-chart-svg"
