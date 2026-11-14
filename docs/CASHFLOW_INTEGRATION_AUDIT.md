@@ -212,6 +212,23 @@ exit 0; no duplicate dates, invalid prices, invalid OHLC or stale audited tails
 The production mode was also served locally in static mode. The published account path produced the
 same TWR and non-negative depletion behavior as the live API path.
 
+## Deployment Verification
+
+The feature-branch Pages dispatch built successfully, but the `github-pages` environment rejected the
+feature ref because deployment is restricted to protected branches. The tested commit was then
+fast-forwarded to `main` without rewriting history.
+
+- Production workflow: `43586357811`
+- Source commit: `9e90cf7524bd9c50f47f5216caee4e7c5d7c8345`
+- Build job: success
+- Deploy job: success
+- Deployment status: success
+- Deployed URL: https://andyttc05.github.io/us-momentum-terminal/
+
+The live Backtesting page shows publication `2026-11-14-cashflow-accounts-v14`, the default inflow
+account result, and the expected `$0` / actual / unpaid withdrawal breakdown after a `$20,000` monthly
+outflow run.
+
 ## Remaining Limitations
 
 - Individual held securities are not simulated share-by-share for user cash flows. The account
@@ -223,5 +240,5 @@ same TWR and non-negative depletion behavior as the live API path.
   are a display-time alignment concern. Its account identity and non-negative floor remain tested.
 - Historical survivorship, point-in-time float shares, sector history and delisting returns remain
   the limitations documented in the broader quantitative audit.
-- GitHub Pages deployment depends on merging the completed branch to the deployment branch and the
-  repository workflow succeeding; branch push alone does not establish a production deployment.
+- Production deployment is restricted by repository environment rules to protected branches; the
+  tested commit was deployed through `main`.
