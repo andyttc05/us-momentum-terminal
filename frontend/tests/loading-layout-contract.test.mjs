@@ -39,7 +39,7 @@ test("KPI and chart cards use shared placeholders instead of disappearing", () =
 test("Backtesting keeps the results and tables mounted in every state", () => {
   assert.match(backtesting, /className="backtest-results"/);
   assert.match(backtesting, /<AnnualReturnTable[\s\S]*state=/);
-  assert.match(backtesting, /<PerformanceSummary[\s\S]*state=/);
+  assert.match(backtesting, /<PerformanceAndRisk[\s\S]*state=/);
   assert.match(backtesting, /<TableSkeletonRows columns=\{4\}/);
   assert.doesNotMatch(backtesting, /"Data update failed", "error", undefined, "refresh-error"/);
 });

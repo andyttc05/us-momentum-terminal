@@ -615,7 +615,7 @@ test("Portfolio Evolution follows Performance Summary and keeps the holdings tab
     fileURLToPath(new URL("../src/styles/backtesting.css", import.meta.url)),
     "utf8",
   );
-  assert.ok(page.indexOf("<PerformanceSummary") < page.indexOf("<PortfolioEvolution"));
+  assert.ok(page.indexOf("<PerformanceAndRisk") < page.indexOf("<PortfolioEvolution"));
   assert.doesNotMatch(page, /sidebar[^\n]*Portfolio Evolution/i);
   assert.match(app, /<BacktestingPage hidden=\{page !== "backtesting"\} onSelectStock=\{openStock\}/);
   assert.match(page, /<PortfolioEvolution[\s\S]*?onSelectStock=\{onSelectStock\}/);

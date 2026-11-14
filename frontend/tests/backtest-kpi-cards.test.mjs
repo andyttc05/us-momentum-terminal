@@ -14,9 +14,9 @@ const kpiSection = page.slice(sectionStart, sectionEnd);
 test("the backtest summary has exactly four KPI cards in the required order", () => {
   assert.ok(sectionStart >= 0 && sectionEnd > sectionStart);
   const labels = [...kpiSection.matchAll(/(?<!aria-)label="([^"]+)"/g)].map((match) => match[1]);
-  assert.deepEqual(labels, ["Start Balance", "End Balance", "Duration"]);
-  // The fourth card names the investor-level measurement when cashflows are on.
-  assert.match(kpiSection, /label=\{cashflowPrimary \? "Investor Return" : "Total Return"\}/);
+  assert.deepEqual(labels, ["Start Balance", "End Balance", "Duration", "Total Return"]);
+  // The headline return is the same measurement with cashflows on or off.
+  assert.doesNotMatch(kpiSection, /Investor Return/);
   assert.equal((kpiSection.match(/<KpiCard\b/g) ?? []).length, 4);
 });
 
@@ -33,7 +33,7 @@ test("duration uses the effective report dates and CAGR is no longer a top KPI",
     /label="Duration"[\s\S]*?value=\{formatBacktestDuration\(reportWindow\?\.dates\?\.\[0\], reportWindow\?\.dates\?\.at\(-1\)\)\}/,
   );
   assert.doesNotMatch(kpiSection, /label="CAGR"/);
-  assert.match(kpiSection, /value=\{formatPercent\(headlineReturn\)\}/);
+  assert.match(kpiSection, /value=\{formatPercent\(totalReturn\)\}/);
   assert.doesNotMatch(kpiSection, /Profit \/ Loss|Sharpe Ratio/);
 });
 
@@ -53,37 +53,36 @@ test("monetary balances stay neutral while performance figures keep their tone",
     kpiSection.indexOf("<KpiCard", kpiSection.indexOf('label="Duration"')),
   );
   assert.doesNotMatch(durationCard, /valueTone=/);
-  assert.match(kpiSection, /valueTone=\{valueTone\(headlineReturn\)\}/);
+  assert.match(kpiSection, /valueTone=\{valueTone\(totalReturn\)\}/);
 });
 
-test("Performance Summary renders all six requested metrics once in compact tiles", () => {
-  const summaryStart = page.indexOf("function PerformanceSummary");
+test("Performance & Risk puts the headline figures first and the rest in grouped rows", () => {
+  const summaryStart = page.indexOf("function PerformanceAndRisk");
   const summaryEnd = page.indexOf("function AdvancedSettings", summaryStart);
   const summary = page.slice(summaryStart, summaryEnd);
-  const labels = [
+
+  // Four hero figures, then grouped label/value rows instead of many tiles.
+  assert.match(summary, /className="backtest-perf-hero"/);
+  assert.doesNotMatch(summary, /backtest-metric-tile/);
+  assert.match(summary, /className="backtest-perf-columns"/);
+  assert.match(summary, /const groups = \[/);
+
+  for (const label of [
     "Duration",
     "CAGR",
     "Sharpe Ratio",
+    "Sortino Ratio",
     "Time-Weighted Return",
     "Money-Weighted Return / XIRR",
+    "Net Profit / Loss",
+    "Return on Capital",
+    "Investment Max Drawdown",
+    "Account Max Drawdown",
+    "Total Cash Inflows",
+    "Actual Withdrawals",
+    "Unpaid Withdrawals",
     "vs. SPY (Total Return)",
-  ];
-  for (const label of labels) {
-    assert.equal(summary.split(`label: "${label}"`).length - 1, 1);
-  }
-  assert.match(summary, /className="backtest-metric-tile"/);
-  assert.match(summary, /performanceMetrics\.map/);
-  assert.match(summary, /<Skeleton width="72px" height="16px" \/>/);
-  assert.match(page, /<PerformanceSummary[\s\S]*?metrics=\{metrics\}[\s\S]*?state=/);
-});
-
-test("risk analysis exposes Sortino and benchmark-relative metrics from the shared window", () => {
-  const riskStart = page.indexOf("function RiskAnalysis");
-  const riskEnd = page.indexOf("function AdvancedSettings", riskStart);
-  const risk = page.slice(riskStart, riskEnd);
-  for (const label of [
     "Annualized Volatility",
-    "Sortino Ratio",
     "Beta vs. SPY",
     "Correlation vs. SPY",
     "Tracking Error vs. SPY",
@@ -91,10 +90,20 @@ test("risk analysis exposes Sortino and benchmark-relative metrics from the shar
     "Beta vs. SPMO",
     "Tracking Error vs. SPMO",
   ]) {
-    assert.equal(risk.split(`label: "${label}"`).length - 1, 1);
+    assert.equal(summary.split(`label: "${label}"`).length - 1, 1, label);
   }
-  assert.match(risk, /metrics\?\.benchmarkRelative\?\.spy/);
-  assert.match(risk, /metrics\?\.benchmarkRelative\?\.spmo/);
-  assert.match(page, /<MonthlyReturnTable[\s\S]*?rows=\{report\?\.monthlyRows \?\? \[\]\}/);
-  assert.match(page, /<RiskAnalysis[\s\S]*?metrics=\{metrics\}/);
+  assert.match(summary, /metrics\?\.benchmarkRelative\?\.spy/);
+  assert.match(summary, /metrics\?\.benchmarkRelative\?\.spmo/);
+  assert.match(summary, /<Skeleton width="52px" height="12px" \/>/);
+  assert.match(page, /<PerformanceAndRisk[\s\S]*?metrics=\{metrics\}[\s\S]*?state=/);
+});
+
+test("the monthly performance card and the separate risk card are gone", () => {
+  assert.doesNotMatch(page, /MonthlyReturnTable/);
+  assert.doesNotMatch(page, /Monthly Performance/);
+  assert.doesNotMatch(page, /RiskAnalysis/);
+  assert.doesNotMatch(page, /Risk & Benchmark Analysis/);
+  assert.match(page, /title="Performance & Risk"/);
+  // Annual returns stay: they are the calendar-year view of the same returns.
+  assert.match(page, /<AnnualReturnTable/);
 });

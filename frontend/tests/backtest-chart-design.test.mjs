@@ -13,24 +13,15 @@ test("the cumulative chart uses the approved concise legend labels", () => {
   assert.doesNotMatch(page, /US Momentum Strategy/);
 });
 
-test("each chart view plots its own account series, never the raw NAV", () => {
-  // The dollar view reads the simulated account balance; the percentage view
-  // reads the money-weighted return on the capital the investor has committed.
-  // Both come from the same simulation.
-  assert.match(page, /const values = isPercent \? entry\?\.capitalReturns : entry\?\.values;/);
+test("the chart plots the simulated account balance and nothing else", () => {
+  assert.match(page, /const values = seriesValues\?\.\[series\.id\]\?\.values;/);
   assert.match(page, /\.filter\(\(series\) => series\.values\.length === dates\.length\)/);
-  assert.doesNotMatch(page, /window\[series\.id\]\.map\(\(value\) => value - 100\)/);
   assert.match(page, /valuePosition\(value, scale, top, plotHeight, renderedLogScale\)/);
-  assert.match(page, /wealthPosition\(value, scale, top, plotHeight, renderedLogScale\)/);
-});
-
-test("the chart offers both views and defaults to the account balance", () => {
-  assert.match(page, /\{ id: "value", label: "Portfolio Value" \}/);
-  assert.match(page, /\{ id: "capital", label: "Return on Capital" \}/);
-  // The flow-neutral TWR is no longer a chart view; it stays in the summary.
-  assert.doesNotMatch(page, /label: "Cumulative Return"/);
-  assert.match(page, /const \[chartView, setChartView\] = useState\("value"\);/);
-  assert.match(page, /role="group" aria-label="Chart view"/);
+  assert.doesNotMatch(page, /window\[series\.id\]\.map\(\(value\) => value - 100\)/);
+  // The percentage view and its toggle were removed.
+  assert.doesNotMatch(page, /CHART_VIEWS/);
+  assert.doesNotMatch(page, /chartView/);
+  assert.doesNotMatch(page, /wealthPosition|cumulativeScale/);
 });
 
 test("the plot has no redundant cumulative-return caption", () => {

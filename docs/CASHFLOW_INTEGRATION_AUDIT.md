@@ -171,47 +171,64 @@ Both bases report the maximum, the peak date, the trough date and the recovery d
 usually differ: with monthly deposits the balance is propped up, so the balance drawdown is typically
 shallower than the NAV drawdown over the same episode.
 
-## Chart Presentation
+## Reporting Layout
 
-The performance card offers two views over the same simulation, and both respond to the cashflow
-configuration.
+The results page is deliberately quiet: one chart, one drawdown, one calendar-year table, and one
+combined statistics card.
 
-| View | Series | Axis |
-| --- | --- | --- |
-| Portfolio Value | account balance in dollars | currency |
-| Return on Capital | profit ÷ capital committed so far | percent |
+| Card | Contents |
+| --- | --- |
+| Portfolio Performance | account balance in dollars for Strategy, SPY and SPMO |
+| Drawdown | investment (unitized NAV) or account-balance basis, with the episode dates |
+| Annual Return | flow-neutral calendar-year returns per account |
+| Performance & Risk | four headline figures, then Return / Cash Flow / Risk / Benchmarks rows |
 
-### Return on capital
+### Portfolio Performance
+
+- The chart plots the simulated account balance only. There is no percentage view, so the line
+  cannot be mistaken for a return that ignores the cashflow setting.
+- The range filter slices the single simulation: a `1Y` view shows the balance the investor actually
+  held one year ago, not fresh opening capital.
+- The tooltip still reports both the balance and the return on capital for the hovered date.
+- Log scale is available and is withdrawn automatically when a balance is not positive (a depleted
+  account at `$0`).
+- The Total Return KPI shows the flow-neutral time-weighted return and does not change when
+  cashflows are switched on or off, so the card always means the same thing.
+
+### Performance & Risk
+
+Four headline figures — CAGR, time-weighted return, money-weighted return (XIRR) and investment
+maximum drawdown — sit above three groups of label/value rows:
+
+| Group | Rows |
+| --- | --- |
+| Return | Duration, Net Profit / Loss, Return on Capital, vs. SPY |
+| Cash flow | Schedule, Total Cash Inflows, Actual Withdrawals, Unpaid Withdrawals |
+| Risk | Annualized Volatility, Sharpe, Sortino, Account Max Drawdown |
+| Benchmarks | Beta / correlation / tracking error / information ratio vs. SPY, beta and tracking error vs. SPMO |
+
+Seventeen equal-weight tiles were replaced with this layout because a wall of identical boxes made
+the important figures impossible to find. Every row keeps its own definition tooltip, and a single
+footer line records the run's assumptions (initial capital, dividend treatment, inflation basis,
+rebalancing).
+
+### Return on capital (reported, not charted)
 
 ```text
-profit(t)   = balance(t) + actual withdrawals to t − deposits to t − initial capital
-committed(t)= initial capital + deposits to t
-return(t)   = profit(t) / committed(t) × 100
+profit(t)    = balance(t) + actual withdrawals to t − deposits to t − initial capital
+committed(t) = initial capital + deposits to t
+return(t)    = profit(t) / committed(t) × 100
 ```
 
-This is the investor's own percentage: a deposit raises the denominator and therefore dilutes the
-ratio, a withdrawal does not erase profit that has already been earned, and a loss shows as a
-negative percentage. In the flat-then-rising fixture used by the tests, `$1,000` monthly deposits
-produce `0 → 10 → 9.09 → 20 → 18.33 → 30.17` while the same run with withdrawals produces
-`0 → 10 → 10 → 20 → 20 → 30`.
+This is the investor's own percentage: a deposit dilutes it, a withdrawal does not erase profit that
+has already been earned, and a loss shows as a negative number. It appears in the Performance & Risk
+card, the tooltip, the workbook and the mirror tests, but it is not a chart view.
 
-It is deliberately *not* the time-weighted return. TWR compounds the investment and ignores external
-flows, so it belongs in the Performance Summary and the drawdown, not on a chart whose job is to show
-what the investor experienced.
+### Monthly returns
 
-Rules:
-
-- Both views read the three account contracts; neither falls back to the raw NAV.
-- The range filter slices the single simulation. A `1Y` dollar view shows the balance the investor
-  actually held one year ago, not fresh opening capital.
-- Return on capital is an absolute measure since the account opened, so a range only zooms the
-  x-axis; the series is never rebased.
-- The tooltip always shows the balance and the return on capital for the hovered date.
-- Log scale is offered in both views and is automatically withdrawn when a value is non-positive
-  (a depleted account at `$0`).
-- The annual and monthly tables below the chart still report flow-neutral TWR, because a monthly
-  percentage that silently included a deposit would not be a return. Each table carries a caption
-  saying so.
+The Monthly Performance card was removed. Monthly returns remain in the workbook's
+`Monthly Returns` sheet, which is where a month-by-month breakdown is actually useful; the on-screen
+table was duplicating the Annual Return card at twice the height.
 
 ## Benchmark Simulation
 
@@ -249,10 +266,10 @@ actual and unpaid amounts are recorded separately for each account.
 - For the exact submitted full window, the UI consumes the Python balances, units, TWR and XIRR.
 - The browser engine runs only when no authoritative payload matches the submitted configuration
   (the inflation-adjusted view), and produces the same contract.
-- The headline return card reads the investor's XIRR whenever cashflows are enabled and shows the
-  flow-neutral TWR beneath it; with cashflows disabled it reads the TWR directly.
-- The performance chart's second view is return on capital, so both views move when the direction,
-  amount or frequency changes.
+- The headline return card always reads the flow-neutral TWR, so switching cashflows never changes
+  what it means.
+- The performance chart is the account balance; the Total Return KPI is flow-neutral and stable, and
+  the investor's own XIRR sits beside it in the Performance & Risk card.
 - The Performance Summary carries TWR, XIRR, Net P&L and both drawdown bases as separate tiles.
 - The workbook adds an Annual Returns sheet, an Account Balances sheet, a strategy account-balance
   drawdown column, and a return-on-capital column for each of the three accounts.
@@ -323,9 +340,8 @@ The local application was exercised against the local FastAPI engine (publicatio
 | --- | --- |
 | Monthly `$1,000` inflow, default window | Start `$10,000`, End `$312,963`, Investor Return `+21.1%`, TWR `+406.1%` |
 | Same run, Portfolio Value view | Currency axis `$0 … $400K`; end labels `$312,963` / `$288,730` / `$237,304` |
-| Same run, Return on Capital view | Percent axis `−20 … 250%`; end labels `+177.0%` / `+155.5%` / `+110.0%` |
-| Same run, `1Y` range (value) | Axis `$150K … $350K`; the balance is the real one, not restarting at `$10,000` |
-| Same run, `1Y` range (capital) | The same absolute percentages, zoomed; the series is not rebased |
+| Same run, `1Y` range | Axis `$150K … $350K`; the balance is the real one, not restarting at `$10,000` |
+| Same run, Total Return KPI | `+406.1%` with cashflows on and off |
 | Drawdown, Investment basis | Max `−32.1%`, `2020-02-19 → 2020-03-23`, recovered `2020-07-06` |
 | Drawdown, Account basis | Max `−30.3%`, `2020-02-19 → 2020-03-23`, recovered `2020-05-20` |
 | Monthly `$1,000` outflow, re-run | End `$0` on all three accounts, Investor Return `+21.4%`, TWR `+416.5%` |

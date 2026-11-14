@@ -72,13 +72,6 @@ import {
 import { UNIVERSE_OPTIONS } from "./utils/universeState.js";
 
 const RANGES = ["1Y", "3Y", "5Y", "All"];
-// The two chart views answer different questions, and both respond to the
-// cashflow configuration: "value" is the account balance in dollars, "capital"
-// is profit measured against every dollar the investor has committed.
-const CHART_VIEWS = [
-  { id: "value", label: "Portfolio Value" },
-  { id: "capital", label: "Return on Capital" },
-];
 const SERIES = [
   { id: "strategy", name: "Strategy", color: "#FFC83D" },
   { id: "spy", name: "SPY", color: "#69A5F5" },
@@ -233,27 +226,6 @@ function buildWindow(block, startDate, endDate, range = "All", reinvestDividends
   };
 }
 
-function cumulativeScale(high, low) {
-  const span = Math.max(high - low, 10);
-  const magnitude = 10 ** Math.floor(Math.log10(span / 5));
-  const normalized = span / 5 / magnitude;
-  const step = (normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10) * magnitude;
-  const max = Math.ceil(Math.max(high, step) / step) * step;
-  const min = low < 0 ? Math.floor(low / 10) * 10 : 0;
-  const ticks = min < 0 ? [min] : [];
-  for (let value = 0; value <= max + step * 0.01; value += step) ticks.push(value);
-  return { min, max, ticks };
-}
-
-function wealthPosition(value, scale, top, plotHeight, logScale) {
-  if (!logScale) {
-    return top + (scale.max - value) / (scale.max - scale.min) * plotHeight;
-  }
-  const minimum = Math.log10(1 + scale.min / 100);
-  const maximum = Math.log10(1 + scale.max / 100);
-  return top + (maximum - Math.log10(1 + value / 100)) / (maximum - minimum) * plotHeight;
-}
-
 /**
  * Dollar ticks for the account-balance view. The step is chosen so the plot
  * keeps roughly four gridlines whatever the account size, and the axis never
@@ -326,7 +298,7 @@ function LogScaleToggle({ checked, onChange }) {
   );
 }
 
-function CumulativeChart({ dates, range, view, logScale, seriesValues, onLogUnavailable }) {
+function CumulativeChart({ dates, range, logScale, seriesValues, onLogUnavailable }) {
   const [boxRef, box] = useElementSize();
   const [selectedIndex, setSelectedIndex] = useState(null);
   const [tooltipSide, setTooltipSide] = useState(null);
@@ -337,19 +309,16 @@ function CumulativeChart({ dates, range, view, logScale, seriesValues, onLogUnav
   const height = Math.round(box.height);
   const ready = width > 0 && height > 0;
   const compact = width > 0 && width < 560;
-  // The dollar view needs a wider label gutter because "$1.24M" is longer
-  // than "+363.7%".
-  const isPercent = view !== "value";
   const left = compact ? 42 : 54;
   const top = 30;
-  const labelGutter = (compact ? 82 : 126) + (isPercent ? 0 : 22);
+  // The value pills are wider than a percentage would be.
+  const labelGutter = (compact ? 82 : 126) + 22;
   const plotWidth = Math.max(80, width - left - labelGutter);
   const plotHeight = Math.max(80, height - top - (compact ? 30 : 34));
 
   const computedSeries = SERIES
     .map((series) => {
-      const entry = seriesValues?.[series.id];
-      const values = isPercent ? entry?.capitalReturns : entry?.values;
+      const values = seriesValues?.[series.id]?.values;
       return { ...series, values: Array.isArray(values) ? values : [] };
     })
     .filter((series) => series.values.length === dates.length);
@@ -359,28 +328,20 @@ function CumulativeChart({ dates, range, view, logScale, seriesValues, onLogUnav
     setTooltipSide(null);
     movementOriginX.current = Number.NaN;
     tooltipSideRef.current = null;
-  }, [range, view, dates.length]);
+  }, [range, dates.length]);
 
   const allValues = computedSeries
     .flatMap((series) => series.values)
     .filter((value) => typeof value === "number" && Number.isFinite(value));
-  const high = isPercent ? Math.max(10, ...allValues) : Math.max(0, ...allValues);
-  const low = isPercent ? Math.min(0, ...allValues) : Math.min(high, ...allValues);
-  const scale = isPercent ? cumulativeScale(high, low) : moneyScale(low, high);
-  const logAvailable = allValues.length > 0
-    && allValues.every((value) => (isPercent ? value > -100 : value > 0));
+  const high = Math.max(0, ...allValues);
+  const low = Math.min(high, ...allValues);
+  const scale = moneyScale(low, high);
+  const logAvailable = allValues.length > 0 && allValues.every((value) => value > 0);
   const renderedLogScale = logScale && logAvailable;
-  const yForValue = (value) => (
-    isPercent
-      ? wealthPosition(value, scale, top, plotHeight, renderedLogScale)
-      : valuePosition(value, scale, top, plotHeight, renderedLogScale)
-  );
-  const axisLabel = (tick) => (isPercent ? `${tick}%` : formatAxisMoney(tick));
+  const yForValue = (value) => valuePosition(value, scale, top, plotHeight, renderedLogScale);
   useEffect(() => {
     if (logScale && !logAvailable) onLogUnavailable?.();
   }, [logAvailable, logScale, onLogUnavailable]);
-  const negativeTickTooClose = scale.min < 0
-    && Math.abs(scale.min) / (scale.max - scale.min) * plotHeight < 18;
   const pointsFor = (values) => values.map((value, index) => ({
     x: left + index / Math.max(1, values.length - 1) * plotWidth,
     y: yForValue(value),
@@ -394,7 +355,7 @@ function CumulativeChart({ dates, range, view, logScale, seriesValues, onLogUnav
     plotWidth,
     compact ? 66 : 48,
   );
-  const pillWidth = compact ? (isPercent ? 70 : 84) : (isPercent ? 91 : 112);
+  const pillWidth = compact ? 84 : 112;
   const pillOffset = compact ? 9 : 14;
   const pillCenter = pillOffset + pillWidth / 2;
   const endLabels = computedSeries
@@ -493,9 +454,7 @@ function CumulativeChart({ dates, range, view, logScale, seriesValues, onLogUnav
           viewBox={`0 0 ${width} ${height}`}
           preserveAspectRatio="xMidYMid meet"
           role="img"
-          aria-label={isPercent
-            ? `${range} return on invested capital for strategy, SPY and SPMO`
-            : `${range} account balance comparison for strategy, SPY and SPMO`}
+          aria-label={`${range} account balance comparison for strategy, SPY and SPMO`}
           onPointerMove={(event) => {
             if (event.pointerType !== "touch" && event.pointerType !== "pen") selectAt(event.clientX);
           }}
@@ -510,12 +469,12 @@ function CumulativeChart({ dates, range, view, logScale, seriesValues, onLogUnav
               </linearGradient>
             ))}
           </defs>
-          {scale.ticks.filter((tick) => !(negativeTickTooClose && tick === scale.min)).map((tick) => {
+          {scale.ticks.map((tick) => {
             const y = yForValue(tick);
             return (
               <g key={tick}>
                 <line x1={left} x2={left + plotWidth} y1={y} y2={y} className="backtest-gridline" />
-                <text x={left - 9} y={y + 4} textAnchor="end" className="backtest-axis-label">{axisLabel(tick)}</text>
+                <text x={left - 9} y={y + 4} textAnchor="end" className="backtest-axis-label">{formatAxisMoney(tick)}</text>
               </g>
             );
           })}
@@ -564,7 +523,7 @@ function CumulativeChart({ dates, range, view, logScale, seriesValues, onLogUnav
                 dominantBaseline="central"
                 textAnchor="middle"
                 className={`backtest-value-label${compact ? " backtest-value-label--compact" : ""}`}
-              >{isPercent ? formatPercent(series.values.at(-1)) : formatTooltipMoney(series.values.at(-1))}</text>
+              >{formatTooltipMoney(series.values.at(-1))}</text>
             </g>
           ))}
         </svg>
@@ -782,99 +741,26 @@ function AnnualReturnTable({ rows = [], includeYtd, state = "ready" }) {
   );
 }
 
-function MonthlyReturnTable({ rows = [], state = "ready" }) {
-  const visibleRows = rows.slice(-12).reverse();
-  return (
-    <DashboardCard title="Monthly Performance" className="backtest-annual-card backtest-monthly-card">
-      <div className="backtest-table-scroll">
-        <table className="backtest-annual-table backtest-monthly-table">
-          <thead>
-            <tr>
-              <th>Month</th>
-              <th className="backtest-annual-series backtest-annual-series--strategy"><span><i aria-hidden="true" />Strategy</span></th>
-              <th className="backtest-annual-series backtest-annual-series--spy"><span><i aria-hidden="true" />SPY</span></th>
-              <th className="backtest-annual-series backtest-annual-series--spmo"><span><i aria-hidden="true" />SPMO</span></th>
-            </tr>
-          </thead>
-          <tbody>
-            {state === "loading" ? (
-              <TableSkeletonRows columns={4} rows={6} />
-            ) : state !== "ready" ? (
-              <TableStateRow
-                columns={4}
-                state={state}
-                title={state === "error" ? "Monthly returns unavailable" : "No monthly returns"}
-                detail={state === "error"
-                  ? "The latest monthly results could not be loaded."
-                  : "No monthly returns were published for this window."}
-              />
-            ) : visibleRows.map((row) => (
-              <tr key={row.key}>
-                <th scope="row">{row.label}</th>
-                {SERIES.map((series) => {
-                  const value = row[series.id];
-                  return (
-                    <td key={series.id} className={`backtest-annual-series backtest-annual-series--${series.id} ${valueTone(value)}`}>
-                      {formatPercent(value)}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-            {state === "ready" && !visibleRows.length && (
-              <tr><td colSpan="4" className="backtest-table-empty">No completed monthly returns in this window.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-      <p className="backtest-table-note">
-        Flow-neutral time-weighted returns: deposits and withdrawals are excluded.
-      </p>
-    </DashboardCard>
+function PerformanceAndRisk({ report, reportWindow, metrics, config, state = "ready" }) {
+  const loading = state === "loading";
+  const spy = metrics?.benchmarkRelative?.spy;
+  const spmo = metrics?.benchmarkRelative?.spmo;
+  const ratio = (value, digits = 2) => (
+    typeof value === "number" && Number.isFinite(value) ? value.toFixed(digits) : "—"
   );
-}
+  const money = (value) => (typeof value === "number" && Number.isFinite(value) ? formatMoney(value) : "—");
+  const schedule = config?.cashflowEnabled
+    ? `${formatMoney(Number(config.contributionAmount))} ${config.contributionFrequency} ${config.cashflowDirection === "outflow" ? "outflow" : "inflow"}`
+    : "Disabled";
 
-function PerformanceSummary({ report, reportWindow, metrics, config, state = "ready" }) {
-  const cashflowDirection = config?.cashflowDirection === "outflow" ? "outflow" : "inflow";
-  const cashflowLabel = config?.cashflowEnabled
-    ? cashflowDirection === "outflow" ? "Actual Withdrawals" : "Total Cash Inflows"
-    : "Net Cashflows";
-  const cashflowValue = report
-    ? formatMoney(config?.cashflowEnabled
-      ? cashflowDirection === "outflow" ? report.actualOutflows : report.totalInflows
-      : report.netCashflows)
-    : "—";
-  const unpaidDetail = report?.unpaidOutflows > 0
-    ? `${formatMoney(report.requestedOutflows)} requested · ${formatMoney(report.unpaidOutflows)} unpaid`
-    : null;
-  const settings = [
-    { label: "Initial Capital", value: report ? formatMoney(report.initialCapital) : "—", icon: Bank },
-    { label: "Reinvest Dividends", value: config ? (config.reinvestDividends ? "Yes" : "No") : "—", icon: TrendUp },
-    { label: "Inflation Adjusted", value: config ? (config.inflationAdjusted ? "Yes" : "No") : "—", icon: ChartBar },
-    {
-      label: "Rebalancing",
-      value: config ? rebalanceLabel(config.rebalanceFrequency) : "—",
-      icon: Scales,
-    },
-  ];
-  const performanceMetrics = [
-    {
-      label: "Duration",
-      value: formatBacktestDuration(reportWindow?.dates?.[0], reportWindow?.dates?.at(-1)),
-      tip: "Completed calendar months between the first and last effective backtest observations.",
-    },
+  // Four figures carry the story: what the strategy earned, what the investor
+  // earned, and how much risk it took to get there.
+  const hero = [
     {
       label: "CAGR",
       value: formatPercent(metrics?.cagr),
       tone: valueTone(metrics?.cagr),
       tip: "Annualised strategy NAV growth over the effective dates. External contributions are excluded, so the result remains cashflow-safe.",
-    },
-    {
-      label: "Sharpe Ratio",
-      value: typeof metrics?.sharpe === "number" && Number.isFinite(metrics.sharpe)
-        ? metrics.sharpe.toFixed(2)
-        : "—",
-      tip: "Annualised daily excess return using the existing 0% risk-free-rate assumption.",
     },
     {
       label: "Time-Weighted Return",
@@ -889,82 +775,188 @@ function PerformanceSummary({ report, reportWindow, metrics, config, state = "re
       tip: "The annualised rate that makes the dated initial investment, cashflows and ending account value net to zero.",
     },
     {
-      label: "Net Profit / Loss",
-      value: report ? formatMoney(report.netProfitLoss) : "—",
-      tone: valueTone(report?.netProfitLoss),
-      tip: "Ending balance plus actual withdrawals, minus initial capital and actual deposits. Unpaid withdrawals are excluded because they never left the account.",
-    },
-    {
       label: "Investment Max Drawdown",
       value: formatPercent(metrics?.maxDrawdown),
       tone: valueTone(metrics?.maxDrawdown),
       tip: "Peak-to-trough decline of the unitized total-return NAV. Deposits and withdrawals cannot create or mask this loss.",
     },
+  ];
+
+  // One quiet line records how the run was configured, so a saved screenshot or
+  // a shared export can still be traced back to its assumptions.
+  const settings = [
+    { label: "Initial Capital", value: report ? formatMoney(report.initialCapital) : "—" },
+    { label: "Reinvest Dividends", value: config ? (config.reinvestDividends ? "Yes" : "No") : "—" },
+    { label: "Inflation Adjusted", value: config ? (config.inflationAdjusted ? "Yes" : "No") : "—" },
+    { label: "Rebalancing", value: config ? rebalanceLabel(config.rebalanceFrequency) : "—" },
+  ];
+
+  const groups = [
     {
-      label: "Account Max Drawdown",
-      value: formatPercent(report?.accountDrawdown?.maxDrawdown),
-      tone: valueTone(report?.accountDrawdown?.maxDrawdown),
-      tip: "Peak-to-trough decline of the actual account balance, including executed withdrawals. This is a cashflow view, not a market-loss measure.",
+      title: "Return",
+      rows: [
+        {
+          label: "Duration",
+          value: formatBacktestDuration(reportWindow?.dates?.[0], reportWindow?.dates?.at(-1)),
+          tip: "Completed calendar months between the first and last effective backtest observations.",
+        },
+        {
+          label: "Net Profit / Loss",
+          value: money(report?.netProfitLoss),
+          tone: valueTone(report?.netProfitLoss),
+          tip: "Ending balance plus actual withdrawals, minus initial capital and actual deposits. Unpaid withdrawals are excluded because they never left the account.",
+        },
+        {
+          label: "Return on Capital",
+          value: formatPercent(report?.endingCapitalReturnPct),
+          tone: valueTone(report?.endingCapitalReturnPct),
+          tip: "Profit divided by every dollar committed so far. Deposits dilute the ratio; withdrawals do not erase earned profit.",
+        },
+        {
+          label: "vs. SPY (Total Return)",
+          value: report ? `${formatPercent(report.relativeToSpyPct)} pp` : "—",
+          tone: valueTone(report?.relativeToSpyPct),
+          tip: "Time-weighted strategy return minus the matched-date SPY return. Both sides use the selected nominal or inflation-adjusted basis.",
+        },
+      ],
     },
     {
-      label: "vs. SPY (Total Return)",
-      value: report ? `${formatPercent(report.relativeToSpyPct)} pp` : "—",
-      tone: valueTone(report?.relativeToSpyPct),
-      tip: "Time-weighted strategy return minus the matched-date SPY return. Both sides use the selected nominal or inflation-adjusted basis.",
+      title: "Cash flow",
+      rows: [
+        {
+          label: "Schedule",
+          value: schedule,
+          plain: true,
+          tip: "The external flow applied to Strategy, SPY and SPMO on identical dates.",
+        },
+        {
+          label: "Total Cash Inflows",
+          value: money(report?.totalInflows),
+          tip: "Every deposit executed into the account. Opening capital is not a deposit and is reported separately.",
+        },
+        {
+          label: "Actual Withdrawals",
+          value: money(report?.actualOutflows),
+          tip: "Withdrawals that were funded by the account balance.",
+        },
+        {
+          label: "Unpaid Withdrawals",
+          value: money(report?.unpaidOutflows),
+          tone: report?.unpaidOutflows > 0 ? "negative" : "",
+          tip: "Requests the account could not fund. They never left the account, so they are excluded from XIRR and net P&L.",
+        },
+      ],
+    },
+    {
+      title: "Risk",
+      rows: [
+        {
+          label: "Annualized Volatility",
+          value: formatPercent(metrics?.annualizedVolatility),
+          tip: "Sample standard deviation of daily strategy returns, annualized by √252.",
+        },
+        {
+          label: "Sharpe Ratio",
+          value: ratio(metrics?.sharpe),
+          tip: "Annualised daily excess return using the existing 0% risk-free-rate assumption.",
+        },
+        {
+          label: "Sortino Ratio",
+          value: ratio(metrics?.sortino),
+          tip: "Annualised excess return divided by downside deviation. The existing 0% risk-free assumption applies.",
+        },
+        {
+          label: "Account Max Drawdown",
+          value: formatPercent(report?.accountDrawdown?.maxDrawdown),
+          tone: valueTone(report?.accountDrawdown?.maxDrawdown),
+          tip: "Peak-to-trough decline of the actual account balance, including executed withdrawals. This is a cashflow view, not a market-loss measure.",
+        },
+      ],
+    },
+    {
+      title: "Benchmarks",
+      rows: [
+        {
+          label: "Beta vs. SPY",
+          value: ratio(spy?.beta),
+          tip: "Covariance of aligned daily strategy and SPY returns divided by SPY variance.",
+        },
+        {
+          label: "Correlation vs. SPY",
+          value: ratio(spy?.correlation),
+          tip: "Pearson correlation of aligned daily strategy and SPY returns.",
+        },
+        {
+          label: "Tracking Error vs. SPY",
+          value: formatPercent(spy?.trackingError),
+          tip: "Sample standard deviation of daily active returns versus SPY, annualized by √252.",
+        },
+        {
+          label: "Information Ratio vs. SPY",
+          value: ratio(spy?.informationRatio),
+          tip: "Annualized mean daily active return divided by active-return volatility.",
+        },
+        {
+          label: "Beta vs. SPMO",
+          value: ratio(spmo?.beta),
+          tip: "Covariance of aligned daily strategy and SPMO returns divided by SPMO variance.",
+        },
+        {
+          label: "Tracking Error vs. SPMO",
+          value: formatPercent(spmo?.trackingError),
+          tip: "Sample standard deviation of daily active returns versus SPMO, annualized by √252.",
+        },
+      ],
     },
   ];
+
   return (
-    <DashboardCard title="Performance Summary" className="backtest-summary-card">
-      <div className="backtest-summary-top">
-        <div className="backtest-summary-primary">
-          <div className="backtest-summary-tile">
-            <span className="backtest-summary-tile__label"><Stack size={18} aria-hidden="true" />Final Portfolio Value</span>
-            <strong>
-              {state === "loading"
-                ? <Skeleton width="76%" height="0.65em" />
-                : report ? formatMoney(report.finalValue) : "—"}
-            </strong>
-          </div>
-          <div className="backtest-summary-tile">
-            <span className="backtest-summary-tile__label"><Coins size={18} aria-hidden="true" />{cashflowLabel}</span>
-            <strong>
-              {state === "loading"
-                ? <Skeleton width="64%" height="0.65em" />
-                : cashflowValue}
-            </strong>
-            {state === "ready" && unpaidDetail && (
-              <span className="backtest-summary-tile__detail">{unpaidDetail}</span>
-            )}
-          </div>
-        </div>
-        <div className="backtest-summary-settings" aria-label="Investment settings">
-          {settings.map(({ label, value, icon: Icon }) => (
-            <div className="backtest-summary-setting" key={label}>
-              <span><Icon size={16} aria-hidden="true" />{label}</span>
-              <strong>{state === "loading" ? <Skeleton width="58px" height="11px" /> : value}</strong>
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className="backtest-return-metrics" aria-label="Performance metrics">
-        {performanceMetrics.map(({ label, value, tone = "", tip }) => (
-          <div className="backtest-metric-tile" key={label}>
-            <span className="backtest-metric-tile__label">
+    <DashboardCard title="Performance & Risk" className="backtest-perf-card">
+      <div className="backtest-perf-hero" aria-label="Headline returns">
+        {hero.map(({ label, value, tone = "", tip }) => (
+          <div className="backtest-perf-hero__item" key={label}>
+            <span className="backtest-perf-hero__label">
               {label}
               <InfoTooltip label={label}>{tip}</InfoTooltip>
             </span>
-            <strong className={tone ? `is-${tone}` : undefined}>
-              {state === "loading"
-                ? <Skeleton width="72px" height="16px" />
-                : value}
+            <strong className={`backtest-perf-hero__value${tone ? ` is-${tone}` : ""}`}>
+              {loading ? <Skeleton width="76%" height="0.62em" /> : value}
             </strong>
           </div>
         ))}
       </div>
+      <div className="backtest-perf-columns">
+        {groups.map((group) => (
+          <section className="backtest-perf-group" key={group.title} aria-label={group.title}>
+            <h4 className="backtest-perf-group__title">{group.title}</h4>
+            {group.rows.map(({ label, value, tone = "", tip, plain = false }) => (
+              <div className="backtest-perf-row" key={label}>
+                <span className="backtest-perf-row__label">
+                  {label}
+                  <InfoTooltip label={label}>{tip}</InfoTooltip>
+                </span>
+                <strong
+                  className={`backtest-perf-row__value${tone ? ` is-${tone}` : ""}${plain ? " is-plain" : ""}`}
+                >
+                  {loading ? <Skeleton width="52px" height="12px" /> : value}
+                </strong>
+              </div>
+            ))}
+          </section>
+        ))}
+      </div>
+      <dl className="backtest-perf-foot" aria-label="Investment settings">
+        {settings.map(({ label, value }) => (
+          <div className="backtest-perf-foot__item" key={label}>
+            <dt>{label}</dt>
+            <dd>{loading ? <Skeleton width="46px" height="11px" /> : value}</dd>
+          </div>
+        ))}
+      </dl>
       {state !== "ready" && state !== "loading" && (
         <DataState
           state={state}
-          title="Performance summary unavailable"
+          title="Performance and risk unavailable"
           detail="The latest validated backtest results are not available."
           className="backtest-summary-state"
         />
@@ -972,84 +964,6 @@ function PerformanceSummary({ report, reportWindow, metrics, config, state = "re
     </DashboardCard>
   );
 }
-
-function RiskAnalysis({ metrics, state = "ready" }) {
-  const spy = metrics?.benchmarkRelative?.spy;
-  const spmo = metrics?.benchmarkRelative?.spmo;
-  const ratio = (value, digits = 2) => (
-    typeof value === "number" && Number.isFinite(value) ? value.toFixed(digits) : "—"
-  );
-  const analysisMetrics = [
-    {
-      label: "Annualized Volatility",
-      value: formatPercent(metrics?.annualizedVolatility),
-      tip: "Sample standard deviation of daily strategy returns, annualized by √252.",
-    },
-    {
-      label: "Sortino Ratio",
-      value: ratio(metrics?.sortino),
-      tip: "Annualized excess return divided by downside deviation. The existing 0% risk-free assumption applies.",
-    },
-    {
-      label: "Beta vs. SPY",
-      value: ratio(spy?.beta),
-      tip: "Covariance of aligned daily strategy and SPY returns divided by SPY variance.",
-    },
-    {
-      label: "Correlation vs. SPY",
-      value: ratio(spy?.correlation),
-      tip: "Pearson correlation of aligned daily strategy and SPY returns.",
-    },
-    {
-      label: "Tracking Error vs. SPY",
-      value: formatPercent(spy?.trackingError),
-      tip: "Sample standard deviation of daily active returns versus SPY, annualized by √252.",
-    },
-    {
-      label: "Information Ratio vs. SPY",
-      value: ratio(spy?.informationRatio),
-      tip: "Annualized mean daily active return divided by active-return volatility.",
-    },
-    {
-      label: "Beta vs. SPMO",
-      value: ratio(spmo?.beta),
-      tip: "Covariance of aligned daily strategy and SPMO returns divided by SPMO variance.",
-    },
-    {
-      label: "Tracking Error vs. SPMO",
-      value: formatPercent(spmo?.trackingError),
-      tip: "Sample standard deviation of daily active returns versus SPMO, annualized by √252.",
-    },
-  ];
-  return (
-    <DashboardCard title="Risk & Benchmark Analysis" className="backtest-risk-card">
-      <div className="backtest-return-metrics backtest-risk-metrics" aria-label="Risk and benchmark metrics">
-        {analysisMetrics.map(({ label, value, tip }) => (
-          <div className="backtest-metric-tile" key={label}>
-            <span className="backtest-metric-tile__label">
-              {label}
-              <InfoTooltip label={label}>{tip}</InfoTooltip>
-            </span>
-            <strong>
-              {state === "loading"
-                ? <Skeleton width="72px" height="16px" />
-                : value}
-            </strong>
-          </div>
-        ))}
-      </div>
-      {state !== "ready" && state !== "loading" && (
-        <DataState
-          state={state}
-          title="Risk analysis unavailable"
-          detail="The latest validated benchmark series are not available."
-          className="backtest-summary-state"
-        />
-      )}
-    </DashboardCard>
-  );
-}
-
 function AdvancedSettings({ open, onToggle, draft, updateDraft, amountErrors }) {
   const cashflowDirection = draft.cashflowDirection === "outflow" ? "outflow" : "inflow";
   const summary = `${formatMoney(Number(draft.initialCapital))} initial${draft.cashflowEnabled ? ` · ${formatMoney(Number(draft.contributionAmount))} ${draft.contributionFrequency} ${cashflowDirection}` : " · No cashflows"} · Reinvest: ${draft.reinvestDividends ? "On" : "Off"} · Rebalance: ${rebalanceSummaryLabel(draft.rebalanceFrequency)}`;
@@ -1215,9 +1129,6 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
   const [customRun, setCustomRun] = useState(null);
   const [range, setRange] = useState("All");
   const [logScale, setLogScale] = useState(false);
-  // The default view is the money the investor actually holds, because that is
-  // what the cashflow configuration changes.
-  const [chartView, setChartView] = useState("value");
   const [drawdownBasis, setDrawdownBasis] = useState("investment");
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
@@ -1501,13 +1412,10 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
         ? "loading"
         : sourceState;
   const resultsLoading = !resultsReady && resultsState === "loading";
-  // With cashflows enabled the primary performance figure is the investor's own
-  // money-weighted return; the flow-neutral TWR stays one click away in the
-  // KPI detail and in the Performance Summary.
-  const cashflowPrimary = Boolean(submittedConfig?.cashflowEnabled);
-  const headlineReturn = cashflowPrimary
-    ? report?.moneyWeightedReturnPct
-    : report?.timeWeightedReturnPct ?? metrics.totalReturn;
+  // The headline return is always the flow-neutral total return, so switching
+  // cashflows on or off never changes what this card means. The investor's own
+  // XIRR sits beside it in the Performance & Risk card.
+  const totalReturn = report?.timeWeightedReturnPct ?? metrics.totalReturn;
   // Pending universe/rebalance changes only update the draft. They never raise
   // a notification: feedback belongs to Run Backtest and its real outcome.
 
@@ -1746,12 +1654,9 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
             />
             <KpiCard
               loading={resultsLoading}
-              label={cashflowPrimary ? "Investor Return" : "Total Return"}
-              detail={cashflowPrimary && report && !resultsLoading
-                ? `XIRR · TWR ${formatPercent(report.timeWeightedReturnPct)}`
-                : undefined}
-              value={formatPercent(headlineReturn)}
-              valueTone={valueTone(headlineReturn)}
+              label="Total Return"
+              value={formatPercent(totalReturn)}
+              valueTone={valueTone(totalReturn)}
               icon={Stack}
               tint="mint"
               mascotVariant="mint"
@@ -1764,16 +1669,6 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
             className="backtest-cumulative-card"
             action={(
               <div className="backtest-chart-controls">
-                <div className="period-control backtest-view-control" role="group" aria-label="Chart view">
-                  {CHART_VIEWS.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      aria-pressed={chartView === item.id}
-                      onClick={() => setChartView(item.id)}
-                    >{item.label}</button>
-                  ))}
-                </div>
                 <LogScaleToggle checked={logScale} onChange={setLogScale} />
                 <div className="period-control backtest-range-control" role="group" aria-label="Chart time range">
                   {RANGES.map((item) => (
@@ -1800,7 +1695,6 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
               <CumulativeChart
                 dates={chartWindow.dates}
                 range={range}
-                view={chartView}
                 logScale={logScale}
                 seriesValues={chartSeries}
                 onLogUnavailable={() => {
@@ -1811,7 +1705,7 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
             ) : (
               <ChartState
                 state={resultsState}
-                title={resultsState === "error" ? "Cumulative return unavailable" : "No cumulative return data"}
+                title={resultsState === "error" ? "Portfolio value unavailable" : "No portfolio value data"}
                 detail={resultsState === "error"
                   ? "The latest validated backtest series could not be loaded."
                   : "Run a backtest after the first verified data update to populate this chart."}
@@ -1879,19 +1773,11 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
               state={resultsReady ? "ready" : resultsState}
             />
           </section>
-          <MonthlyReturnTable
-            rows={report?.monthlyRows ?? []}
-            state={resultsReady ? "ready" : resultsState}
-          />
-          <PerformanceSummary
+          <PerformanceAndRisk
             report={report}
             reportWindow={reportWindow}
             metrics={metrics}
             config={submittedConfig}
-            state={resultsReady ? "ready" : resultsState}
-          />
-          <RiskAnalysis
-            metrics={metrics}
             state={resultsReady ? "ready" : resultsState}
           />
           <PortfolioEvolution

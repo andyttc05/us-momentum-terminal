@@ -93,8 +93,8 @@ test("the selector exposes only Inflow and Outflow and preserves the full config
   assert.match(page, /onChange=\{\(checked\) => updateDraft\(\{ cashflowEnabled: checked \}\)\}/);
   assert.match(page, /data-open=\{draft\.cashflowEnabled \|\| undefined\}/);
   assert.match(page, /cashflowDirection: "inflow"/);
-  assert.match(page, /report\.actualOutflows/);
-  assert.match(page, /report\.unpaidOutflows/);
+  assert.match(page, /report\?\.actualOutflows/);
+  assert.match(page, /report\?\.unpaidOutflows/);
 });
 
 test("Run Backtest forwards the complete cashflow configuration to the Python engine", () => {
