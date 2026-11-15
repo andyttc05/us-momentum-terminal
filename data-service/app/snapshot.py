@@ -203,7 +203,7 @@ def load_series(
     batches = [symbols[index:index + batch_size] for index in range(0, len(symbols), batch_size)]
 
     if hasattr(primary, "fetch_many") and batches:
-        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout, as_completed
 
         def fetch_batch(batch: list[str]):
             try:
@@ -212,20 +212,45 @@ def load_series(
                 return batch, {}, f"{type(exc).__name__}: {exc}"[:200]
 
         completed = 0
-        with ThreadPoolExecutor(max_workers=max(1, settings.history_batch_workers)) as pool:
-            futures = [pool.submit(fetch_batch, batch) for batch in batches]
-            for future in as_completed(futures):
-                batch, batch_results, error = future.result()
-                results.update(batch_results)
-                completed += len(batch)
-                if error:
+        # A provider call that never returns used to hang this function forever:
+        # `as_completed` waited on it, closing the executor waited on it again,
+        # and `_WARMING["active"]` therefore stayed true — so the service could
+        # never start another warm-up, never published, and answered every
+        # request slowly while the stuck thread kept working. Wait a bounded
+        # time instead and let the per-symbol pass below recover whatever that
+        # batch would have contributed.
+        batch_budget = max(1.0, float(settings.history_batch_timeout))
+        pool = ThreadPoolExecutor(max_workers=max(1, settings.history_batch_workers))
+        try:
+            futures = {pool.submit(fetch_batch, batch): batch for batch in batches}
+            try:
+                for future in as_completed(futures, timeout=batch_budget):
+                    batch, batch_results, error = future.result()
+                    results.update(batch_results)
+                    completed += len(batch)
+                    if error:
+                        failures.append({
+                            "provider": primary_id,
+                            "stage": "batch",
+                            "error": error,
+                            "symbols": len(batch),
+                        })
+                    report("loading_bars", completed)
+            except FuturesTimeout:
+                for future, batch in futures.items():
+                    if future.done():
+                        continue
+                    completed += len(batch)
                     failures.append({
                         "provider": primary_id,
                         "stage": "batch",
-                        "error": error,
+                        "error": f"batch timed out after {batch_budget:.0f}s",
                         "symbols": len(batch),
                     })
                 report("loading_bars", completed)
+        finally:
+            # `wait=False`: a hung provider call must not keep this thread alive.
+            pool.shutdown(wait=False, cancel_futures=True)
 
     missing = [
         symbol
@@ -250,34 +275,49 @@ def load_series(
         return symbol, None, ("provider", f"{last_error} (tried: {', '.join(registry.chain())})")
 
     if missing:
-        from concurrent.futures import ThreadPoolExecutor
-
-        from concurrent.futures import as_completed
+        from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout, as_completed
 
         completed = total - len(missing)
-        with ThreadPoolExecutor(max_workers=max(1, settings.series_fetch_workers)) as pool:
-            futures = [pool.submit(fetch_one, symbol) for symbol in missing]
-            for future in as_completed(futures):
-                symbol, resolved, error = future.result()
-                completed += 1
-                report("recovering_symbols", completed)
-                if error:
-                    stage, message = error
-                    failures.append({"provider": "none", "stage": stage, "symbol": symbol, "error": message})
-                    continue
-                try:
-                    results[symbol] = resolved.result
-                    if resolved.used_backup:
-                        failures.append(
-                            {
-                                "provider": resolved.result.source,
-                                "stage": "fallback",
-                                "symbol": symbol,
-                                "error": f"primary provider failed; served by {resolved.result.source_label}",
-                            }
-                        )
-                except ProviderError as exc:
-                    failures.append({"provider": "none", "stage": "fetch", "symbol": symbol, "error": str(exc)[:200]})
+        # Same bounded wait as the batch phase: one symbol that never answers
+        # must cost one missing symbol, not the whole publication.
+        symbol_budget = max(1.0, float(settings.warm_timeout))
+        pool = ThreadPoolExecutor(max_workers=max(1, settings.series_fetch_workers))
+        try:
+            futures = {pool.submit(fetch_one, symbol): symbol for symbol in missing}
+            try:
+                for future in as_completed(futures, timeout=symbol_budget):
+                    symbol, resolved, error = future.result()
+                    completed += 1
+                    report("recovering_symbols", completed)
+                    if error:
+                        stage, message = error
+                        failures.append({"provider": "none", "stage": stage, "symbol": symbol, "error": message})
+                        continue
+                    try:
+                        results[symbol] = resolved.result
+                        if resolved.used_backup:
+                            failures.append(
+                                {
+                                    "provider": resolved.result.source,
+                                    "stage": "fallback",
+                                    "symbol": symbol,
+                                    "error": f"primary provider failed; served by {resolved.result.source_label}",
+                                }
+                            )
+                    except ProviderError as exc:
+                        failures.append({"provider": "none", "stage": "fetch", "symbol": symbol, "error": str(exc)[:200]})
+            except FuturesTimeout:
+                for future, symbol in futures.items():
+                    if future.done():
+                        continue
+                    failures.append({
+                        "provider": "none",
+                        "stage": "symbol",
+                        "symbol": symbol,
+                        "error": f"timed out after {symbol_budget:.0f}s",
+                    })
+        finally:
+            pool.shutdown(wait=False, cancel_futures=True)
 
     report("bars_ready", len(results))
     return results, failures

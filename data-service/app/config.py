@@ -44,6 +44,13 @@ def _int(name: str, default: int) -> int:
         return default
 
 
+def _float(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
 @dataclass(frozen=True)
 class Settings:
     host: str = os.environ.get("DATA_SERVICE_HOST", "127.0.0.1")
@@ -77,6 +84,10 @@ class Settings:
     retry_base_seconds: float = float(os.environ.get("DATA_RETRY_BASE_SECONDS", "0.75"))
     warm_error_cooldown: int = _int("DATA_WARM_ERROR_COOLDOWN", 30)
     warm_timeout: int = _int("DATA_WARM_TIMEOUT", 180)
+    # How long one batch of provider calls may run before it is abandoned. A
+    # provider that never answers must cost one batch, not the whole warm-up:
+    # the service used to wait forever, and never published again.
+    history_batch_timeout: float = _float("DATA_HISTORY_BATCH_TIMEOUT", 100)
 
     # Cache TTLs in seconds.
     ttl_bars_intraday: int = _int("DATA_TTL_BARS_INTRADAY", 900)       # 15 min while the market is open
