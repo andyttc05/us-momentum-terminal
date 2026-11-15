@@ -69,7 +69,13 @@ jobs:
         run: npm run build
         env:
           VITE_BASE_PATH: /us-momentum-terminal/
+          # The snapshot is static so the first paint is instant and the site
+          # still renders if the service is asleep. VITE_API_BASE_URL is what
+          # makes it live: with it set, MarketProvider asks the service whether
+          # it holds a newer publication and adopts it, and "Check for updates"
+          # triggers a real rebuild instead of re-downloading the same file.
           VITE_DATA_MODE: static
+          VITE_API_BASE_URL: https://us-momentum-data.onrender.com/api
           VITE_BACKTEST_API_BASE_URL: https://us-momentum-data.onrender.com/api
 
       - name: Run frontend tests

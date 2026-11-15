@@ -13,6 +13,14 @@ const STATIC_BASE = `${import.meta.env.BASE_URL || "/"}data`;
 export const DATA_MODE = import.meta.env.VITE_DATA_MODE
   || (import.meta.env.PROD ? "static" : "live");
 
+/* The deployed Pages build ships the published JSON *and* points
+   VITE_API_BASE_URL at the live service. That combination is intentional: the
+   snapshot paints from the static files immediately, and the provider then asks
+   the service whether it holds something newer (see MarketProvider's live
+   probe). Empty in a build with no service configured, which is what makes the
+   static delivery still work on its own. */
+export const LIVE_API_BASE = import.meta.env.VITE_API_BASE_URL || "";
+
 const inFlight = new Map();
 
 function dedupe(key, task) {
@@ -109,15 +117,35 @@ async function staticRequest(path, { timeout = 20_000, noCache = false } = {}) {
 
 export const api = {
   dataMode: DATA_MODE,
+  /* True when the build was given a live service URL. The provider uses it to
+     decide whether a background check is worth running at all. */
+  liveService: Boolean(LIVE_API_BASE),
   snapshot: ({ force = false } = {}) => {
     if (DATA_MODE !== "static") return request("/snapshot");
     const key = force ? `snapshot:${Date.now()}` : "snapshot";
     return dedupe(key, () => staticRequest("publication.json", { noCache: force }));
   },
+  /* Live-service reads, used by the static build to pick up a newer publication
+     than the one it shipped with. `/health` is a few kilobytes and carries the
+     age of the service's cached publication, so it answers "is there anything
+     newer?" without downloading a 4MB snapshot on every poll. */
+  liveHealth: () => request("/health", { base: LIVE_API_BASE, timeout: 15_000 }),
+  liveSnapshot: () => request("/snapshot", { base: LIVE_API_BASE, timeout: 90_000 }),
+  liveRefresh: () => request("/refresh", { method: "POST", base: LIVE_API_BASE, timeout: 30_000 }),
   stock: (ticker) => {
     const symbol = String(ticker ?? "").trim().toUpperCase();
     if (DATA_MODE !== "static") return request(`/stock/${encodeURIComponent(symbol)}`);
-    return dedupe(`stock:${symbol}`, () => staticRequest(`stocks/${encodeURIComponent(symbol)}.json`));
+    return dedupe(`stock:${symbol}`, async () => {
+      /* The published detail file is the fast path. A ticker that only exists
+         in a newer live universe has no file yet, so the service answers for it
+         rather than the page showing an error. */
+      try {
+        return await staticRequest(`stocks/${encodeURIComponent(symbol)}.json`);
+      } catch (error) {
+        if (!LIVE_API_BASE || error?.status !== 404) throw error;
+        return request(`/stock/${encodeURIComponent(symbol)}`, { base: LIVE_API_BASE });
+      }
+    });
   },
   manifest: () => (
     DATA_MODE === "static"

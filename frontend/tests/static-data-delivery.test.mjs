@@ -65,3 +65,31 @@ test("GitHub Pages deploys a static scheduled snapshot without secrets", () => {
   assert.match(workflow, /python data-service\/scripts\/export_static\.py/);
   assert.doesNotMatch(workflow, /FMP_API_KEY|TWELVEDATA_API_KEY/);
 });
+
+test("the deployed build keeps a way to reach newer data than it shipped with", () => {
+  const workflow = source("../../.github/workflows/deploy-pages.yml");
+  const client = source("../src/api/client.js");
+  const provider = source("../src/api/MarketProvider.jsx");
+
+  // Dropping this line is what froze the deployed site: with only
+  // VITE_DATA_MODE=static the build still worked and still validated, so
+  // nothing looked broken — but no request could ever return different data,
+  // and "Check for updates" re-downloaded the same file.
+  assert.match(workflow, /VITE_API_BASE_URL:\s*https:\/\/us-momentum-data\.onrender\.com\/api/);
+  assert.match(workflow, /VITE_DATA_MODE:\s*static/);
+
+  // The cheap probe decides whether the 4MB snapshot is worth fetching at all.
+  assert.match(client, /liveHealth:\s*\(\)\s*=>\s*request\("\/health"/);
+  assert.match(client, /liveSnapshot:\s*\(\)\s*=>\s*request\("\/snapshot"/);
+  assert.match(client, /liveRefresh:\s*\(\)\s*=>\s*request\("\/refresh",\s*\{\s*method:\s*"POST"/);
+  assert.match(provider, /api\.liveHealth\(\)/);
+  assert.match(provider, /snapshot_age_seconds/);
+  assert.match(provider, /api\.liveSnapshot\(\)/);
+  assert.match(provider, /api\.liveRefresh\(\)/);
+
+  // The published snapshot still paints first and still wins when the service
+  // has nothing newer, and an adopted live snapshot is never rolled back by the
+  // scheduled re-read of the published file.
+  assert.match(provider, /liveAt <= publishedAt \+ 60_000/);
+  assert.match(provider, /origin === "published" && Number\.isFinite\(incomingAt\)/);
+});

@@ -14,7 +14,16 @@ import {
 const MarketContext = createContext(null);
 const LIVE_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 const STATIC_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
+/* Static build + live service: how often to ask the service whether it holds a
+   newer publication than the one shipped with the build. */
+const LIVE_PROBE_INTERVAL_MS = 3 * 60 * 1000;
+/* A forced refresh runs in the service's background, so the new publication is
+   collected by polling. 45 × 4s covers a cold 203-ticker warm-up. */
+const LIVE_REFRESH_POLL_MS = 4000;
+const LIVE_REFRESH_POLLS = 45;
 const STATIC_MODE = DATA_MODE === "static";
+
+const sleep = (ms) => new Promise((resolve) => { window.setTimeout(resolve, ms); });
 
 function cachedPublicationState() {
   const cached = readCachedPublication();
@@ -79,6 +88,42 @@ export function MarketProvider({ children }) {
     setDataNotice({ id, key: `${signature}:${Date.now()}` });
   }, []);
 
+  /* Writes a publication into state. Shared by the scheduled load and by the
+     live probe, which can adopt a newer snapshot without repeating the
+     request/notice bookkeeping below. Returns what the caller needs to decide
+     on the notice. */
+  const applyPayload = useCallback((payload, origin) => {
+    const meta = payload?.meta ?? {};
+    const backgroundRefresh = Boolean(meta.refresh_in_progress || meta.cache_state === "warming");
+    /* Once the live service has handed over a newer publication, the scheduled
+       re-read of the published file must not roll it back. Without this the two
+       sources would take turns every 15 minutes, each announcing an "update". */
+    const incomingAt = Date.parse(meta.generated_at ?? "");
+    const currentAt = Date.parse(dataRef.current?.meta?.generated_at ?? "");
+    if (origin === "published" && Number.isFinite(incomingAt) && Number.isFinite(currentAt) && incomingAt < currentAt) {
+      return { meta, usable: hasMarketData(dataRef.current), backgroundRefresh: false, skipped: true };
+    }
+    dataRef.current = payload;
+    setData(payload);
+    setDataOrigin(origin);
+    const hasStocks = Boolean(payload?.stocks?.length);
+    const usable = hasMarketData(payload);
+    setStatus(backgroundRefresh && !hasStocks ? "loading" : "ready");
+    if (meta.connection_status === "error" && !usable) {
+      setError({ message: "Service unavailable", code: "service_unavailable" });
+      setStatus("error");
+    } else {
+      setError(null);
+      if (hasStocks) {
+        const savedAt = new Date().toISOString();
+        writeCachedPublication(payload);
+        setBrowserCachedAt(savedAt);
+      }
+    }
+    setLastLoadedAt(new Date());
+    return { meta, usable, hasStocks, backgroundRefresh };
+  }, []);
+
   const load = useCallback(async ({ isRefresh = false, trackCompletion = false, force = false } = {}) => {
     if (isRefresh) setRefreshing(true);
     if (trackCompletion) {
@@ -89,30 +134,17 @@ export function MarketProvider({ children }) {
     try {
       const payload = await api.snapshot({ force });
       if (!mounted.current) return false;
-      const meta = payload?.meta ?? {};
-      backgroundRefresh = Boolean(meta.refresh_in_progress || meta.cache_state === "warming");
+      const applied = applyPayload(payload, STATIC_MODE ? "published" : "live");
+      const { meta, usable, backgroundRefresh: warming } = applied;
+      if (applied.skipped) {
+        setRefreshing(false);
+        return true;
+      }
+      backgroundRefresh = warming;
       if (backgroundRefresh) {
         if (!noticePending.current) lastNoticeSignature.current = "";
         noticePending.current = true;
       }
-      dataRef.current = payload;
-      setData(payload);
-      setDataOrigin(STATIC_MODE ? "published" : "live");
-      const hasStocks = Boolean(payload?.stocks?.length);
-      const usable = hasMarketData(payload);
-      setStatus(backgroundRefresh && !hasStocks ? "loading" : "ready");
-      if (meta.connection_status === "error" && !usable) {
-        setError({ message: "Service unavailable", code: "service_unavailable" });
-        setStatus("error");
-      } else {
-        setError(null);
-        if (hasStocks) {
-          const savedAt = new Date().toISOString();
-          writeCachedPublication(payload);
-          setBrowserCachedAt(savedAt);
-        }
-      }
-      setLastLoadedAt(new Date());
       if (!backgroundRefresh) {
         if (usable) {
           publishFinalNotice(meta);
@@ -147,7 +179,7 @@ export function MarketProvider({ children }) {
     } finally {
       if (mounted.current && !backgroundRefresh) setRefreshing(false);
     }
-  }, [publishFinalNotice]);
+  }, [applyPayload, publishFinalNotice]);
 
   useEffect(() => {
     load({ isRefresh: Boolean(initialCache.current) });
@@ -162,13 +194,107 @@ export function MarketProvider({ children }) {
     return () => window.clearInterval(timer);
   }, [load, refreshing, status]);
 
+  /* The build ships a snapshot produced when it was deployed, so the data on the
+     deployed site could only change when the Pages workflow ran again. When the
+     build also names a live service, ask that service whether it holds a newer
+     publication and adopt it in place.
+
+     The check is deliberately quiet and cheap: `/health` is a few kilobytes and
+     reports how old the service's cached publication is, so nothing downloads a
+     four-megabyte snapshot unless there is something newer to fetch. Every
+     failure — asleep free instance, cold start, offline — leaves the published
+     snapshot on screen and changes nothing else. */
+  const checkLive = useCallback(async () => {
+    if (!STATIC_MODE || !api.liveService) return false;
+    try {
+      const health = await api.liveHealth();
+      if (!health?.snapshot_ready) return false;
+      const ageSeconds = Number(health.snapshot_age_seconds);
+      if (!Number.isFinite(ageSeconds)) return false;
+      const publishedAt = Date.parse(dataRef.current?.meta?.generated_at ?? "");
+      const liveAt = Date.now() - ageSeconds * 1000;
+      // A minute of slack absorbs clock skew between the build and the service.
+      if (Number.isFinite(publishedAt) && liveAt <= publishedAt + 60_000) return false;
+      const payload = await api.liveSnapshot();
+      if (!mounted.current) return false;
+      /* Never swap good published data for an empty shell: if the service is
+         between rebuilds it can answer with a placeholder that carries no
+         stocks, and the page would go blank for a dataset nobody asked for. */
+      if (!hasMarketData(payload)) return false;
+      const applied = applyPayload(payload, "live");
+      if (applied.usable) {
+        noticePending.current = true;
+        lastNoticeSignature.current = "";
+        publishFinalNotice(applied.meta);
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }, [applyPayload, publishFinalNotice]);
+
+  useEffect(() => {
+    if (!STATIC_MODE || !api.liveService) return undefined;
+    let cancelled = false;
+    const tick = () => { if (!cancelled) checkLive(); };
+    /* The published snapshot paints first. Then two early retries cover a free
+       instance that is still waking (its first answer can take a minute), before
+       the check settles into its regular interval. */
+    const early = [4000, 45_000, 100_000].map((delay) => window.setTimeout(tick, delay));
+    const timer = window.setInterval(tick, LIVE_PROBE_INTERVAL_MS);
+    const onVisibility = () => { if (document.visibilityState === "visible") tick(); };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      cancelled = true;
+      early.forEach((id) => window.clearTimeout(id));
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [checkLive]);
+
   const refresh = useCallback(async () => {
     setRefreshing(true);
     noticePending.current = true;
     lastNoticeSignature.current = "";
     if (STATIC_MODE) {
-      setRefreshing(false);
-      return load({ isRefresh: true, trackCompletion: true, force: true });
+      /* No service configured: re-read the published file, which is the only
+         thing this build can do (and all it needs to do). */
+      if (!api.liveService) {
+        setRefreshing(false);
+        return load({ isRefresh: true, trackCompletion: true, force: true });
+      }
+      /* The service rebuilds its publication in the background and answers
+         /refresh immediately, so the new snapshot is collected by polling until
+         the in-progress flag clears. */
+      try {
+        await api.liveRefresh();
+      } catch (requestError) {
+        setError({ message: requestError.message, code: requestError.code ?? "request_failed" });
+        publishFinalNotice(null, requestError);
+        setRefreshing(false);
+        return false;
+      }
+      try {
+        for (let attempt = 0; attempt < LIVE_REFRESH_POLLS; attempt += 1) {
+          if (!mounted.current) return false;
+          await sleep(LIVE_REFRESH_POLL_MS);
+          try {
+            const payload = await api.liveSnapshot();
+            if (!mounted.current) return false;
+            if (payload?.meta?.refresh_in_progress) continue;
+            if (!hasMarketData(payload)) continue;
+            const applied = applyPayload(payload, "live");
+            if (applied.usable) publishFinalNotice(applied.meta);
+            return true;
+          } catch {
+            // A restarting instance may refuse a poll; the next round may succeed.
+          }
+        }
+        return false;
+      } finally {
+        // The button must stop spinning whichever way the wait ended.
+        if (mounted.current) setRefreshing(false);
+      }
     }
     try {
       await api.refresh();
@@ -179,7 +305,7 @@ export function MarketProvider({ children }) {
       return false;
     }
     return load({ trackCompletion: true });
-  }, [load, publishFinalNotice]);
+  }, [applyPayload, load, publishFinalNotice]);
 
   const selectProvider = useCallback(async (providerId) => {
     if (STATIC_MODE) return { ok: false, message: "Provider selection is available in the local service." };
