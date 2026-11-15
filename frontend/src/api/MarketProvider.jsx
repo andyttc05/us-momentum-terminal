@@ -237,10 +237,11 @@ export function MarketProvider({ children }) {
     if (!STATIC_MODE || !api.liveService) return undefined;
     let cancelled = false;
     const tick = () => { if (!cancelled) checkLive(); };
-    /* The published snapshot paints first. Then two early retries cover a free
-       instance that is still waking (its first answer can take a minute), before
-       the check settles into its regular interval. */
-    const early = [4000, 45_000, 100_000].map((delay) => window.setTimeout(tick, delay));
+    /* The published snapshot paints first. The early retries walk out to two
+       minutes because a free instance that has gone to sleep needs about a
+       minute before it answers at all; after that the check settles into its
+       regular interval. */
+    const early = [4000, 30_000, 60_000, 95_000, 135_000].map((delay) => window.setTimeout(tick, delay));
     const timer = window.setInterval(tick, LIVE_PROBE_INTERVAL_MS);
     const onVisibility = () => { if (document.visibilityState === "visible") tick(); };
     document.addEventListener("visibilitychange", onVisibility);
