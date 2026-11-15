@@ -219,8 +219,14 @@ def load_series(
         # request slowly while the stuck thread kept working. Wait a bounded
         # time instead and let the per-symbol pass below recover whatever that
         # batch would have contributed.
-        batch_budget = max(1.0, float(settings.history_batch_timeout))
-        pool = ThreadPoolExecutor(max_workers=max(1, settings.history_batch_workers))
+        # The budget is per *wave*, not for the whole phase: two workers chewing
+        # through six batches need three waves, and a limit sized for one wave
+        # would abandon batches that were about to finish. A hung call still
+        # costs one wave and nothing more.
+        batch_workers = max(1, settings.history_batch_workers)
+        batch_waves = max(1, -(-len(batches) // batch_workers))
+        batch_budget = max(1.0, float(settings.history_batch_timeout)) * batch_waves
+        pool = ThreadPoolExecutor(max_workers=batch_workers)
         try:
             futures = {pool.submit(fetch_batch, batch): batch for batch in batches}
             try:

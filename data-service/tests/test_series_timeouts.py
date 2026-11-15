@@ -53,7 +53,7 @@ class LoadSeriesTimeoutTests(unittest.TestCase):
         snapshot_module.settings = replace(
             settings,
             history_batch_size=2,
-            history_batch_timeout=0.2,
+            history_batch_timeout=0.1,
             warm_timeout=0.2,
             retry_attempts=0,
         )
