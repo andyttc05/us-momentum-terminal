@@ -24,6 +24,13 @@ const TIMELINESS_LABEL = {
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
+/** "Nov 15" — used for the collection day, where the year is noise. */
+function formatDayLabel(iso) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso));
+  if (!match) return "";
+  return `${MONTHS[Number(match[2]) - 1]} ${Number(match[3])}`;
+}
+
 /** Always render "Nov 11, 2026", whatever form the page passes in. */
 function formatDateLabel(iso) {
   if (!iso) return "—";
@@ -80,6 +87,13 @@ export function UpdateBar({ dateTime, ariaLabel = "Refresh data", onRefresh, bus
     meta.generated_at ? `Collected ${formatDateLabel(meta.generated_at)}` : null,
   ].filter(Boolean).join(" · ") : "Market data source";
   const shownDate = hasData ? dateTime ?? "" : "";
+  /* The pill's date is the market data's as-of date, which does not move at the
+     weekend: on Sunday the site is showing Friday's close, correctly. Read on
+     its own that looks like stale data, so when the snapshot was collected on a
+     later day than it describes, say so. */
+  const collectedDay = meta?.generated_at ? formatDayLabel(meta.generated_at) : "";
+  const collectedLater = Boolean(collectedDay) && collectedDay !== formatDayLabel(shownDate);
+  const collectedFull = meta?.generated_at ? formatDateLabel(meta.generated_at) : "";
 
   return (
     <>
@@ -94,7 +108,14 @@ export function UpdateBar({ dateTime, ariaLabel = "Refresh data", onRefresh, bus
         >
           <span className="update-bar__dot" aria-hidden="true" />
           <span className="update-bar__label">{FETCH_LABEL[fetchState]}</span>
+          {hasData && <span className="update-bar__qualifier">as of</span>}
           <time className="update-bar__date" dateTime={shownDate}>{formatDateLabel(shownDate)}</time>
+          {collectedLater && (
+            <span className="update-bar__collected">
+              · collected{" "}
+              <time dateTime={meta.generated_at} title={`Collected ${collectedFull}`}>{collectedDay}</time>
+            </span>
+          )}
         </button>
         <span className="update-bar__divider" aria-hidden="true" />
         <AppButton

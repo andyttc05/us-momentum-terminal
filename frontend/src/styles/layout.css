@@ -158,6 +158,18 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* "as of" and "collected" exist so the pill cannot be misread as stale: the
+   date it carries is the market's as-of date, which stands still over a weekend
+   while the snapshot underneath was collected moments ago. */
+.update-bar__qualifier,
+.update-bar__collected {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+}
+
+.update-bar__collected time { font-variant-numeric: tabular-nums; }
+
 .update-bar__divider {
   width: 1px;
   height: 25px;
@@ -311,4 +323,10 @@
   .page-header__title { white-space: normal; }
   .page-header__controls { width: 100%; }
   .page-header__controls > * { max-width: 100%; }
+
+  /* The pill's full sentence does not fit on one line at this width, and the
+     collection day is the part that must not be the bit that gets clipped. */
+  .update-bar { white-space: normal; }
+  .update-bar__summary { flex-wrap: wrap; row-gap: 2px; }
+  .update-bar__collected { width: 100%; }
 }
