@@ -9,6 +9,7 @@ import json
 import math
 import sys
 import threading
+import traceback
 import time
 from copy import deepcopy
 from datetime import date, datetime, timezone
@@ -75,6 +76,11 @@ def _warm_up(force: bool = False) -> None:
     try:
         build_publication(force=force, progress=_progress)
     except Exception as exc:  # noqa: BLE001 - surfaced through /api/health
+        # `/api/health` reports the message, but a hosted run leaves no other
+        # trace: without this the log shows a service that simply never
+        # publishes, and every diagnosis starts from zero.
+        traceback.print_exc()
+        print(f"warm-up failed: {type(exc).__name__}: {exc}", flush=True)
         with _WARMING_LOCK:
             _WARMING["error"] = f"{type(exc).__name__}: {exc}"
     finally:
