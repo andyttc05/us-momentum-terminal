@@ -475,3 +475,16 @@
     animation: none;
   }
 }
+
+/* Phone-width window (≤ 600px) — see the band note in layout.css. The sector
+   card kept a 108px + 120px split, which at 250px of content width put the
+   legend's name and its percentage on top of each other. */
+@media (max-width: 600px) {
+  .portfolio-summary-grid { grid-template-columns: minmax(0, 1fr); }
+  .portfolio-sector-content { grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 12px; }
+  .portfolio-sector-card .sector-donut { width: min(100%, 156px); }
+  .portfolio-sector-content .sector-legend { width: 100%; }
+  .portfolio-constraint-list { grid-template-columns: minmax(0, 1fr); }
+  .next-rebalance-card__visuals { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .next-rebalance-card__frequency { font-size: 0.8rem; }
+}

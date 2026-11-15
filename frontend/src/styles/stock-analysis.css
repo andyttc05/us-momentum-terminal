@@ -323,3 +323,39 @@
   .stock-analysis-right { grid-template-rows: 330px 330px; }
   .stock-profile__art { margin-left: auto; }
 }
+
+/* Phone-width window (≤ 600px) — see the band note in layout.css. The detail
+   page was still composing for the tablet: the artwork pushed the company name
+   into a three-line column, the price row's dividers held a single 480px line,
+   and the four return columns kept a 90px minimum each, so their labels ran
+   into one another. */
+@media (max-width: 600px) {
+  /* Back button and refresh bar wrap instead of pushing the bar off-screen. */
+  .stock-analysis-back-row { flex-wrap: wrap; row-gap: 8px; }
+  .stock-analysis-back-row .stock-analysis-update { width: 100%; margin-left: 0; }
+
+  /* The duo is decoration; the avatar and the copy stay. */
+  .stock-profile__art { display: none; }
+  .stock-profile { min-height: 0; gap: 12px; }
+  .stock-profile h1 { white-space: normal; }
+  .stock-profile__title-row { flex-wrap: wrap; gap: 8px; }
+
+  .stock-price-summary { flex-wrap: wrap; row-gap: 10px; }
+  .stock-price-summary__divider { display: none; }
+  .stock-price-summary__price { font-size: 2.1rem; }
+  .stock-market-cap { flex: 1 1 auto; }
+  .stock-rank-pill { min-height: 38px; font-size: 0.9rem; }
+
+  /* Two rows of two: one row of four cannot show "12M Price Return" above a
+     90px-wide pill without the labels touching. The vertical rules belong to
+     the single-row layout, so they go. */
+  .stock-returns-card { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 12px; padding: 12px 6px; }
+  .stock-return > strong { min-width: 0; width: 100%; }
+  .stock-return > i { display: none; }
+
+  .stock-price-card { padding: 12px 12px 8px; }
+  .stock-price-controls { justify-content: flex-start; }
+  .stock-price-toolbar { width: 100%; flex-wrap: wrap; }
+  .stock-price-toolbar button { min-width: 0; flex: 1 0 auto; padding: 0 8px; font-size: 0.84rem; }
+  .stock-price-range-change { font-size: 1.2rem; }
+}

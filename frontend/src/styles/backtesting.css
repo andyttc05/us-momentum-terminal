@@ -114,6 +114,24 @@
   max-width: 100%;
   overflow: hidden;
 }
+/* Vertical centring of the native date value.
+   Chrome centres the value in the input's content box for free, so the field
+   looked correct there at every height. WebKit does not: it lays the value out
+   at the top of the box, which in the 44px touch pill (touch.css) left the
+   date sitting on the top edge with ~30px of empty space below it. Making the
+   shadow edit box a full-height flex container is the fix that works in both
+   engines, and it is deliberately applied to `::-webkit-datetime-edit` rather
+   than to the input: `display: flex` on the input would also centre the text
+   but it turns the native calendar indicator into a flex item, which drags the
+   icon next to the digits in Chrome instead of leaving it on the right edge.
+   Measured in WebKit at 44px, the text centre lands within a pixel of the
+   field centre; in Chrome nothing moves. */
+.backtest-date-input::-webkit-datetime-edit {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  padding: 0;
+}
 .backtest-date-group.is-invalid .backtest-date-control { border-color: #D8848B; }
 .backtest-config__divider {
   width: 1px;
@@ -1656,4 +1674,65 @@
     min-width: 0;
     min-height: 34px;
   }
+}
+
+/* Phone-width window (≤ 600px) — see the band note in layout.css. The
+   configuration card was the worst offender here: with the tablet's two-column
+   grid its second column kept a 195px minimum, so "Run Backtest" (195px wide)
+   sat on top of the Universe segmented control. One column and full-width
+   controls is the whole fix. */
+@media (max-width: 600px) {
+  .backtest-config {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 14px;
+    padding: 14px 14px 6px;
+  }
+  .backtest-config__period,
+  .backtest-config__universe,
+  .backtest-run-group { grid-column: 1 / -1; }
+  .backtest-run-group { padding-top: 0; }
+  .backtest-run-button { width: 100%; }
+  .backtest-date-fields { gap: 10px; }
+  .backtest-date-input { font-size: 0.72rem; }
+
+  .backtest-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .backtest-kpis .kpi-card__value { font-size: 1.7rem; }
+
+  /* The money field asked for a 250px minimum inside a 250px card, so its
+     right edge sat outside the card. Stack the header instead. */
+  .backtest-capital-card .settings-card__header,
+  .backtest-rebalance-row .settings-card__header {
+    min-height: 0;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 14px;
+  }
+  .backtest-capital-card .settings-card__action,
+  .settings-row .settings-card__action,
+  .backtest-rebalance-row .settings-card__action {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+  .settings-card__body { padding: 0 14px 14px; }
+  .settings-form-grid { grid-template-columns: minmax(0, 1fr); }
+
+  /* Both chart headers carry two segmented controls plus a switch; they wrap
+     onto their own lines rather than pushing the card edge out. */
+  .backtest-cumulative-card > .dashboard-card__header { flex-wrap: wrap; row-gap: 10px; }
+  .backtest-chart-controls { justify-content: flex-start; gap: 8px; }
+  .backtest-view-control,
+  .backtest-range-control { flex-wrap: wrap; }
+  .backtest-log-toggle { min-height: 34px; }
+
+  .backtest-analytics-grid { grid-template-columns: minmax(0, 1fr); }
+  /* Two figure columns need ~270px for a label and a nowrap value; at this
+     width the value (146px on its own) ran past the card, so the groups take
+     the full width instead. */
+  .backtest-perf-columns { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .backtest-perf-row__value { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .backtest-summary-top { grid-template-columns: minmax(0, 1fr); }
+  .backtest-return-metrics { grid-template-columns: minmax(0, 1fr); }
 }

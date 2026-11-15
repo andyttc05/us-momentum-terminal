@@ -6,10 +6,18 @@
 // rotate, and the application is not painted at all.
 //
 // What this file protects is the *absence* of a fourth design: there is no
-// phone layout, no second component tree, no bottom navigation and no
-// phone-only breakpoint left to drift. Those were the parts that had to be
-// kept in sync by hand, and they are what the old mobile contract test was
-// pinning in place.
+// second component tree, no bottom navigation, no phone-only data table and no
+// JavaScript that branches on width. Those were the parts that had to be kept
+// in sync by hand, and they are what the old mobile contract test was pinning
+// in place.
+//
+// The one thing the contract does allow is a ≤ 600px stacking pass. That width
+// is reachable — a narrow desktop window, or devtools phone emulation, where
+// the input is fine and the rotate notice therefore does not apply — and the
+// tablet grids simply overflowed it: the Backtesting run button landed on top
+// of the Universe control and the Screener toolbar pushed the page ~500px wide.
+// The band only rearranges cards ("one column instead of two"); the navigation,
+// the tables and every component stay single-sourced.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
@@ -35,7 +43,10 @@ test("the three width bands are the only width bands", () => {
   const widthQueries = Object.values(styles).flatMap(mediaQueries).filter((query) => /max-width|min-width/.test(query));
 
   // Desktop / tablet / compact landscape / the capability-aware portrait
-  // notice, plus deliberate tuning steps inside those bands.
+  // notice, plus deliberate tuning steps inside those bands. The bare
+  // `max-width: 600px` step is the stacking pass described at the top of this
+  // file: it exists in every page sheet and must never be joined by a narrower
+  // one, which is what the `gone` list below enforces.
   const allowed = new Set([
     "(max-height: 830px) and (min-width: 1101px)",
     "(min-height: 831px) and (min-width: 1101px)",
@@ -50,6 +61,7 @@ test("the three width bands are the only width bands", () => {
     "(min-width: 601px) and (max-width: 1100px)",
     "(max-width: 819px)",
     "(max-width: 819px) and (orientation: portrait)",
+    "(max-width: 600px)",
     "(max-width: 600px) and (orientation: portrait) and (pointer: coarse)",
   ]);
 
@@ -127,9 +139,47 @@ test("phone portrait renders the notice and nothing else", () => {
   assert.match(orientation, /fill="var\(--color-yellow\)"/);
   assert.equal((orientation.match(/<rect\b/g) ?? []).length, 2);
   assert.match(orientation, /width="120"[\s\S]*?height="120"[\s\S]*?viewBox="0 0 120 120"/);
-  assert.match(orientation, /data-indicator="portrait"[\s\S]*?d="M25\.5 61\.5H35\.5"/);
-  assert.doesNotMatch(orientation, /M26\.3 33\.3H34\.7/);
   assert.match(portrait, /\.orientation-notice__icon \{[\s\S]*?min-width: 108px;[\s\S]*?max-width: 124px;[\s\S]*?max-height: 124px;[\s\S]*?aspect-ratio: 1 \/ 1;/);
+});
+
+test("both handsets centre their own home indicator", () => {
+  const orientation = source("../src/components/OrientationNotice.jsx");
+
+  // One indicator per handset, both built as a symmetric run around the phone's
+  // local origin. The portrait one used to carry its own `rotate(-7 …)` about
+  // its own midpoint, which is a rotation about a pivot the handset does not
+  // share: the bar stayed parallel to the phone but slid ~1.7 units to the
+  // left, which is what made it look off-centre inside the tilted outline.
+  assert.equal((orientation.match(/orientation-notice__home-indicator/g) ?? []).length, 2);
+  assert.equal((orientation.match(/d=\{`M\$\{-\w+\} \$\{\w+\}H\$\{\w+\}`\}/g) ?? []).length, 2);
+  assert.doesNotMatch(orientation, /home-indicator[\s\S]{0,200}?transform=/);
+
+  // The portrait indicator is inside the group that tilts the handset, so it
+  // inherits the tilt and cannot drift away from the phone's axis.
+  assert.match(orientation, /rotate\(\$\{PORTRAIT_TILT\}\)[\s\S]*?orientation-notice__home-indicator/);
+});
+
+test("the rotation arrow's head is symmetric about the shaft it arrives on", () => {
+  const orientation = source("../src/components/OrientationNotice.jsx");
+
+  const head = orientation.match(/d="M([\d.]+) ([\d.]+) ([\d.]+) ([\d.]+) ([\d.]+) ([\d.]+)"/);
+  assert.ok(head, "the arrowhead is a three-point path: wing, vertex, wing");
+  const [, ax, ay, vx, vy, bx, by] = head.map(Number);
+
+  const left = [ax - vx, ay - vy];
+  const right = [bx - vx, by - vy];
+  const length = (v) => Math.hypot(v[0], v[1]);
+  // Equal wings: the old head was placed by hand, with one wing 75° off the
+  // shaft and the other 16°, which read as a hook rather than an arrow.
+  assert.ok(Math.abs(length(left) - length(right)) < 0.2, "the two wings must be the same length");
+
+  // The wings run from the vertex back up the shaft, so the direction the head
+  // points is their bisector, negated. It has to run down into the landscape
+  // phone, not off to one side.
+  const back = [left[0] / length(left) + right[0] / length(right), left[1] / length(left) + right[1] / length(right)];
+  const unit = [-back[0] / length(back), -back[1] / length(back)];
+  assert.ok(unit[1] > 0.9, "the head points down");
+  assert.ok(Math.abs(unit[0]) < 0.25, "the head points at the landscape phone, not past it");
 });
 
 test("tablet portrait cannot be classified as a phone", () => {

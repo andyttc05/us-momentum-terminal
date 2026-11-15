@@ -277,3 +277,38 @@
   /* Decorative, 180px tall, and it would sit on top of the nav. */
   .sidebar__mascot { display: none; }
 }
+
+/* Phone-width window (≤ 600px) ------------------------------------------------ *
+ * A phone held upright never reaches this band: orientation.css replaces the
+ * whole shell with the rotate notice. What does reach it is a narrow desktop
+ * window and a devtools phone emulation, and until now neither stacked: the
+ * header title stayed on one line and overflowed the viewport, and every page
+ * kept the tablet's multi-column grids, so cards spilled past their own edges.
+ *
+ * The rules here are the shared skeleton only — container, header, title and
+ * the two spacing tokens. Each page stacks its own cards in its own sheet.
+ * ------------------------------------------------------------------------- */
+@media (max-width: 600px) {
+  :root {
+    --page-padding-inline: 14px;
+    --page-padding-block-start: 16px;
+    --page-padding-block-end: 20px;
+    --sidebar-compact-width: 60px;
+    --section-gap: 12px;
+    --card-gap: 10px;
+    --card-padding-inline: 14px;
+    --font-size-page-title: clamp(1.72rem, 8.4vw, 2.05rem);
+    --font-size-kpi: clamp(1.6rem, 9vw, 2rem);
+  }
+
+  .page-header {
+    min-height: 0;
+    row-gap: 10px;
+    margin-bottom: 14px;
+  }
+  /* "US Momentum Terminal" is longer than a 390px screen at any size that is
+     still a page title, so the one-line rule has to give way here. */
+  .page-header__title { white-space: normal; }
+  .page-header__controls { width: 100%; }
+  .page-header__controls > * { max-width: 100%; }
+}

@@ -230,3 +230,35 @@
 .stock-ticker-link { display: inline; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; font-weight: inherit; text-align: left; text-decoration: none; transition: color 160ms ease; }
 .stock-ticker-link:hover { color: #8D6500; }
 .stock-ticker-link:focus-visible { outline: 2px solid #D7AB2E; outline-offset: 2px; border-radius: 3px; }
+
+/* Phone-width window (≤ 600px) — see the band note in layout.css. The toolbar's
+   three columns carry 230 + 280 + two 161px buttons in minimums, so it used to
+   overflow the viewport by ~500px and take the table card with it: the table
+   then looked clipped instead of scrolling. Stacking the toolbar hands the
+   width back to the card, which already owns the horizontal scroll. */
+@media (max-width: 600px) {
+  .screener-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "search" "scope" "actions";
+    gap: 8px;
+  }
+  .screener-scope { grid-area: scope; min-height: 46px; }
+  .screener-search { grid-area: search; min-height: 46px; padding-inline: 14px; gap: 10px; }
+  .screener-search input { font-size: 0.95rem; }
+  .screener-toolbar__actions { grid-area: actions; gap: 8px; justify-content: stretch; }
+  .screener-filter-wrap,
+  .screener-export-control { flex: 1 1 0; min-width: 0; }
+  /* Both toolbar buttons share the row instead of each holding a 161px
+     minimum, which is what pushed Export past the viewport edge. */
+  .screener-toolbar__button { min-width: 0; width: 100%; min-height: 46px; padding-inline: 10px; font-size: 0.9rem; }
+  .screener-toolbar__button > svg { width: 18px; height: 18px; }
+  .screener-scope button { font-size: 0.95rem; }
+
+  /* The panel is anchored to its button, which now sits in the left half of the
+     row, so a 350px panel ran off the left edge of the screen. Anchoring it to
+     the toolbar instead gives it the full column width. */
+  .screener-filter-wrap { position: static; }
+  .screener-filter-panel { top: calc(100% + 8px); right: 0; left: 0; width: auto; padding: 15px; }
+  .screener-table-card > .table-pagination { padding: 0 2px; }
+  .pagination-page-list { gap: 3px; }
+}
