@@ -129,7 +129,10 @@ export const api = {
      than the one it shipped with. `/health` is a few kilobytes and carries the
      age of the service's cached publication, so it answers "is there anything
      newer?" without downloading a 4MB snapshot on every poll. */
-  liveHealth: () => request("/health", { base: LIVE_API_BASE, timeout: 30_000 }),
+  /* A free instance that has been asleep needs about a minute before it answers
+     at all, so this one call is patient: it is background traffic, and every
+     caller treats a failure as "nothing new". */
+  liveHealth: () => request("/health", { base: LIVE_API_BASE, timeout: 75_000 }),
   liveSnapshot: () => request("/snapshot", { base: LIVE_API_BASE, timeout: 90_000 }),
   liveRefresh: () => request("/refresh", { method: "POST", base: LIVE_API_BASE, timeout: 30_000 }),
   stock: (ticker) => {

@@ -204,8 +204,12 @@ export function MarketProvider({ children }) {
      four-megabyte snapshot unless there is something newer to fetch. Every
      failure — asleep free instance, cold start, offline — leaves the published
      snapshot on screen and changes nothing else. */
+  const probing = useRef(false);
   const checkLive = useCallback(async () => {
     if (!STATIC_MODE || !api.liveService) return false;
+    // A patient health call can outlive the next scheduled check; never stack them.
+    if (probing.current) return false;
+    probing.current = true;
     try {
       const health = await api.liveHealth();
       if (!health?.snapshot_ready) return false;
@@ -230,6 +234,8 @@ export function MarketProvider({ children }) {
       return true;
     } catch {
       return false;
+    } finally {
+      probing.current = false;
     }
   }, [applyPayload, publishFinalNotice]);
 
@@ -237,11 +243,11 @@ export function MarketProvider({ children }) {
     if (!STATIC_MODE || !api.liveService) return undefined;
     let cancelled = false;
     const tick = () => { if (!cancelled) checkLive(); };
-    /* The published snapshot paints first. The early retries walk out to two
-       minutes because a free instance that has gone to sleep needs about a
-       minute before it answers at all; after that the check settles into its
-       regular interval. */
-    const early = [4000, 30_000, 60_000, 95_000, 135_000].map((delay) => window.setTimeout(tick, delay));
+    /* The published snapshot paints first. The first check waits out a sleeping
+       instance (about a minute before it answers), and the retries cover the
+       rebuild that follows before it has a publication to offer. After that the
+       check settles into its regular interval. */
+    const early = [4000, 70_000, 110_000, 160_000].map((delay) => window.setTimeout(tick, delay));
     const timer = window.setInterval(tick, LIVE_PROBE_INTERVAL_MS);
     const onVisibility = () => { if (document.visibilityState === "visible") tick(); };
     document.addEventListener("visibilitychange", onVisibility);
