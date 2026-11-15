@@ -322,6 +322,19 @@
   .model-banner__arrow { top: calc(50% - 20px); right: 16px; }
 }
 
+/* Narrow desktop. The side column of the overview grid lands around 380px once
+   the full rail is showing, which is less than the donut's 168px + the legend's
+   190px + their gap: the legend's percentages were clipped by the card's
+   overflow instead of shrinking. The donut gives way first — it is decoration,
+   the numbers are the content. Placed before the tablet block so the narrower
+   bands keep winning below it. */
+@media (max-width: 1340px) {
+  .sector-card__content { grid-template-columns: minmax(112px, 0.8fr) minmax(150px, 1.2fr); gap: 12px; }
+  .sector-card .sector-donut { width: min(100%, 150px); }
+  .sector-legend li,
+  .sector-legend strong { font-size: 0.68rem; }
+}
+
 /* Tablet — the icon sidebar, a bounded chart, and responsive side-card columns.
    The overview keeps its two groups (chart + banner, then momentum + allocation);
    it is the group that stacks, not every individual card. */
