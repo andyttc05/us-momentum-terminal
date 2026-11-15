@@ -7,6 +7,13 @@ on:
     # After the regular US close, Monday through Friday. The exporter keeps the
     # previous validated snapshot if a provider or validation check fails.
     - cron: "23 22 * * 1-5"
+    # Once an hour through the US session (14:00-21:00 UTC), so the published
+    # snapshot follows the market instead of waiting for the close. This is the
+    # only refresh path that is reliable here: the free Render instance cannot
+    # finish a 200-ticker rebuild from a cold cache (it stalls on the last batch
+    # of provider calls), so live updates come from the runner, which is fast and
+    # is not rate-limited.
+    - cron: "7 14-21 * * 1-5"
   workflow_dispatch:
 
 # Allow the deployment job to publish to Pages and mint its own OIDC token.
@@ -56,14 +63,15 @@ jobs:
           restore-keys: |
             market-data-${{ runner.os }}-
 
+      # Every deploy rebuilds the snapshot, pushes included. A push build used
+      # to only validate the committed copy, which meant it redeployed whatever
+      # was last committed — silently rolling back data that a scheduled run had
+      # already published. The exporter keeps the previous validated snapshot
+      # when a provider fails, so this never turns a provider outage into a
+      # failed deploy.
       - name: Refresh and validate published data
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         id: refresh_data
         run: python data-service/scripts/export_static.py
-
-      - name: Validate committed published data
-        if: github.event_name == 'push'
-        run: python data-service/scripts/export_static.py --validate-only
 
       - name: Build static site
         run: npm run build
