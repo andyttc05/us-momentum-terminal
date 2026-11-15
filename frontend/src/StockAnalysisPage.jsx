@@ -579,7 +579,6 @@ export function StockAnalysisPage({ ticker = "NVDA", onBack, backLabel = "Screen
           <div className="stock-analysis-back-row">
             <AppButton variant="secondary" icon={ArrowLeft} className="stock-back-button" onClick={onBack}>{backLabel}</AppButton>
             <UpdateBar
-              dateTime={market?.overview?.snapshot?.asOf}
               ariaLabel="Refresh stock analysis"
               onRefresh={refreshStockAnalysis}
               busy={stockRefreshing}

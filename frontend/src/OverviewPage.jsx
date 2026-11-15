@@ -81,7 +81,7 @@ export function OverviewPage({ onNavigate, onSelectStock, hidden = false }) {
           title="US Momentum Terminal"
           subtitle="Momentum investing for US equities"
           art={<MascotDuo creamColor="var(--color-surface)" />}
-          controls={<UpdateBar dateTime={snapshot?.asOf} ariaLabel="Refresh overview" />}
+          controls={<UpdateBar ariaLabel="Refresh overview" />}
         />
 
         <section className="overview-kpis" aria-label="Portfolio summary">

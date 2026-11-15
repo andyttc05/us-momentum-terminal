@@ -260,7 +260,6 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
           art={<MascotDuo creamColor="var(--color-surface)" yellowColor="var(--color-yellow)" />}
           controls={(
             <UpdateBar
-              dateTime={snapshot?.asOf}
               ariaLabel="Refresh portfolio"
               onRefresh={refreshSnapshot}
             />

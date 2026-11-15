@@ -230,7 +230,6 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
           art={<MascotDuo creamColor="var(--color-surface)" />}
           controls={(
             <UpdateBar
-              dateTime={snapshot?.asOf}
               ariaLabel="Refresh screener"
               onRefresh={refresh}
             />

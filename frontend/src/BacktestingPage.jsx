@@ -1520,7 +1520,6 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
           art={<MascotDuo creamColor="var(--color-surface)" />}
           controls={(
             <UpdateBar
-              dateTime={resultBlock?.end ?? draftBlock?.end ?? ""}
               ariaLabel="Refresh backtest data"
               busy={isRunning}
               onRefresh={refreshPreview}

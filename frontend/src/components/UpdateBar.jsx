@@ -24,13 +24,6 @@ const TIMELINESS_LABEL = {
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-/** "Nov 15" — used for the collection day, where the year is noise. */
-function formatDayLabel(iso) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso));
-  if (!match) return "";
-  return `${MONTHS[Number(match[2]) - 1]} ${Number(match[3])}`;
-}
-
 /** Always render "Nov 11, 2026", whatever form the page passes in. */
 function formatDateLabel(iso) {
   if (!iso) return "—";
@@ -48,11 +41,11 @@ function formatDateLabel(iso) {
  * The fetch state is read from the market provider here rather than passed in,
  * which keeps the label and the dot in sync with the actual request.
  *
- * `dateTime` is the ISO date the page reports (a snapshot as-of date, or the
- * backtest window end). Formatting happens here so every page shows the same
- * date style in the same place.
+ * The pill dates the snapshot's collection, not the market data: a page cannot
+ * make it say something that reads like "published on Friday". Formatting
+ * happens here so every page shows the same date style in the same place.
  */
-export function UpdateBar({ dateTime, ariaLabel = "Refresh data", onRefresh, busy = false, className = "" }) {
+export function UpdateBar({ ariaLabel = "Refresh data", onRefresh, busy = false, className = "" }) {
   const [statusOpen, setStatusOpen] = useState(false);
   const { data, meta, status, error, refreshing, refresh, staticMode, dataOrigin } = useMarket();
 
@@ -72,6 +65,14 @@ export function UpdateBar({ dateTime, ariaLabel = "Refresh data", onRefresh, bus
     refreshing: fetching,
   });
 
+  /* The pill dates the *collection*, on every page. It used to carry the market
+     data's as-of date (or, on Backtesting, the window's end), which stands still
+     over a weekend: the site was showing Friday's close collected minutes ago
+     and read as days old. The as-of date still travels in the tooltip and in the
+     data dialog, where it is labelled. */
+  const shownDate = hasData ? meta?.generated_at || "" : "";
+  const asOfLabel = meta?.as_of && meta.as_of !== shownDate ? formatDateLabel(meta.as_of) : "";
+
   const timeliness = meta ? TIMELINESS_LABEL[meta.timeliness] ?? meta.timeliness : null;
   const origin = dataOrigin === "browser-cache"
     ? "Browser cache"
@@ -85,16 +86,8 @@ export function UpdateBar({ dateTime, ariaLabel = "Refresh data", onRefresh, bus
     hasData && (error || status === "error") ? "Showing latest valid data; update failed" : null,
     cacheState === "cached" ? (fetchState === "updating" ? "Showing cached data while refreshing" : "Showing cached data") : null,
     meta.generated_at ? `Collected ${formatDateLabel(meta.generated_at)}` : null,
+    asOfLabel ? `Market data through ${asOfLabel}` : null,
   ].filter(Boolean).join(" · ") : "Market data source";
-  const shownDate = hasData ? dateTime ?? "" : "";
-  /* The pill's date is the market data's as-of date, which does not move at the
-     weekend: on Sunday the site is showing Friday's close, correctly. Read on
-     its own that looks like stale data, so when the snapshot was collected on a
-     later day than it describes, say so. */
-  const collectedDay = meta?.generated_at ? formatDayLabel(meta.generated_at) : "";
-  const collectedLater = Boolean(collectedDay) && collectedDay !== formatDayLabel(shownDate);
-  const collectedFull = meta?.generated_at ? formatDateLabel(meta.generated_at) : "";
-
   return (
     <>
       <div className={`update-bar update-bar--${fetchState} ${className}`.trim()} title={tooltip}>
@@ -108,14 +101,7 @@ export function UpdateBar({ dateTime, ariaLabel = "Refresh data", onRefresh, bus
         >
           <span className="update-bar__dot" aria-hidden="true" />
           <span className="update-bar__label">{FETCH_LABEL[fetchState]}</span>
-          {hasData && <span className="update-bar__qualifier">as of</span>}
           <time className="update-bar__date" dateTime={shownDate}>{formatDateLabel(shownDate)}</time>
-          {collectedLater && (
-            <span className="update-bar__collected">
-              · collected{" "}
-              <time dateTime={meta.generated_at} title={`Collected ${collectedFull}`}>{collectedDay}</time>
-            </span>
-          )}
         </button>
         <span className="update-bar__divider" aria-hidden="true" />
         <AppButton
