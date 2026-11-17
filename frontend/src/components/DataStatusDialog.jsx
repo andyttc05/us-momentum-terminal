@@ -66,16 +66,9 @@ export function DataStatusDialog({ open, onClose }) {
     return () => { document.body.style.overflow = previousOverflow; };
   }, [open]);
 
-  /* A static build that also talks to a live service starts on the published
-     snapshot and can switch to the service mid-session, so the origin wins over
-     the build mode here. */
   const modeCopy = dataOrigin === "browser-cache"
     ? "Browser cache"
-    : dataOrigin === "live"
-      ? "Live service"
-      : dataMode === "static"
-        ? "Published snapshot"
-        : "Live service";
+    : dataMode === "static" ? "Published snapshot" : "Local data service";
   const stateCopy = error && data
     ? "Showing the last valid cached copy"
     : status === "error" || (!data && !refreshing)
@@ -124,11 +117,9 @@ export function DataStatusDialog({ open, onClose }) {
         </dl>
 
         <p className="data-status-dialog__note">
-          {dataOrigin === "live"
-            ? "This snapshot came from the live data service, which rebuilt it after the last check."
-            : dataMode === "static"
-              ? "The deployed site renders the latest validated snapshot published by GitHub Actions, and checks the live service for something newer when one is configured."
-              : "The local site reads the FastAPI service and keeps the last valid browser copy if a refresh fails."}
+          {dataMode === "static"
+            ? "The deployed site reads the latest validated snapshot published by GitHub Actions."
+            : "The local site reads the FastAPI development service and keeps the last valid browser copy if a refresh fails."}
         </p>
 
         <footer className="data-status-dialog__footer">

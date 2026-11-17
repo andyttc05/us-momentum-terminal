@@ -23,6 +23,7 @@ from .backtest import (
     MIN_UNIVERSE_OBSERVATIONS,
     REBALANCE_FREQUENCIES,
     historical_universe_eligible,
+    rebalance_schedule,
     run_backtest,
 )
 from .clock import market_state
@@ -172,6 +173,115 @@ def _merge_verified_fundamentals(
         quotes[symbol] = quote
         used.append(symbol)
     return used
+
+
+def _validated_book(book: dict, target: int) -> bool:
+    validation = book.get("validation") or {}
+    constraints = book.get("constraints") or []
+    return bool(
+        book.get("available")
+        and len(book.get("holdings") or []) == target
+        and validation.get("evaluated")
+        and all(rule.get("passed") is True for rule in constraints)
+    )
+
+
+def _portfolio_lifecycle(
+    candidates: dict[str, dict], previous: dict | None, series_map: dict[str, SymbolSeries],
+    *, as_of: str, generated_at: str,
+) -> dict[str, dict]:
+    """Freeze active books between scheduled sessions; persist pending events."""
+    previous = previous or {}
+    sessions = sorted({stamp.strftime("%Y-%m-%d") for series in series_map.values() for stamp in series.frame.index})
+    schedule = rebalance_schedule(pd.to_datetime(sessions), frequency="semiannual") if sessions else []
+    events = []
+    for event in schedule:
+        signal = sessions[event["signal_position"]]
+        execution = sessions[event["execution_position"]]
+        events.append({"signalDate": signal, "executionDate": execution, "kind": event["kind"]})
+
+    output = {}
+    for universe, target in DATASET_TARGET_HOLDINGS.items():
+        old = previous.get(universe) or {}
+        old_active = old.get("activePortfolio") or old.get("portfolio") or candidates[universe]
+        active = dict(old_active)
+        old_meta = dict(active.get("metadata") or {})
+        if not old_meta.get("effectiveDate") and _validated_book(active, target):
+            # Safe migration for a previously published schema: retain its
+            # exact holdings and weights, and mark its dates as inherited.
+            prior_as_of = str((old.get("meta") or {}).get("asOf") or as_of)
+            old_meta = {
+                "eventId": f"{universe}-legacy-{prior_as_of}", "universe": universe,
+                "methodologyId": active.get("methodology", {}).get("id", METHODOLOGY_ID),
+                "weightingMethod": active.get("methodology", {}).get("weighting_method", WEIGHTING_METHOD_ID),
+                "rebalanceFrequency": "semiannual", "formationType": "legacy_migration",
+                "signalDate": prior_as_of, "executionDate": prior_as_of,
+                "effectiveDate": prior_as_of, "lastRebalanceDate": None,
+                "publicationTimestamp": str((old.get("meta") or {}).get("generatedAt") or generated_at),
+            }
+        pending = old.get("pendingRebalance")
+        if pending and not pending.get("executionDate"):
+            following = next((session for session in sessions if session > str(pending.get("signalDate") or "")), None)
+            if following:
+                pending_meta = dict(pending.get("metadata") or {})
+                pending_meta.update({"executionDate": following, "effectiveDate": following, "lastRebalanceDate": following})
+                pending = {**pending, "executionDate": following, "metadata": pending_meta}
+        # Promote only after the next real market session is present and the
+        # candidate book passed all published portfolio constraints.
+        if pending and as_of >= str(pending.get("executionDate") or "9999"):
+            candidate = pending.get("portfolio") or {}
+            if _validated_book(candidate, target):
+                active = candidate
+                old_meta = dict(pending.get("metadata") or {})
+                pending = None
+
+        if not old_meta.get("effectiveDate"):
+            # First deployment: form from the latest valid signal and record
+            # this as an initial formation, never as a normal rebalance.
+            if _validated_book(candidates[universe], target):
+                active = candidates[universe]
+                old_meta = {
+                    "eventId": f"{universe}-initial-{as_of}", "universe": universe,
+                    "methodologyId": METHODOLOGY_ID, "weightingMethod": WEIGHTING_METHOD_ID,
+                    "rebalanceFrequency": "semiannual", "formationType": "initial_formation",
+                    "signalDate": as_of, "executionDate": as_of, "effectiveDate": as_of,
+                    "lastRebalanceDate": None, "publicationTimestamp": generated_at,
+                }
+        else:
+            due = next((event for event in events if event["signalDate"] > str(old_meta.get("signalDate") or "")), None)
+            if due and due["signalDate"] == as_of and not pending:
+                candidate = candidates[universe]
+                if _validated_book(candidate, target):
+                    pending = {"eventId": f"{universe}-rebalance-{due['signalDate']}", **due,
+                        "portfolio": candidate, "metadata": {
+                            "eventId": f"{universe}-rebalance-{due['signalDate']}", "universe": universe,
+                            "methodologyId": METHODOLOGY_ID, "weightingMethod": WEIGHTING_METHOD_ID,
+                            "rebalanceFrequency": "semiannual", "formationType": "scheduled_rebalance",
+                            "signalDate": due["signalDate"], "executionDate": due["executionDate"],
+                            "effectiveDate": due["executionDate"], "lastRebalanceDate": due["executionDate"],
+                            "publicationTimestamp": generated_at,
+                        }}
+            if not pending:
+                signal = pd.Timestamp(as_of)
+                # A signal on the last available session in the final week of
+                # March/September is held pending; the next publication supplies
+                # the actual following exchange session, without guessing it.
+                if signal.month in (3, 9) and signal.day >= 25 and as_of == sessions[-1]:
+                    candidate = candidates[universe]
+                    if _validated_book(candidate, target):
+                        pending = {"eventId": f"{universe}-rebalance-{as_of}", "kind": "scheduled",
+                            "signalDate": as_of, "executionDate": None, "portfolio": candidate,
+                            "metadata": {"eventId": f"{universe}-rebalance-{as_of}", "universe": universe,
+                                "methodologyId": METHODOLOGY_ID, "weightingMethod": WEIGHTING_METHOD_ID,
+                                "rebalanceFrequency": "semiannual", "formationType": "scheduled_rebalance",
+                                "signalDate": as_of, "executionDate": None, "effectiveDate": None,
+                                "lastRebalanceDate": None, "publicationTimestamp": generated_at}}
+
+        next_event = next((event for event in events if event["signalDate"] > str(old_meta.get("signalDate") or "")), None)
+        active["metadata"] = {**old_meta, "nextScheduledRebalanceDate": next_event["executionDate"] if next_event else None}
+        active["liveSignals"] = None
+        output[universe] = {"activePortfolio": active, "liveSignals": candidates[universe], "pendingRebalance": pending}
+    return output
 
 
 # --------------------------------------------------------------------------- #
@@ -1071,7 +1181,7 @@ def build_universe_datasets(payload: dict, performances: dict[str, dict] | None 
     return datasets
 
 
-def build_publication(force: bool = False, progress=None) -> dict:
+def build_publication(force: bool = False, progress=None, previous_publication: dict | None = None) -> dict:
     """Assemble the full dashboard payload (cached on disk)."""
     ttl = 0 if force else settings.ttl_snapshot
     if not force:
@@ -1458,6 +1568,21 @@ def build_publication(force: bool = False, progress=None) -> dict:
             },
         }
 
+        previous_datasets = (previous_publication or {}).get("datasets") or {}
+        lifecycle = _portfolio_lifecycle(
+            portfolios,
+            previous_datasets,
+            series_map,
+            as_of=as_of,
+            generated_at=started,
+        )
+        # The compatibility field remains an alias for the active book. Daily
+        # rankings are explicitly published separately and cannot replace it.
+        portfolios = {key: lifecycle[key]["activePortfolio"] for key in DATASET_UNIVERSES}
+        payload["portfolios"] = portfolios
+        payload["portfolio"] = portfolios["top100"]
+        payload["portfolioStates"] = lifecycle
+
         # One dataset per universe, then the legacy top-level sections mirror the
         # Top 100 dataset so older cached clients stay self-consistent.
         datasets = build_universe_datasets(
@@ -1468,6 +1593,10 @@ def build_publication(force: bool = False, progress=None) -> dict:
             },
         )
         payload["datasets"] = datasets
+        for universe in DATASET_UNIVERSES:
+            payload["datasets"][universe]["activePortfolio"] = lifecycle[universe]["activePortfolio"]
+            payload["datasets"][universe]["liveSignals"] = lifecycle[universe]["liveSignals"]
+            payload["datasets"][universe]["pendingRebalance"] = lifecycle[universe]["pendingRebalance"]
         payload["overview"] = datasets["top100"]["overview"]
 
         cache.write("publication", "snapshot", payload)

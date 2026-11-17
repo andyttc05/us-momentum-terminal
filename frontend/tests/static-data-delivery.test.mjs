@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const path = (value) => fileURLToPath(new URL(value, import.meta.url));
@@ -53,6 +53,8 @@ test("frontend hydrates cache first and uses same-origin static paths", () => {
   assert.match(client, /import\.meta\.env\.PROD \? "static" : "live"/);
   assert.match(client, /staticRequest\("publication\.json"/);
   assert.match(client, /staticRequest\(`backtests\//);
+  assert.match(client, /backtestInputs:.*backtest-inputs\.json/);
+  assert.match(client, /devCall\("backtest", config\)/);
   assert.match(client, /dedupe\(`stock:\$\{symbol\}`/);
   assert.match(updateBar, /DataStatusDialog/);
 });
@@ -66,30 +68,23 @@ test("GitHub Pages deploys a static scheduled snapshot without secrets", () => {
   assert.doesNotMatch(workflow, /FMP_API_KEY|TWELVEDATA_API_KEY/);
 });
 
-test("the deployed build keeps a way to reach newer data than it shipped with", () => {
+test("production refreshes the latest published snapshot without a live-service dependency", () => {
   const workflow = source("../../.github/workflows/deploy-pages.yml");
   const client = source("../src/api/client.js");
   const provider = source("../src/api/MarketProvider.jsx");
-
-  // Dropping this line is what froze the deployed site: with only
-  // VITE_DATA_MODE=static the build still worked and still validated, so
-  // nothing looked broken — but no request could ever return different data,
-  // and "Check for updates" re-downloaded the same file.
-  assert.match(workflow, /VITE_API_BASE_URL:\s*https:\/\/us-momentum-data\.onrender\.com\/api/);
   assert.match(workflow, /VITE_DATA_MODE:\s*static/);
+  assert.doesNotMatch(workflow + client + provider, /onrender\.com|VITE_API_BASE_URL|VITE_BACKTEST_API_BASE_URL/);
+  assert.match(client, /import\("\.\/devClient\.js"\)/);
+  assert.match(provider, /if \(STATIC_MODE\)[\s\S]*throw new Error\("Custom-date browser calculations are not available yet; no server request was made\."\)/);
+  assert.match(client, /staticRequest\("publication\.json", \{ noCache: force \}\)/);
+  assert.match(provider, /load\(\{ isRefresh: true, trackCompletion: true, force: true \}\)/);
+  assert.doesNotMatch(provider, /liveHealth|liveSnapshot|liveRefresh|LIVE_PROBE_INTERVAL/);
+});
 
-  // The cheap probe decides whether the 4MB snapshot is worth fetching at all.
-  assert.match(client, /liveHealth:\s*\(\)\s*=>\s*request\("\/health"/);
-  assert.match(client, /liveSnapshot:\s*\(\)\s*=>\s*request\("\/snapshot"/);
-  assert.match(client, /liveRefresh:\s*\(\)\s*=>\s*request\("\/refresh",\s*\{\s*method:\s*"POST"/);
-  assert.match(provider, /api\.liveHealth\(\)/);
-  assert.match(provider, /snapshot_age_seconds/);
-  assert.match(provider, /api\.liveSnapshot\(\)/);
-  assert.match(provider, /api\.liveRefresh\(\)/);
-
-  // The published snapshot still paints first and still wins when the service
-  // has nothing newer, and an adopted live snapshot is never rolled back by the
-  // scheduled re-read of the published file.
-  assert.match(provider, /liveAt <= publishedAt \+ 60_000/);
-  assert.match(provider, /origin === "published" && Number\.isFinite\(incomingAt\)/);
+test("production JavaScript has no Render host or API backtest endpoint", () => {
+  const assetsPath = path("../dist/client/assets");
+  if (!existsSync(assetsPath)) return; // The CI workflow runs this after `npm run build`.
+  const bundles = readdirSync(assetsPath).filter((name) => name.endsWith(".js"))
+    .map((name) => readFileSync(path(`../dist/client/assets/${name}`), "utf8")).join("\n");
+  assert.doesNotMatch(bundles, /onrender\.com|\/api\/backtest|VITE_API_BASE_URL|VITE_BACKTEST_API_BASE_URL/);
 });

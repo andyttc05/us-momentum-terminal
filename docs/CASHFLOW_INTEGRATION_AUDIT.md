@@ -411,11 +411,11 @@ End labels         $312,963 / $288,730 / $237,304
 Active view        Portfolio Value
 ```
 
-`GET https://us-momentum-data.onrender.com/api/snapshot` returned `200` for publication
+The local FastAPI development endpoint returned `200` for publication
 `2026-11-14-cashflow-accounts-v14` with a strategy `final_value` of `$312,962.59`, matching the
 deployed page to the dollar. That payload predates this change, so it carries no
 `balance_drawdown` field; the browser derives the series from the published balances, which is why
-the live account drawdown and caption render correctly regardless of when Render finishes
+the account drawdown and caption render correctly regardless of refresh timing
 redeploying. A later publication build will publish the field directly.
 
 ## Remaining Limitations

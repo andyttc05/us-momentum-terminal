@@ -303,8 +303,7 @@ Important environment variables:
 | Variable | Default |
 | --- | --- |
 | `VITE_DATA_MODE` | `live` in dev, `static` in production |
-| `VITE_API_BASE_URL` | `/api` |
-| `VITE_BASE_PATH` | `/` |
+| | `VITE_BASE_PATH` | `/` |
 | `DATA_PROVIDER_CHAIN` | `yahoo,twelvedata,fmp` |
 | `DATA_HISTORY_YEARS` | `10` |
 | `DATA_TTL_SNAPSHOT` | `900` seconds |
@@ -313,9 +312,11 @@ Important environment variables:
 | `DATA_TTL_META` | `86400` seconds |
 | `DATA_CACHE_DIR` | `data-service/cache` |
 
-Static deployments load the selected backtest schedule from `public/data/backtests/`; local/live
-mode uses `POST /api/backtest`. Provider keys are optional. `.env` is ignored; only `.env.example`
-is tracked.
+Static deployments load selected published schedules from `public/data/backtests/` and daily inputs
+from `public/data/backtest-inputs.json` for future browser-based custom runs. Custom-date runs stay
+disabled in static mode until JavaScript/Python parity is established. The local development mode uses
+`POST /api/backtest` through the Vite proxy. Provider keys are optional. `.env` is ignored; only
+`.env.example` is tracked.
 
 ## Testing and audits
 
@@ -348,3 +349,26 @@ comparison as unavailable when that coverage is zero rather than fabricating one
 - Delisting returns, taxes, market impact and capacity constraints are not modelled.
 - The static production site updates after collection/deployment and is not a real-time trading feed.
 - Provider terms and redistribution permissions must be reviewed before commercial use.
+# Active portfolio state
+
+Each publication exposes `datasets.top100` and `datasets.top20` with distinct
+`activePortfolio`, `liveSignals`, and `pendingRebalance` sections. The legacy
+`portfolio` field aliases the active book. Daily score refreshes populate only
+`liveSignals`; the active book remains unchanged between scheduled executions.
+
+The March/September signal uses the final observed market session of the month.
+The candidate remains pending until the next available session is included in
+the data and its execution-date price is confirmed. Validation failure leaves
+the last active book in place. At deployment, the workflow downloads the last
+successful GitHub Pages publication and supplies it to the exporter as state;
+Pages is therefore the durable checkpoint across ephemeral runners. The
+workflow serializes deployments to avoid overlapping state transitions. A
+legacy book is migrated in place with inherited dates rather than reweighted.
+
+The initial book is marked `initial_formation` and records its observed signal
+and effective dates. A scheduled rebalance separately records signal date,
+execution date, effective date and event ID. This is a simulated research
+portfolio and does not execute broker trades. Historical backtest output is
+not presented as active-book performance. Current weight and drift remain
+unavailable until accounting from effective-date holdings and valid prices is
+published; target weights remain the validated rebalance allocations.

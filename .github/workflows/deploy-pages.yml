@@ -8,11 +8,7 @@ on:
     # previous validated snapshot if a provider or validation check fails.
     - cron: "23 22 * * 1-5"
     # Once an hour through the US session (14:00-21:00 UTC), so the published
-    # snapshot follows the market instead of waiting for the close. This is the
-    # only refresh path that is reliable here: the free Render instance cannot
-    # finish a 200-ticker rebuild from a cold cache (it stalls on the last batch
-    # of provider calls), so live updates come from the runner, which is fast and
-    # is not rate-limited.
+    # snapshot follows the market instead of waiting for the close.
     - cron: "7 14-21 * * 1-5"
   workflow_dispatch:
 
@@ -25,7 +21,9 @@ permissions:
 # One Pages deployment at a time; a newer push supersedes an in-flight one.
 concurrency:
   group: pages
-  cancel-in-progress: true
+  # Serialize publications so a cancelled or overlapping runner cannot lose an
+  # already deployed active-book state.
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -63,6 +61,17 @@ jobs:
           restore-keys: |
             market-data-${{ runner.os }}-
 
+      - name: Recover last deployed portfolio state
+        env:
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          REPOSITORY_NAME="${REPOSITORY#*/}"
+          OWNER="${REPOSITORY%/*}"
+          URL="https://${OWNER}.github.io/${REPOSITORY_NAME}/data/publication.json"
+          if ! curl --fail --location --silent --show-error "$URL" --output /tmp/previous-publication.json; then
+            cp frontend/public/data/publication.json /tmp/previous-publication.json
+          fi
+
       # Every deploy rebuilds the snapshot, pushes included. A push build used
       # to only validate the committed copy, which meant it redeployed whatever
       # was last committed — silently rolling back data that a scheduled run had
@@ -71,20 +80,13 @@ jobs:
       # failed deploy.
       - name: Refresh and validate published data
         id: refresh_data
-        run: python data-service/scripts/export_static.py
+        run: python data-service/scripts/export_static.py --previous-publication /tmp/previous-publication.json
 
       - name: Build static site
         run: npm run build
         env:
           VITE_BASE_PATH: /us-momentum-terminal/
-          # The snapshot is static so the first paint is instant and the site
-          # still renders if the service is asleep. VITE_API_BASE_URL is what
-          # makes it live: with it set, MarketProvider asks the service whether
-          # it holds a newer publication and adopts it, and "Check for updates"
-          # triggers a real rebuild instead of re-downloading the same file.
           VITE_DATA_MODE: static
-          VITE_API_BASE_URL: https://us-momentum-data.onrender.com/api
-          VITE_BACKTEST_API_BASE_URL: https://us-momentum-data.onrender.com/api
 
       - name: Run frontend tests
         run: npm --prefix frontend run test:unit

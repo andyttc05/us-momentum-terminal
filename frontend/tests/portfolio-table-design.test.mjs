@@ -17,6 +17,13 @@ test("the Portfolio page preserves its table shell with component-level loading"
   assert.match(portfolioPage, /<Pagination/);
 });
 
+test("the Portfolio page separates active holdings, performance and live signals", () => {
+  assert.match(portfolioPage, /\[\["holdings", "Holdings"\], \["performance", "Performance"\], \["live", "Live Momentum"\]\]/);
+  assert.match(portfolioPage, /"Target Weight"/);
+  assert.match(portfolioPage, /"Score at Rebalance"/);
+  assert.match(portfolioPage, /Latest scores update with market data\. They do not change Active Portfolio/);
+});
+
 test("Portfolio holding rows use the Screener row rhythm and hover treatment", () => {
   for (const css of [portfolioCss, screenerCss]) {
     assert.match(css, /@media \(min-height: 831px\) and \(min-width: 1101px\)[\s\S]*?height: 50px/);

@@ -25,6 +25,18 @@ The application does not execute orders and is not investment advice.
 - Desktop-first responsive layout: one application for desktop (≥ 1101px) and tablet (768–1100px),
   the same layout on phones in landscape, and a rotate-device notice on phones in portrait.
 
+### Active portfolio lifecycle
+
+The Portfolio page separates the **Active Portfolio** from **Live Momentum**. Daily publications
+refresh the ranked signal list while active holdings and target weights stay fixed. A March or
+September candidate is held pending after its signal session and activates only when data for the
+next actual market session is available and the portfolio constraints pass. Top 100 and Top 20 keep
+independent active books. GitHub Actions recovers the previous deployed Pages publication on each
+run, so runner-local cache and browser storage are not the source of official portfolio state.
+Initial books are labelled as initial formation. The terminal is a research model portfolio and
+does not place broker orders. Target weight is the rebalance allocation; current weight can drift
+with prices and is not shown until reliable active-book accounting is available.
+
 ## Loading and failure behaviour
 
 The page shell is rendered before market data arrives. Page headers, filters, KPI cards, chart cards,
@@ -191,21 +203,23 @@ The probe writes `data-service/docs/provider_probe.json`. It does not synthesize
 - a weekday schedule at `22:23 UTC`, after the regular US close;
 - manual `workflow_dispatch`.
 
-Pushes validate and deploy the committed static snapshot. Scheduled/manual runs refresh the snapshot
-before building. The workflow requires no provider secrets for the default Yahoo path.
+Push, scheduled and manual runs refresh and validate the snapshot before building. The workflow
+requires no provider secrets for the default Yahoo path. Production data processing runs in GitHub
+Actions, the site is served by GitHub Pages, and the browser reads same-origin static JSON. No hosted
+Python service is needed.
 
 The Pages build uses:
 
 ```text
 VITE_BASE_PATH=/us-momentum-terminal/
 VITE_DATA_MODE=static
-VITE_BACKTEST_API_BASE_URL=https://us-momentum-data.onrender.com/api
+VITE_DATA_MODE=static
 ```
 
 The initial snapshot includes the default semiannual backtest. Other rebalancing schedules are
-served as separate same-origin JSON files for the published date range. A user-selected date range
-outside that publication uses the configured quantitative backtest endpoint, while all dashboard
-data remains static.
+served as separate same-origin JSON files for the published date range. The eight published schedules load from GitHub Pages. Custom-date runs are disabled in the static
+site until the browser calculation engine and Python parity suite are complete; they do not fall back
+to a server request. The local development backtest remains available through FastAPI.
 
 ## Project Structure
 

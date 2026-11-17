@@ -47,7 +47,7 @@ test("the dropdown is controlled, interactive and reflected in both summaries", 
   assert.match(page, /value: config \? rebalanceLabel\(config\.rebalanceFrequency\)/);
 });
 
-test("Run Backtest sends the latest frequency to live or published data", () => {
+test("Run Backtest sends the latest frequency to published schedules or local calculations", () => {
   assert.match(page, /rebalance_frequency: normalizedDraft\.rebalanceFrequency/);
   assert.match(page, /await executeBacktest\(/);
   assert.match(page, /setCustomRun\(\{ key, block \}\)/);
@@ -55,12 +55,7 @@ test("Run Backtest sends the latest frequency to live or published data", () => 
   assert.doesNotMatch(page, /Backtest results use \$\{rebalanceLabel/);
   assert.match(provider, /const usesPublishedRange = Boolean/);
   assert.match(provider, /if \(usesPublishedRange && frequency === "semiannual"\)/);
-  assert.match(provider, /return api\.backtest\(config\)/);
   assert.match(provider, /api\.backtestSchedule\(config\.portfolio, frequency\)/);
-  assert.match(client, /VITE_BACKTEST_API_BASE_URL/);
-  assert.match(client, /base: BACKTEST_API_BASE/);
-  assert.match(
-    pagesWorkflow,
-    /VITE_BACKTEST_API_BASE_URL: https:\/\/us-momentum-data\.onrender\.com\/api/,
-  );
+  assert.doesNotMatch(client, /VITE_BACKTEST_API_BASE_URL|onrender\.com/);
+  assert.doesNotMatch(pagesWorkflow, /VITE_API_BASE_URL|VITE_BACKTEST_API_BASE_URL|onrender\.com/);
 });

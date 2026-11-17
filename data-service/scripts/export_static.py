@@ -27,10 +27,14 @@ from app.snapshot import (  # noqa: E402
     build_stock_detail,
     publication_is_current,
 )
+from app.snapshot import load_cached_backtest_series  # noqa: E402
+from app.size_history import _merged_history  # noqa: E402
+from app.universe import HISTORICAL_BACKTEST_TICKERS, MEMBER_BY_TICKER  # noqa: E402
 
 DEFAULT_OUTPUT = ROOT / "frontend" / "public" / "data"
 DEFAULT_SEED = ROOT / "data-service" / "seed" / "publication.json"
 SCHEMA_VERSION = 2
+BACKTEST_INPUT_VERSION = 1
 
 
 def _now() -> datetime:
@@ -52,6 +56,46 @@ def _write_json(path: Path, value: object) -> int:
     encoded = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
     path.write_text(encoded)
     return len(encoded.encode("utf-8"))
+
+
+def build_backtest_inputs() -> dict:
+    """Serialize the validated historical inputs needed by a browser backtest.
+
+    Values stay per-symbol and date-aligned, avoiding a wide matrix full of nulls.
+    Historical share disclosures are included so the browser applies the same
+    point-in-time outstanding-share size proxy as Python.
+    """
+    series_map = load_cached_backtest_series()
+    def numeric_values(values):
+        return [float(value) if value is not None and value == value else None for value in values]
+
+    symbols = {}
+    for symbol in [*HISTORICAL_BACKTEST_TICKERS, "SPY", "SPMO"]:
+        series = series_map.get(symbol)
+        if series is None or not series.adjusted:
+            continue
+        frame = series.frame
+        symbols[symbol] = {
+            "dates": [stamp.strftime("%Y-%m-%d") for stamp in frame.index],
+            "adj": numeric_values(frame["adj"]),
+            "close": numeric_values(frame["close"]),
+            "volume": numeric_values(frame["volume"]),
+            "dividends": [float(value) if value == value else 0.0 for value in frame["dividends"]],
+            "splits": [float(value) if value == value else 0.0 for value in frame["splits"]],
+            "shares": [[date, int(count)] for date, count in _merged_history(symbol)],
+            "sector": MEMBER_BY_TICKER[symbol].sector if symbol in MEMBER_BY_TICKER else None,
+            "source": series.source,
+        }
+    if not symbols:
+        raise RuntimeError("historical backtest inputs are empty")
+    return {
+        "schemaVersion": BACKTEST_INPUT_VERSION,
+        "generatedAt": _now().isoformat(timespec="seconds"),
+        "asOf": max((value["dates"][-1] for value in symbols.values() if value["dates"]), default=None),
+        "universe": [symbol for symbol in HISTORICAL_BACKTEST_TICKERS if symbol in symbols],
+        "benchmarks": [symbol for symbol in ("SPY", "SPMO") if symbol in symbols],
+        "symbols": symbols,
+    }
 
 
 def _set_github_output(name: str, value: object) -> None:
@@ -203,6 +247,35 @@ def validate_static_directory(
     ]
     if missing_backtests:
         errors.append(f"{len(missing_backtests)} backtest files are missing")
+    # Keep already deployed schema-2 snapshots valid while requiring complete
+    # inputs from any newly generated manifest that declares them.
+    if manifest.get("backtestInputsPath"):
+        try:
+            inputs = json.loads((output / "backtest-inputs.json").read_text())
+            if inputs.get("schemaVersion") != BACKTEST_INPUT_VERSION or not inputs.get("universe"):
+                errors.append("browser backtest inputs are empty or unsupported")
+            if not set(inputs.get("benchmarks") or ()) >= {"SPY", "SPMO"}:
+                errors.append("browser backtest inputs are missing SPY or SPMO")
+            if len(inputs.get("universe") or []) < round(len(HISTORICAL_BACKTEST_TICKERS) * 0.95):
+                errors.append("browser backtest inputs do not cover 95% of the historical universe")
+            symbols = inputs.get("symbols") or {}
+            for ticker in [*(inputs.get("universe") or []), "SPY", "SPMO"]:
+                item = symbols.get(ticker) or {}
+                dates = item.get("dates") or []
+                if len(dates) < 253:
+                    errors.append(f"browser backtest input {ticker} has fewer than 253 daily observations")
+                    continue
+                if dates != sorted(set(dates)):
+                    errors.append(f"browser backtest input {ticker} dates are not unique and ascending")
+                for field in ("adj", "close", "volume", "dividends", "splits"):
+                    if len(item.get(field) or []) != len(dates):
+                        errors.append(f"browser backtest input {ticker} has misaligned {field} data")
+                if not item.get("sector") and ticker not in ("SPY", "SPMO"):
+                    errors.append(f"browser backtest input {ticker} has no sector classification")
+            if not inputs.get("asOf"):
+                errors.append("browser backtest input coverage timestamp is missing")
+        except (OSError, json.JSONDecodeError):
+            errors.append("browser backtest inputs are missing or invalid")
     return errors
 
 
@@ -230,8 +303,9 @@ def build_static(
     min_detail_ratio: float,
     force: bool = False,
     seed_path: Path | None = None,
+    previous_publication: dict | None = None,
 ) -> dict:
-    payload = build_publication(force=force)
+    payload = build_publication(force=force, previous_publication=previous_publication)
     errors = validate_publication(
         payload,
         max_as_of_age_days=max_as_of_age_days,
@@ -264,6 +338,7 @@ def build_static(
 
     exported_at = _now().isoformat(timespec="seconds")
     backtest_schedules = payload.get("backtestSchedules") or {}
+    backtest_inputs = build_backtest_inputs()
     backtest_paths: dict[str, dict[str, str]] = {}
     backtest_bytes: dict[str, int] = {}
     for portfolio, frequency_blocks in backtest_schedules.items():
@@ -309,6 +384,7 @@ def build_static(
         for portfolio, frequency_blocks in backtest_schedules.items():
             for frequency, block in frequency_blocks.items():
                 _write_json(staging / "backtests" / portfolio / f"{frequency}.json", block)
+        backtest_input_bytes = _write_json(staging / "backtest-inputs.json", backtest_inputs)
 
         manifest = {
             "schemaVersion": SCHEMA_VERSION,
@@ -325,10 +401,12 @@ def build_static(
             "publicationPath": "data/publication.json",
             "stockPathTemplate": "data/stocks/{ticker}.json",
             "backtestFiles": backtest_paths,
+            "backtestInputsPath": "data/backtest-inputs.json",
             "sizes": {
                 "publicationBytes": publication_bytes,
                 "stockDetailBytes": sum(stock_files.values()),
                 "backtestBytes": sum(backtest_bytes.values()),
+                "backtestInputBytes": backtest_input_bytes,
             },
         }
         _write_json(staging / "manifest.json", manifest)
@@ -373,6 +451,7 @@ def main() -> int:
     parser.add_argument("--min-stock-ratio", type=float, default=0.95)
     parser.add_argument("--min-detail-ratio", type=float, default=0.98)
     parser.add_argument("--force", action="store_true")
+    parser.add_argument("--previous-publication", type=Path, help="Previously deployed publication used to recover active portfolio state.")
     parser.add_argument("--validate-only", action="store_true")
     parser.add_argument(
         "--write-seed",
@@ -405,6 +484,13 @@ def main() -> int:
         return 0
 
     try:
+        previous_path = args.previous_publication or (output / "publication.json")
+        try:
+            previous_publication = json.loads(previous_path.read_text())
+        except (OSError, json.JSONDecodeError):
+            previous_publication = None
+        if previous_publication is None and not args.force:
+            raise RuntimeError("previous validated publication is unavailable; refusing to form a replacement portfolio")
         result = build_static(
             output,
             max_as_of_age_days=args.max_as_of_age_days,
@@ -412,6 +498,7 @@ def main() -> int:
             min_detail_ratio=args.min_detail_ratio,
             force=args.force,
             seed_path=DEFAULT_SEED if args.write_seed else None,
+            previous_publication=previous_publication,
         )
         print(json.dumps(result, indent=2))
         _set_github_output("data_status", result["status"])

@@ -52,10 +52,7 @@ export function UpdateBar({ ariaLabel = "Refresh data", onRefresh, busy = false,
   const hasData = hasMarketData(data);
   const fetching = refreshing || busy;
   const cacheState = meta?.cache_state;
-  /* A static build that has adopted a snapshot from the live service is no
-     longer reading published files, so the pill must stop reporting "Published"
-     and start reporting a real update — that label is the whole point. */
-  const publishedOnly = staticMode && dataOrigin !== "live";
+  const publishedOnly = staticMode;
   const fetchState = getFetchDisplayState({
     staticMode: publishedOnly,
     data,
@@ -76,9 +73,9 @@ export function UpdateBar({ ariaLabel = "Refresh data", onRefresh, busy = false,
   const timeliness = meta ? TIMELINESS_LABEL[meta.timeliness] ?? meta.timeliness : null;
   const origin = dataOrigin === "browser-cache"
     ? "Browser cache"
-    : staticMode && dataOrigin !== "live"
+    : staticMode
       ? "Published GitHub Pages snapshot"
-      : "Live data service";
+      : "Local development service";
   const tooltip = meta ? [
     origin,
     meta.data_provider,

@@ -49,11 +49,10 @@ const rowsPerPage = 10;
 const sortableFields = [
   ["rank", "#", "rank"],
   ["ticker", "Ticker", "ticker"],
-  ["sector", "Sector", "sector"],
-  ["score", "Score", "score"],
-  ["floatAdjustedMarketCapValue", "Float-Adj. Market Cap", "market-cap", "Mkt Cap"],
-  ["rawWeight", "Raw Weight", "raw-weight"],
-  ["finalWeight", "Final Weight", "final-weight"],
+  ["sector", "Sector at Rebalance", "sector"],
+  ["score", "Score at Rebalance", "score"],
+  ["floatAdjustedMarketCapValue", "Float-Adj. Market Cap at Rebalance", "market-cap", "Mkt Cap"],
+  ["finalWeight", "Target Weight", "final-weight"],
 ];
 
 const displayPercent = (value) => `${value.toFixed(1)}%`;
@@ -121,6 +120,7 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
   const [page, setPage] = useState(1);
   const [toast, setToast] = useState("");
   const [isExporting, setIsExporting] = useState(false);
+  const [activeTab, setActiveTab] = useState("holdings");
   const {
     data,
     error,
@@ -137,12 +137,13 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
   // constraint targets: nothing here is sized from a fixed 100-holding guess.
   const dataset = datasetForUniverse(data, activeUniverse);
   const portfolio = dataset?.portfolio ?? null;
+  const liveSignals = data?.stocks ?? [];
   const targetHoldings = targetHoldingsForDataset(dataset, activeUniverse);
   const portfolioHoldings = portfolio?.holdings ?? [];
   const portfolioSectors = portfolio?.sectors ?? [];
   const portfolioSummary = portfolio?.summary ?? null;
   const snapshot = dataset?.overview?.snapshot;
-  const publishedRebalanceFrequency = data?.backtest?.[activeUniverse]?.methodology?.rebalance_frequency;
+  const publishedRebalanceFrequency = portfolio?.metadata?.rebalanceFrequency ?? data?.backtest?.[activeUniverse]?.methodology?.rebalance_frequency;
   const rebalanceFrequency = strategyRebalanceFrequency ?? publishedRebalanceFrequency;
   const portfolioState = getPortfolioState({
     portfolio,
@@ -165,7 +166,7 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
     error,
     refreshing,
   });
-  const columnCount = 7;
+  const columnCount = 6;
 
   useEffect(() => {
     setPage(1);
@@ -256,7 +257,7 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
         <PageHeader
           eyebrow="Portfolio"
           title="Model Portfolio"
-          subtitle="Momentum × √Float-Adj. Cap"
+          subtitle={`Systematic Momentum · ${activeUniverse === "top20" ? "Top 20" : "Top 100"}`}
           art={<MascotDuo creamColor="var(--color-surface)" yellowColor="var(--color-yellow)" />}
           controls={(
             <UpdateBar
@@ -266,11 +267,18 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
           )}
         />
 
+        <div className="portfolio-active-status" role="status">
+          <span className="portfolio-active-status__dot" />
+          <strong>Active Portfolio</strong>
+          <span>{portfolio?.metadata?.lastRebalanceDate ? `Rebalanced ${portfolio.metadata.lastRebalanceDate}` : portfolio?.metadata?.formationType === "initial_formation" ? `Initial formation ${portfolio.metadata.effectiveDate}` : "Active book"}</span>
+          <span className="portfolio-active-status__freshness">Data {meta?.cache_state ?? "status unavailable"}</span>
+        </div>
+
         <section className="overview-kpis portfolio-kpis" aria-label="Portfolio summary">
           <KpiCard loading={portfolioState.kind === "loading"} label="Total Holdings" value={portfolioSummary?.totalHoldings ?? pendingKpi} icon={Briefcase} tint="cream" mascotVariant="cream" mascotColor="var(--color-cream)" />
-          <KpiCard loading={portfolioState.kind === "loading"} label="Largest Holding" value={portfolioSummary?.largestHolding?.ticker ?? pendingKpi} icon={Stack} tint="mint" mascotVariant="mint" mascotColor="var(--color-mint)" />
-          <KpiCard loading={portfolioState.kind === "loading"} label="Top 10 Weight" value={portfolioSummary ? displayPercent(portfolioSummary.topTenWeight) : pendingKpi} icon={ChartPieSlice} tint="pink" mascotVariant="pink" mascotColor="var(--color-pink)" />
           <KpiCard loading={portfolioState.kind === "loading"} label="Invested Capital" value={portfolioSummary ? `${Math.round(portfolioSummary.investedCapital)}%` : pendingKpi} icon={Target} tint="blue" mascotVariant="blue" mascotColor="var(--color-blue)" />
+          <KpiCard loading={portfolioState.kind === "loading"} label="Top 10 Weight" value={portfolioSummary ? displayPercent(portfolioSummary.topTenWeight) : pendingKpi} icon={ChartPieSlice} tint="pink" mascotVariant="pink" mascotColor="var(--color-pink)" />
+          <KpiCard loading={portfolioState.kind === "loading"} label="Largest Holding" value={portfolioSummary?.largestHolding?.ticker ?? pendingKpi} icon={Stack} tint="mint" mascotVariant="mint" mascotColor="var(--color-mint)" />
         </section>
 
         <section className="portfolio-summary-grid" aria-label="Portfolio allocation and constraints">
@@ -326,8 +334,14 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
           </section>
         </section>
 
+        <div className="portfolio-tabs" role="tablist" aria-label="Portfolio views">
+          {[["holdings", "Holdings"], ["performance", "Performance"], ["live", "Live Momentum"]].map(([id, label]) => (
+            <button key={id} type="button" role="tab" aria-selected={activeTab === id} className={activeTab === id ? "is-active" : ""} onClick={() => setActiveTab(id)}>{label}{id === "live" && <span className="portfolio-live-dot" aria-label="Live signals" />}</button>
+          ))}
+        </div>
+
         <DashboardCard
-          title="Holdings"
+          title={activeTab === "holdings" ? "Active Portfolio Holdings" : activeTab === "performance" ? "Portfolio Performance" : "Latest Market Signals"}
           className="portfolio-holdings-card"
           action={(
             <div className="portfolio-export-control">
@@ -340,7 +354,25 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
             </div>
           )}
         >
-          <div className={`portfolio-table-shell${tableScroll.scrollable ? " is-scrollable" : ""}${tableScroll.atEnd ? " is-at-end" : ""}`}>
+          {activeTab === "performance" ? (
+            <div className="portfolio-performance-empty">
+              <strong>Active portfolio performance is unavailable</strong>
+              <p>Published historical backtests use scheduled model rebalances. This page will show active book returns once reliable holdings level accounting is available.</p>
+              {portfolio?.metadata?.effectiveDate && <span>Active since {portfolio.metadata.effectiveDate}</span>}
+            </div>
+          ) : activeTab === "live" ? (
+            <div className="portfolio-live-table-wrap">
+              <p className="portfolio-tab-note">Latest scores update with market data. They do not change Active Portfolio holdings or target weights.</p>
+              <table className="portfolio-table portfolio-live-table">
+                <thead><tr><th>Current Rank</th><th>Ticker</th><th>Sector</th><th>Momentum Score</th><th>12–1 Momentum</th><th>Float-Adj. Market Cap</th><th>Portfolio Status</th></tr></thead>
+                <tbody>{liveSignals.slice(0, 20).map((row, index) => {
+                  const held = portfolioHoldings.some((holding) => holding.ticker === row.ticker);
+                  return <tr key={row.ticker}><td>{row.rank ?? index + 1}</td><td><a href={stockPath(row.ticker)} onClick={(event) => { if (!shouldRouteTickerClick(event)) return; event.preventDefault(); onSelectStock?.(row.ticker); }}>{row.ticker}</a></td><td>{row.sector}</td><td>{Number(row.score ?? row.momentumScore ?? 0).toFixed(2)}</td><td>{Number(row.momentum ?? 0).toFixed(1)}%</td><td>{row.floatMarketCap ? `$${(row.floatMarketCap >= 1e12 ? (row.floatMarketCap / 1e12).toFixed(2) + "T" : (row.floatMarketCap / 1e9).toFixed(0) + "B")}` : "—"}</td><td><span className={held ? "portfolio-status-held" : ""}>{held ? "Currently Held" : index < targetHoldings ? "Potential New Entry" : "Outside Active Portfolio"}</span></td></tr>;
+                })}</tbody>
+              </table>
+              <p className="portfolio-tab-note">Signal date: {meta?.as_of ?? "Unavailable"} · Published: {meta?.generated_at ?? "Unavailable"}</p>
+            </div>
+          ) : <div className={`portfolio-table-shell${tableScroll.scrollable ? " is-scrollable" : ""}${tableScroll.atEnd ? " is-at-end" : ""}`}>
             <div
               className="portfolio-table-scroll"
               ref={tableScrollRef}
@@ -359,7 +391,6 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
                   <col className="portfolio-col-sector" />
                   <col className="portfolio-col-score" />
                   <col className="portfolio-col-market-cap" />
-                  <col className="portfolio-col-raw-weight" />
                   <col className="portfolio-col-final-weight" />
                 </colgroup>
                 <thead>
@@ -412,7 +443,6 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
                       <td className="portfolio-sector-cell" title={holding.sector}>{holding.sector}</td>
                       <td className="portfolio-score-cell"><span>{holding.score.toFixed(2)}</span></td>
                       <td className="portfolio-market-cap-cell">{holding.floatAdjustedMarketCap}</td>
-                      <td className="portfolio-weight-value-cell">{displayPercent(holding.rawWeight)}</td>
                       <td className="portfolio-weight-value-cell is-final">{displayPercent(holding.finalWeight)}</td>
                     </tr>
                   )) : (
@@ -426,8 +456,8 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
                 </tbody>
               </table>
             </div>
-          </div>
-          <Pagination
+          </div>}
+          {activeTab === "holdings" && <Pagination
             page={currentPage}
             totalPages={totalPages}
             rangeStart={firstResult}
@@ -435,7 +465,7 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
             total={sortedHoldings.length}
             onPageChange={setPage}
             label="Holdings table pagination"
-          />
+          />}
         </DashboardCard>
       </div>
       {toast && <Toast kind={toast.kind} message={toast.message} className="page-toast" durationMs={toast.duration} />}

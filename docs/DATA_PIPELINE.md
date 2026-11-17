@@ -36,14 +36,17 @@ All files are written without indentation to reduce transfer size. The current i
 is about 3.8 MB and all stock details together are about 4.6 MB, because each detail file carries
 every weekly observation the provider returned (up to ten years, 24–31 KB per ticker) so the chart
 can offer 1M through ALL without a second request. A Stock Analysis page loads only its own detail
-file. The four monthly/quarterly/semiannual/annual schedules for each portfolio are
-stored as separate files under `backtests/` and load only when Run Backtest needs them.
+file. The four monthly/quarterly/semiannual/annual schedules for each portfolio are stored as separate
+files under `backtests/` and load only when Run Backtest needs them. The exporter is being extended with `backtest-inputs.json` for daily adjusted and split-adjusted prices,
+volumes, distributions, corporate actions, sectors and historical share disclosures. The static UI
+currently keeps custom-date runs disabled until the JavaScript calculation port passes Python parity;
+it does not fall back to a server request. The eight published schedule results remain available.
 
 ## Update schedule
 
 `.github/workflows/deploy-pages.yml` runs:
 
-- on every push to `main`, using the committed validated snapshot;
+- on every push to `main`, refreshing and validating data before deployment;
 - weekdays at `22:23 UTC`, after the regular US market close;
 - on manual dispatch.
 
@@ -91,9 +94,10 @@ The update pill opens **Data & Cache**, which displays:
 
 ## Request deduplication
 
-Static and live API adapters share an in-flight request map. Repeated snapshot or stock requests
-reuse an already pending promise instead of issuing duplicates. Static mode polls every 15 minutes;
-live mode polls every 5 minutes. A manual "check for updates" bypasses the browser/request cache.
+Static requests share an in-flight request map. Repeated snapshot or stock requests reuse an already
+pending promise instead of issuing duplicates. Static mode checks GitHub Pages every 15 minutes. A
+manual "check for updates" bypasses the browser/request cache and preserves the last valid copy if the
+request fails.
 
 ## Failure states
 

@@ -14,10 +14,10 @@ export const PORTFOLIO_CSV_COLUMNS = [
   "Ticker",
   "Company",
   "Sector",
-  "Momentum Score",
+  "Momentum Score at Rebalance",
   "Float-Adjusted Market Cap (USD)",
   "Raw Weight (%)",
-  "Final Weight (%)",
+  "Target Weight (%)",
 ];
 
 const TOLERANCE = 0.05; // total final weight may differ from 100 by rounding only
@@ -225,10 +225,10 @@ export function buildPortfolioExportData({
             "Ticker",
             "Company",
             "Sector",
-            "Momentum Score",
+            "Momentum Score at Rebalance",
             "Float-Adjusted Market Cap (USD)",
             "Raw Weight (%)",
-            "Final Weight (%)",
+            "Target Weight (%)",
           ],
           ...holdingRows(holdings),
         ],
