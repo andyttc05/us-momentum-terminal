@@ -27,6 +27,8 @@ concurrency:
 
 jobs:
   build:
+    outputs:
+      data_status: ${{ steps.refresh_data.outputs.data_status }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -81,7 +83,7 @@ jobs:
       # failed deploy.
       - name: Refresh and validate published data
         id: refresh_data
-        run: python data-service/scripts/export_static.py --previous-publication /tmp/previous-publication.json
+        run: python data-service/scripts/export_static.py --force --previous-publication /tmp/previous-publication.json
 
       - name: Build static site
         run: npm run build
@@ -105,6 +107,7 @@ jobs:
 
   deploy:
     needs: build
+    if: needs.build.outputs.data_status == 'updated'
     runs-on: ubuntu-latest
     environment:
       name: github-pages

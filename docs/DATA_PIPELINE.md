@@ -68,9 +68,9 @@ The export is rejected when:
 - a referenced stock detail file is missing.
 
 The exporter writes into a temporary directory and swaps it into place only after validation. If a
-provider fetch or validation fails, the existing snapshot remains untouched. The workflow can still
-deploy that previous valid snapshot; the published timestamps remain visible so it is never presented
-as current.
+provider fetch or validation fails, the existing snapshot remains untouched and the workflow skips
+the Pages deployment. This keeps the currently deployed publication available instead of replacing
+it with an older checkout copy.
 
 ## Browser freshness and fallback
 

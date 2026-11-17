@@ -65,7 +65,10 @@ test("GitHub Pages deploys a static scheduled snapshot without secrets", () => {
   assert.match(workflow, /cron:\s*"23 22 \* \* 1-5"/);
   assert.match(workflow, /VITE_DATA_MODE:\s*static/);
   assert.match(workflow, /python data-service\/scripts\/export_static\.py/);
+  assert.match(workflow, /export_static\.py --force/);
   assert.doesNotMatch(workflow, /FMP_API_KEY|TWELVEDATA_API_KEY/);
+  assert.match(workflow, /data_status: \$\{\{ steps\.refresh_data\.outputs\.data_status \}\}/);
+  assert.match(workflow, /if: needs\.build\.outputs\.data_status == 'updated'/);
 });
 
 test("production refreshes the latest published snapshot without a live-service dependency", () => {
