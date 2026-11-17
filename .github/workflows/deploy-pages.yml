@@ -69,7 +69,8 @@ jobs:
           OWNER="${REPOSITORY%/*}"
           URL="https://${OWNER}.github.io/${REPOSITORY_NAME}/data/publication.json"
           if ! curl --fail --location --silent --show-error "$URL" --output /tmp/previous-publication.json; then
-            cp frontend/public/data/publication.json /tmp/previous-publication.json
+            cp frontend/public/data/publication.json /tmp/previous-publication.json \
+              || cp data-service/seed/publication.json /tmp/previous-publication.json
           fi
 
       # Every deploy rebuilds the snapshot, pushes included. A push build used

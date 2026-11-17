@@ -20,7 +20,8 @@ def book(universe, count, weight):
 def series(dates):
     index = pd.to_datetime(dates)
     frame = pd.DataFrame({"adj": [100.0] * len(index), "close": [100.0] * len(index), "volume": [1.0] * len(index)}, index=index)
-    return {"AAA": SymbolSeries("AAA", frame, "test", "test", "", True, False)}
+    symbols = [f"A{i}" for i in range(100)] + [f"B{i}" for i in range(20)] + [f"OLD{i}" for i in range(100)] + [f"OLD20{i}" for i in range(20)]
+    return {symbol: SymbolSeries(symbol, frame, "test", "test", "", True, False) for symbol in symbols}
 
 
 class PortfolioLifecycleTests(unittest.TestCase):
@@ -34,10 +35,11 @@ class PortfolioLifecycleTests(unittest.TestCase):
         }
         old["top100"]["activePortfolio"]["holdings"][0]["ticker"] = "HELD"
         old["top100"]["activePortfolio"]["holdings"][0]["finalWeight"] = 8.25
-        result = _portfolio_lifecycle(self.candidates, old, series(["2026-01-02", "2026-01-05"]), as_of="2026-01-05", generated_at="now")
+        result = _portfolio_lifecycle(self.candidates, old, series(["2026-01-02", "2026-01-05"]), as_of="2026-01-05", generated_at="now", signal_rows=[{"ticker": "NEW", "rank": 1}])
         active = result["top100"]["activePortfolio"]["holdings"][0]
         self.assertEqual((active["ticker"], active["finalWeight"]), ("HELD", 8.25))
-        self.assertNotEqual(result["top100"]["liveSignals"]["holdings"][0]["ticker"], "HELD")
+        self.assertEqual(result["top100"]["liveSignals"]["rows"][0]["ticker"], "NEW")
+        self.assertEqual(result["top100"]["liveSignals"]["rows"][0]["activePortfolioStatus"], "outside_active_portfolio")
 
     def test_top100_and_top20_states_remain_independent(self):
         old = {key: {"activePortfolio": book(key, count, 100 / count), "meta": {"asOf": "2026-01-02"}}

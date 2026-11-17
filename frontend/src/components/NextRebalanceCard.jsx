@@ -85,7 +85,7 @@ function CountdownClock({ schedule }) {
   );
 }
 
-export function NextRebalanceCard({ frequency, today }) {
+export function NextRebalanceCard({ frequency, today, portfolio }) {
   const todayKey = useCalendarDateKey(today);
   const schedule = useMemo(
     () => getNextRebalanceSchedule({ frequency, today: todayKey }),
@@ -93,6 +93,25 @@ export function NextRebalanceCard({ frequency, today }) {
   );
   const titleId = "next-rebalance-title";
   const frequencyLabel = schedule ? rebalanceOption(frequency).summary : "Unavailable";
+  const portfolioMeta = portfolio?.metadata ?? {};
+  const nextDate = portfolioMeta.nextScheduledRebalanceDate ?? schedule?.executionDate;
+  const displaySchedule = useMemo(() => {
+    if (!schedule || !nextDate) return null;
+    const todayStamp = Date.parse(`${todayKey}T00:00:00Z`);
+    const nextStamp = Date.parse(`${nextDate}T00:00:00Z`);
+    const daysRemaining = Number.isFinite(todayStamp) && Number.isFinite(nextStamp)
+      ? Math.max(0, Math.ceil((nextStamp - todayStamp) / 86_400_000))
+      : schedule.daysRemaining;
+    return {
+      ...schedule,
+      executionDate: nextDate,
+      year: Number(nextDate.slice(0, 4)),
+      monthIndex: Number(nextDate.slice(5, 7)) - 1,
+      day: Number(nextDate.slice(8, 10)),
+      daysRemaining,
+      remainingRatio: Math.min(1, daysRemaining / 184),
+    };
+  }, [schedule, nextDate, todayKey]);
 
   return (
     <section
@@ -107,8 +126,14 @@ export function NextRebalanceCard({ frequency, today }) {
       </div>
       <div className="dashboard-card__body next-rebalance-card__body">
         <div className="next-rebalance-card__visuals">
-          <RebalanceCalendar schedule={schedule} />
-          <CountdownClock schedule={schedule} />
+          <RebalanceCalendar schedule={displaySchedule} />
+          <CountdownClock schedule={displaySchedule} />
+        </div>
+        <div className="next-rebalance-dates">
+          <div><strong>{portfolioMeta.lastRebalanceDate ?? portfolioMeta.effectiveDate ?? "—"}</strong><span>Last Rebalance / Effective</span></div>
+          <div><strong>{portfolioMeta.nextScheduledSignalDate ?? "—"}</strong><span>Next Signal Session</span></div>
+          <div><strong>{portfolioMeta.nextScheduledRebalanceDate ?? "—"}</strong><span>Next Execution Session</span></div>
+          <p>Holdings remain fixed until the next scheduled rebalance.</p>
         </div>
       </div>
     </section>

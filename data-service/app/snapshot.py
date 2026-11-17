@@ -26,7 +26,7 @@ from .backtest import (
     rebalance_schedule,
     run_backtest,
 )
-from .clock import market_state
+from .clock import CALENDAR, market_state
 from .config import SEED_PATH, settings
 from . import size_history
 from .macro import load_cpi
@@ -186,9 +186,47 @@ def _validated_book(book: dict, target: int) -> bool:
     )
 
 
+def _next_exchange_rebalance(as_of: str) -> dict | None:
+    """Project the next signal and execution with the XNYS session calendar."""
+    current = pd.Timestamp(as_of).normalize()
+    for year in range(current.year, current.year + 4):
+        for month in (3, 9):
+            start = pd.Timestamp(year=year, month=month, day=1)
+            end = start + pd.offsets.MonthEnd(1)
+            if end <= current:
+                continue
+            calendar_end = min(end + pd.Timedelta(days=10), CALENDAR.last_session)
+            if calendar_end <= start:
+                continue
+            sessions = CALENDAR.sessions_in_range(start, calendar_end)
+            month_sessions = [session for session in sessions if session.year == year and session.month == month]
+            if not month_sessions:
+                continue
+            signal = month_sessions[-1]
+            execution = next((session for session in sessions if session > signal), None)
+            if signal > current and execution is not None:
+                return {
+                    "signalDate": signal.strftime("%Y-%m-%d"),
+                    "executionDate": execution.strftime("%Y-%m-%d"),
+                }
+    return None
+
+
+def _is_scheduled_signal_session(value: str) -> bool:
+    stamp = pd.Timestamp(value).normalize()
+    if stamp.month not in (3, 9):
+        return False
+    month_start = pd.Timestamp(year=stamp.year, month=stamp.month, day=1)
+    month_end = month_start + pd.offsets.MonthEnd(1)
+    if month_end > CALENDAR.last_session:
+        return False
+    sessions = CALENDAR.sessions_in_range(month_start, month_end)
+    return bool(len(sessions) and sessions[-1].strftime("%Y-%m-%d") == stamp.strftime("%Y-%m-%d"))
+
+
 def _portfolio_lifecycle(
     candidates: dict[str, dict], previous: dict | None, series_map: dict[str, SymbolSeries],
-    *, as_of: str, generated_at: str,
+    *, as_of: str, generated_at: str, signal_rows: list[dict] | None = None,
 ) -> dict[str, dict]:
     """Freeze active books between scheduled sessions; persist pending events."""
     previous = previous or {}
@@ -199,6 +237,13 @@ def _portfolio_lifecycle(
         signal = sessions[event["signal_position"]]
         execution = sessions[event["execution_position"]]
         events.append({"signalDate": signal, "executionDate": execution, "kind": event["kind"]})
+
+    def has_execution_prices(book: dict, session: str) -> bool:
+        for holding in book.get("holdings") or []:
+            item = series_map.get(str(holding.get("ticker") or ""))
+            if item is None or pd.Timestamp(session) not in item.frame.index:
+                return False
+        return bool(book.get("holdings"))
 
     output = {}
     for universe, target in DATASET_TARGET_HOLDINGS.items():
@@ -228,11 +273,20 @@ def _portfolio_lifecycle(
                 pending = {**pending, "executionDate": following, "metadata": pending_meta}
         # Promote only after the next real market session is present and the
         # candidate book passed all published portfolio constraints.
-        if pending and as_of >= str(pending.get("executionDate") or "9999"):
+        if (
+            pending
+            and pending.get("executionDate")
+            and as_of >= str(pending.get("executionDate"))
+            and has_execution_prices(pending.get("portfolio") or {}, str(pending.get("executionDate")))
+        ):
             candidate = pending.get("portfolio") or {}
             if _validated_book(candidate, target):
                 active = candidate
                 old_meta = dict(pending.get("metadata") or {})
+                old_meta["rebalanceHistory"] = [
+                    *(old_meta.get("rebalanceHistory") or []),
+                    {key: old_meta.get(key) for key in ("eventId", "formationType", "signalDate", "executionDate", "effectiveDate")},
+                ]
                 pending = None
 
         if not old_meta.get("effectiveDate"):
@@ -246,6 +300,7 @@ def _portfolio_lifecycle(
                     "rebalanceFrequency": "semiannual", "formationType": "initial_formation",
                     "signalDate": as_of, "executionDate": as_of, "effectiveDate": as_of,
                     "lastRebalanceDate": None, "publicationTimestamp": generated_at,
+                    "rebalanceHistory": [{"eventId": f"{universe}-initial-{as_of}", "formationType": "initial_formation", "signalDate": as_of, "executionDate": as_of, "effectiveDate": as_of}],
                 }
         else:
             due = next((event for event in events if event["signalDate"] > str(old_meta.get("signalDate") or "")), None)
@@ -263,10 +318,10 @@ def _portfolio_lifecycle(
                         }}
             if not pending:
                 signal = pd.Timestamp(as_of)
-                # A signal on the last available session in the final week of
-                # March/September is held pending; the next publication supplies
-                # the actual following exchange session, without guessing it.
-                if signal.month in (3, 9) and signal.day >= 25 and as_of == sessions[-1]:
+                # A signal is queued only when the exchange calendar confirms
+                # this is the final actual trading session of March/September.
+                # The next publication supplies the following real session.
+                if _is_scheduled_signal_session(as_of) and as_of == sessions[-1]:
                     candidate = candidates[universe]
                     if _validated_book(candidate, target):
                         pending = {"eventId": f"{universe}-rebalance-{as_of}", "kind": "scheduled",
@@ -277,10 +332,27 @@ def _portfolio_lifecycle(
                                 "signalDate": as_of, "executionDate": None, "effectiveDate": None,
                                 "lastRebalanceDate": None, "publicationTimestamp": generated_at}}
 
-        next_event = next((event for event in events if event["signalDate"] > str(old_meta.get("signalDate") or "")), None)
-        active["metadata"] = {**old_meta, "nextScheduledRebalanceDate": next_event["executionDate"] if next_event else None}
-        active["liveSignals"] = None
-        output[universe] = {"activePortfolio": active, "liveSignals": candidates[universe], "pendingRebalance": pending}
+        next_event = _next_exchange_rebalance(as_of)
+        active["metadata"] = {
+            **old_meta,
+            "nextScheduledSignalDate": next_event["signalDate"] if next_event else None,
+            "nextScheduledRebalanceDate": next_event["executionDate"] if next_event else None,
+        }
+        active_tickers = {holding.get("ticker") for holding in active.get("holdings") or []}
+        candidate_tickers = {holding.get("ticker") for holding in candidates[universe].get("holdings") or []}
+        live_rows = [{
+            **row,
+            "activePortfolioStatus": (
+                "currently_held" if row.get("ticker") in active_tickers
+                else "potential_new_entry" if row.get("ticker") in candidate_tickers
+                else "outside_active_portfolio"
+            ),
+        } for row in (signal_rows or [])]
+        output[universe] = {
+            "activePortfolio": active,
+            "liveSignals": {"asOf": as_of, "publicationTimestamp": generated_at, "rows": live_rows},
+            "pendingRebalance": pending,
+        }
     return output
 
 
@@ -1197,13 +1269,14 @@ def build_publication(force: bool = False, progress=None, previous_publication: 
 
         started = _now()
         build_started = time.perf_counter()
-        previous_publication = cache.read_stale("publication", "snapshot")
+        previous_publication = previous_publication or cache.read_stale("publication", "snapshot")
         seed_publication = None
         try:
             seeded = json.loads(SEED_PATH.read_text())
             seed_publication = seeded.get("value", seeded)
         except (OSError, json.JSONDecodeError):
             pass
+        previous_publication = previous_publication or seed_publication
         fundamental_fallbacks = _verified_fundamental_fallbacks(
             [previous_publication, seed_publication]
         )
@@ -1575,6 +1648,7 @@ def build_publication(force: bool = False, progress=None, previous_publication: 
             series_map,
             as_of=as_of,
             generated_at=started,
+            signal_rows=stocks,
         )
         # The compatibility field remains an alias for the active book. Daily
         # rankings are explicitly published separately and cannot replace it.

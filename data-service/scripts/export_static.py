@@ -305,7 +305,13 @@ def build_static(
     seed_path: Path | None = None,
     previous_publication: dict | None = None,
 ) -> dict:
-    payload = build_publication(force=force, previous_publication=previous_publication)
+    # A publication refresh must reconcile against the durable deployed book;
+    # bypass the publication TTL cache so a runner's restored cache cannot
+    # supersede that newer checkpoint.
+    payload = build_publication(
+        force=force or previous_publication is not None,
+        previous_publication=previous_publication,
+    )
     errors = validate_publication(
         payload,
         max_as_of_age_days=max_as_of_age_days,
@@ -489,7 +495,9 @@ def main() -> int:
             previous_publication = json.loads(previous_path.read_text())
         except (OSError, json.JSONDecodeError):
             previous_publication = None
-        if previous_publication is None and not args.force:
+        if isinstance(previous_publication, dict) and isinstance(previous_publication.get("value"), dict):
+            previous_publication = previous_publication["value"]
+        if previous_publication is None:
             raise RuntimeError("previous validated publication is unavailable; refusing to form a replacement portfolio")
         result = build_static(
             output,

@@ -137,7 +137,7 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
   // constraint targets: nothing here is sized from a fixed 100-holding guess.
   const dataset = datasetForUniverse(data, activeUniverse);
   const portfolio = dataset?.portfolio ?? null;
-  const liveSignals = data?.stocks ?? [];
+  const liveSignals = dataset?.liveSignals?.rows ?? data?.stocks ?? [];
   const targetHoldings = targetHoldingsForDataset(dataset, activeUniverse);
   const portfolioHoldings = portfolio?.holdings ?? [];
   const portfolioSectors = portfolio?.sectors ?? [];
@@ -290,7 +290,7 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
             />
           </DashboardCard>
 
-          <NextRebalanceCard frequency={rebalanceFrequency} />
+          <NextRebalanceCard frequency={rebalanceFrequency} portfolio={portfolio} today={meta?.as_of} />
 
           <section className="dashboard-card portfolio-constraints" aria-labelledby="portfolio-constraints-title">
             <div className="dashboard-card__header">
@@ -367,7 +367,8 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
                 <thead><tr><th>Current Rank</th><th>Ticker</th><th>Sector</th><th>Momentum Score</th><th>12–1 Momentum</th><th>Float-Adj. Market Cap</th><th>Portfolio Status</th></tr></thead>
                 <tbody>{liveSignals.slice(0, 20).map((row, index) => {
                   const held = portfolioHoldings.some((holding) => holding.ticker === row.ticker);
-                  return <tr key={row.ticker}><td>{row.rank ?? index + 1}</td><td><a href={stockPath(row.ticker)} onClick={(event) => { if (!shouldRouteTickerClick(event)) return; event.preventDefault(); onSelectStock?.(row.ticker); }}>{row.ticker}</a></td><td>{row.sector}</td><td>{Number(row.score ?? row.momentumScore ?? 0).toFixed(2)}</td><td>{Number(row.momentum ?? 0).toFixed(1)}%</td><td>{row.floatMarketCap ? `$${(row.floatMarketCap >= 1e12 ? (row.floatMarketCap / 1e12).toFixed(2) + "T" : (row.floatMarketCap / 1e9).toFixed(0) + "B")}` : "—"}</td><td><span className={held ? "portfolio-status-held" : ""}>{held ? "Currently Held" : index < targetHoldings ? "Potential New Entry" : "Outside Active Portfolio"}</span></td></tr>;
+                  const potential = row.activePortfolioStatus === "potential_new_entry";
+                  return <tr key={row.ticker}><td>{row.rank ?? index + 1}</td><td><a href={stockPath(row.ticker)} onClick={(event) => { if (!shouldRouteTickerClick(event)) return; event.preventDefault(); onSelectStock?.(row.ticker); }}>{row.ticker}</a></td><td>{row.sector}</td><td>{Number(row.score ?? row.momentumScore ?? 0).toFixed(2)}</td><td>{Number(row.momentum ?? 0).toFixed(1)}%</td><td>{row.floatMarketCap ? `$${(row.floatMarketCap >= 1e12 ? (row.floatMarketCap / 1e12).toFixed(2) + "T" : (row.floatMarketCap / 1e9).toFixed(0) + "B")}` : "—"}</td><td><span className={held ? "portfolio-status-held" : ""}>{held ? "Currently Held" : potential ? "Potential New Entry" : "Outside Active Portfolio"}</span></td></tr>;
                 })}</tbody>
               </table>
               <p className="portfolio-tab-note">Signal date: {meta?.as_of ?? "Unavailable"} · Published: {meta?.generated_at ?? "Unavailable"}</p>
