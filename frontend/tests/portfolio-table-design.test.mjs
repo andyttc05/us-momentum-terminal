@@ -21,17 +21,18 @@ test("the holdings card switches between two views from inside its own header", 
   assert.match(portfolioPage, /const portfolioViews = \[\["holdings", "Holdings"\], \["live", "Live Momentum"\]\]/);
   // Performance is gone; only holdings and live momentum remain.
   assert.doesNotMatch(portfolioPage, /"performance"|Performance/);
-  // The title and the switch both live in the card header, next to Export.
-  assert.match(portfolioPage, /className="portfolio-card-toolbar"[\s\S]*?dashboard-card__title[\s\S]*?role="tablist"[\s\S]*?<ExportMenu/);
+  // The title, the switch and Export all live in the card header, and the switch
+  // is the same .period-control the Overview and Backtesting pages use.
+  assert.match(portfolioPage, /className="portfolio-card-toolbar"[\s\S]*?dashboard-card__title[\s\S]*?className="period-control"[\s\S]*?<ExportMenu/);
   assert.match(portfolioPage, /activeView === "holdings" \? "Active Portfolio Holdings" : "Live Momentum Signals"/);
-  assert.match(portfolioPage, /aria-controls="portfolio-view-panel"/);
-  assert.match(portfolioPage, /event\.key === "ArrowRight"/);
-  assert.match(portfolioCss, /\.portfolio-view-switch button\.is-active \{/);
   // Short, single-line headings; the "at rebalance" wording lives in the tooltip.
   assert.match(portfolioPage, /"Sector", "Sector at Rebalance"/);
   assert.match(portfolioPage, /"Score", "Score at Rebalance"/);
   assert.match(portfolioPage, /"Float Cap", "Float-Adjusted Market Cap at Rebalance"/);
   assert.match(portfolioPage, /"Weight", "Target Weight"/);
+  // No hand-rolled segmented control or status dot is left behind.
+  assert.doesNotMatch(portfolioCss + portfolioPage, /portfolio-view-switch|portfolio-live-dot/);
+  assert.doesNotMatch(portfolioPage + portfolioCss, /portfolio-tab-note|Latest scores update/);
 });
 
 test("Portfolio holding rows use the Screener row rhythm and hover treatment", () => {
@@ -50,13 +51,14 @@ test("Portfolio holding rows use the Screener row rhythm and hover treatment", (
   assert.doesNotMatch(portfolioCss, /position:\s*sticky/);
 });
 
-test("Portfolio financial columns stay right aligned with matching badge sizes", () => {
-  assert.match(portfolioCss, /\.portfolio-heading--market-cap,[^}]*text-align: right/s);
-  assert.match(portfolioCss, /\.portfolio-weight-value-cell \{ text-align: right; \}/);
-  assert.match(portfolioCss, /\.portfolio-score-cell \{ text-align: center; \}/);
+test("both tables align their numbers the same way, with no decorative cells", () => {
+  assert.match(portfolioCss, /\.portfolio-heading--score,\n\.portfolio-heading--market-cap,\n\.portfolio-heading--final-weight \{ text-align: right; \}/);
+  assert.match(portfolioCss, /\.portfolio-number-cell \{ text-align: right; \}/);
   assert.match(portfolioCss, /\.portfolio-table th\.portfolio-heading--rank \{ text-align: center; \}/);
-  assert.match(portfolioCss, /\.portfolio-score-cell span \{[^}]*min-width: 82px;[^}]*min-height: 31px/s);
-  assert.match(portfolioCss, /\.portfolio-rank-cell span \{[^}]*width: 32px;[^}]*height: 32px/s);
+  // Rank badges and score pills are gone: the two tables now share one cell style.
+  assert.doesNotMatch(portfolioCss, /\.portfolio-score-cell|\.portfolio-rank-cell span|\.portfolio-weight-value-cell/);
+  assert.match(portfolioPage, /<td className="portfolio-number-cell">/);
+  assert.match(portfolioPage, /<td className="portfolio-rank-cell">/);
 });
 
 test("Portfolio holdings columns use the requested aligned six-column proportions", () => {

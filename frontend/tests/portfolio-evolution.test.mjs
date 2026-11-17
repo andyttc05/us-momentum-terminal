@@ -636,13 +636,14 @@ test("Portfolio Evolution follows Performance Summary and keeps the holdings tab
   assert.match(component, /aria-sort=\{sort\.key === key/);
   assert.match(component, /aria-label=\{`Sort by \$\{label\}`\}/);
   assert.ok(
-    HOLDINGS_SORT_FIELDS.some((field) => field.label === "Portfolio Weight" && field.slug === "weight"),
-    "the weight column must be titled Portfolio Weight",
+    HOLDINGS_SORT_FIELDS.some((field) => field.label === "Weight" && field.slug === "weight"),
+    "the weight column must be titled Weight",
   );
   assert.match(component, /Historical point-in-time portfolio weight unavailable/);
-  assert.match(component, /portfolio-evolution__selected-date-primary/);
+  assert.match(component, /portfolio-evolution__selected-date/);
   assert.match(component, /portfolio-evolution__holdings-count/);
-  assert.match(component, /portfolio-evolution__signal-date/);
+  // The signal date is no longer repeated in the header.
+  assert.doesNotMatch(component + styles, /portfolio-evolution__signal-date/);
   assert.match(component, /<col className="portfolio-evolution__col-rank" \/>/);
   assert.match(component, /<col className="portfolio-evolution__col-ticker" \/>/);
   assert.match(component, /<col className="portfolio-evolution__col-weight" \/>/);
@@ -657,7 +658,7 @@ test("Portfolio Evolution follows Performance Summary and keeps the holdings tab
   assert.match(styles, /\.portfolio-evolution__event \{[\s\S]*?border-left: 4px solid transparent;[\s\S]*?border-radius: 0;[\s\S]*?transition: background-color 160ms ease/);
   assert.match(styles, /\.portfolio-evolution__event\.is-selected \{\s*border-left-color: #EDB900;\s*background: #FFF5D5;\s*\}/);
   assert.doesNotMatch(styles, /\.portfolio-evolution__event:not\(\.is-selected\) \{[^}]*box-shadow/);
-  assert.match(styles, /\.portfolio-evolution__holdings-header[\s\S]*?min-height: 104px/);
+  assert.doesNotMatch(styles, /\.portfolio-evolution__holdings-header \{[^}]*min-height/s);
   assert.match(styles, /\.portfolio-evolution__toolbar[\s\S]*?grid-template-columns: minmax\(216px, 1fr\) auto/);
   assert.match(styles, /\.portfolio-evolution__filters \{[\s\S]*?width: 319px[\s\S]*?grid-template-columns: repeat\(4, 76px\)[\s\S]*?height: 38px[\s\S]*?border: 1px solid var\(--color-line\)[\s\S]*?border-radius: var\(--radius-pill\)/);
   assert.match(styles, /\.portfolio-evolution__filters button \{[\s\S]*?border: 0;[\s\S]*?background: transparent/);
@@ -672,7 +673,9 @@ test("Portfolio Evolution follows Performance Summary and keeps the holdings tab
   assert.doesNotMatch(component, /portfolio-evolution__col-company/);
   assert.match(styles, /\.portfolio-evolution__weight-heading[\s\S]*?text-align: right/);
   assert.match(styles, /\.portfolio-evolution__status-cell \{\s*padding-left: 12px !important;\s*text-align: left;\s*\}/);
-  assert.match(styles, /\.portfolio-evolution__status \{[\s\S]*?width: 78px/);
+  // Status is text, not a filled chip.
+  assert.doesNotMatch(styles, /\.portfolio-evolution__status \{[^}]*background:/);
+  assert.match(styles, /\.portfolio-evolution__status\.is-retained \{ color: var\(--color-text-secondary\); \}/);
   assert.match(styles, /\.portfolio-evolution__holdings-table td \{[^}]*border-bottom: 1px solid var\(--color-line\)/s);
   assert.doesNotMatch(
     styles,

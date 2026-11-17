@@ -246,11 +246,13 @@ button:focus-visible, a:focus-visible { outline: none; box-shadow: var(--focus-r
   outline-offset: 3px;
   box-shadow: none;
 }
+/* One switch geometry for the whole app: a 34 × 20 track with a 16px knob.
+   Resting surfaces are drawn by the surrounding control, never by the track. */
 .toggle-control__track {
   position: relative;
   display: block;
-  width: 51px;
-  height: 28px;
+  width: 34px;
+  height: 20px;
   border-radius: var(--radius-pill);
   background: #DDD9D3;
   transition: background-color 180ms ease;
@@ -259,15 +261,15 @@ button:focus-visible, a:focus-visible { outline: none; box-shadow: var(--focus-r
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 24px;
-  height: 24px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: var(--color-card);
   box-shadow: 0 2px 5px rgb(34 27 19 / 12%);
   transition: transform 180ms ease;
 }
 .toggle-control[aria-checked="true"] .toggle-control__track { background: #EDB900; }
-.toggle-control[aria-checked="true"] .toggle-control__track i { transform: translateX(23px); }
+.toggle-control[aria-checked="true"] .toggle-control__track i { transform: translateX(14px); }
 
 .info-tooltip {
   position: relative;
@@ -329,7 +331,9 @@ button:focus-visible, a:focus-visible { outline: none; box-shadow: var(--focus-r
 .app-button--primary { background: var(--color-ink); color: #fff; box-shadow: 0 3px 9px rgb(17 17 17 / 8%); }
 .app-button--primary:hover { background: #2A2927; box-shadow: 0 3px 9px rgb(17 17 17 / 8%); }
 .app-button--secondary { border-color: var(--color-line); background: var(--color-surface); color: var(--color-ink); }
-.app-button--secondary:hover, .app-button--quiet:hover { background: var(--color-surface-soft); }
+/* Quiet and secondary controls answer with one neutral wash on hover, and
+   nothing at rest — the app never parks a grey pill under a label. */
+.app-button--secondary:hover, .app-button--quiet:hover { background: var(--color-nav-hover); }
 .app-button--quiet { border-color: transparent; background: transparent; color: var(--color-text-secondary); }
 .app-button--icon-only { width: 44px; padding: 0; }
 .app-button__arrow { display: grid; width: 25px; height: 25px; place-items: center; margin-left: var(--space-1); border-radius: 50%; background: var(--color-yellow); color: var(--color-ink); }

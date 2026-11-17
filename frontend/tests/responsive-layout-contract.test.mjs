@@ -239,7 +239,8 @@ test("both data tables render the same columns at every width", () => {
     assert.doesNotMatch(page, /className="[a-z-]*col-rank" \/>\}/);
   }
   assert.match(screener, /const columnCount = 9;/);
-  assert.match(portfolio, /const columnCount = 6;/);
+  assert.match(portfolio, /const holdingsColumns = \[/);
+  assert.match(portfolio, /const liveColumns = \[/);
   assert.match(screener, /<td className="stock-rank-cell">/);
   assert.match(portfolio, /<td className="portfolio-rank-cell">/);
 

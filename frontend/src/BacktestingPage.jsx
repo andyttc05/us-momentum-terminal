@@ -314,8 +314,11 @@ function CumulativeChart({ dates, range, view, logScale, seriesValues, onLogUnav
   const isPercent = view === "capital";
   const left = compact ? 42 : 54;
   const top = 30;
-  // Dollar pills are wider than a percentage would be.
-  const labelGutter = (compact ? 82 : 126) + (isPercent ? 0 : 22);
+  // The gutter after the plot holds the end-value pills. It is sized for the
+  // widest pill ("$312,963" is wider than "+177.0%") and never for the current
+  // view, so switching between Portfolio Value and Return on Capital draws the
+  // x axis at exactly the same length instead of shortening it by 22px.
+  const labelGutter = compact ? 96 : 148;
   const plotWidth = Math.max(80, width - left - labelGutter);
   const plotHeight = Math.max(80, height - top - (compact ? 30 : 34));
 
@@ -366,8 +369,11 @@ function CumulativeChart({ dates, range, view, logScale, seriesValues, onLogUnav
     compact ? 66 : 48,
   );
   const pillWidth = compact ? (isPercent ? 70 : 84) : (isPercent ? 91 : 112);
-  const pillOffset = compact ? 9 : 14;
-  const pillCenter = pillOffset + pillWidth / 2;
+  // Pills are pinned to the card's right edge instead of to the plot's end, so
+  // the narrower percentage pill and the wider dollar pill share one right
+  // margin and the plot keeps the same length in both views.
+  const pillX = width - (compact ? 6 : 10) - pillWidth;
+  const pillCenter = pillX + pillWidth / 2;
   const endLabels = computedSeries
     .map((series) => ({ series, point: pointsFor(series.values).at(-1) }))
     .sort((a, b) => a.point.y - b.point.y);
@@ -387,7 +393,7 @@ function CumulativeChart({ dates, range, view, logScale, seriesValues, onLogUnav
   const selectedPoint = selectedIndex == null || !leadValues.length
     ? null
     : pointsFor(leadValues)[selectedIndex];
-  const labelBoundary = left + plotWidth + pillOffset;
+  const labelBoundary = Math.min(left + plotWidth, pillX) - 10;
   const tooltipGap = compact ? 14 : CHART_TOOLTIP_GAP;
   const tooltipMargin = compact ? 8 : CHART_TOOLTIP_MARGIN;
   const tooltipWidth = compact
@@ -518,9 +524,9 @@ function CumulativeChart({ dates, range, view, logScale, seriesValues, onLogUnav
           {endLabels.map(({ series, point, labelY }) => (
             <g key={`${series.id}-end`} data-testid={`backtest-final-label-${series.id}`}>
               <circle cx={point.x} cy={point.y} r="4.5" className={`backtest-endpoint backtest-endpoint--${series.id}`} />
-              <path d={`M ${point.x + 7} ${point.y} L ${point.x + pillOffset} ${labelY}`} className={`backtest-leader backtest-leader--${series.id}`} />
+              <path d={`M ${point.x + 7} ${point.y} L ${pillX} ${labelY}`} className={`backtest-leader backtest-leader--${series.id}`} />
               <rect
-                x={point.x + pillOffset}
+                x={pillX}
                 y={labelY - (compact ? 10 : 12)}
                 width={pillWidth}
                 height={compact ? 20 : 24}
@@ -528,7 +534,7 @@ function CumulativeChart({ dates, range, view, logScale, seriesValues, onLogUnav
                 className={`backtest-value-pill backtest-value-pill--${series.id}`}
               />
               <text
-                x={point.x + pillCenter}
+                x={pillCenter}
                 y={labelY}
                 dominantBaseline="central"
                 textAnchor="middle"

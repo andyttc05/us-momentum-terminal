@@ -251,8 +251,9 @@
 .portfolio-constraint.is-failed > svg { color: var(--color-negative); }
 .portfolio-constraint.is-unavailable > svg { color: var(--color-warning); }
 
-/* The holdings card owns its header: title on the left, the two-way view switch
-   and Export on the right. Both live inside the card — nothing floats above it. */
+/* The holdings card owns its header: title on the left, the shared two-way
+   segmented control (.period-control, the same one Backtesting and Overview use)
+   and Export on the right. Nothing floats above the card. */
 .portfolio-holdings-card { --card-body-padding-start: 12px; --card-body-padding-end: 0px; }
 .portfolio-holdings-card > .dashboard-card__header { align-items: center; }
 .portfolio-card-toolbar {
@@ -267,72 +268,20 @@
 .portfolio-card-toolbar__actions { display: flex; min-width: 0; align-items: center; gap: 10px; margin-left: auto; }
 .portfolio-export-control { display: flex; flex: 0 0 auto; align-items: center; justify-content: flex-end; }
 
-/* Segmented control: one quiet track, the selected view raised out of it. */
-.portfolio-view-switch {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 2px;
-  padding: 3px;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-pill);
-  background: #F5F0E7;
-}
-.portfolio-view-switch button {
-  display: inline-flex;
-  min-height: 30px;
-  align-items: center;
-  gap: 6px;
-  border: 0;
-  border-radius: var(--radius-pill);
-  background: transparent;
-  color: var(--color-text-secondary);
-  padding: 5px 13px;
-  font: inherit;
-  font-size: 0.82rem;
-  font-weight: var(--font-weight-bold);
-  line-height: 1;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
-}
-.portfolio-view-switch button:hover { color: var(--color-ink); }
-.portfolio-view-switch button.is-active {
-  background: var(--color-surface);
-  color: var(--color-ink);
-  box-shadow: 0 1px 2px rgb(56 40 22 / 10%);
-}
-.portfolio-view-switch button:focus-visible { outline: 2px solid #D7AB2E; outline-offset: 2px; }
-.portfolio-view-switch .portfolio-live-dot { width: 7px; height: 7px; }
-.portfolio-live-dot { flex: 0 0 auto; border-radius: 50%; background: var(--color-mint); }
-
-.portfolio-view-panel { min-width: 0; }
-.portfolio-live-panel { min-width: 0; }
-.portfolio-live-table-wrap { overflow-x: auto; }
-/* The live table sizes to its text: seven columns of differing widths do not fit
-   the holdings colgroup, and there is nothing to keep column-aligned with. */
-.portfolio-live-table { min-width: 880px; table-layout: auto; }
-.portfolio-live-table td,
-.portfolio-live-table th { padding: 10px 12px; text-align: left; }
-.portfolio-live-table td a { color: inherit; font-weight: var(--font-weight-bold); text-decoration: none; }
-.portfolio-status-held { color: var(--color-positive); font-weight: var(--font-weight-bold); }
-.portfolio-tab-note { margin: 0 12px 12px; color: var(--color-text-secondary); font-size: var(--font-size-sm); }
-.portfolio-tab-note:first-child { margin: 2px 12px 10px; }
-
 .portfolio-holdings-card .table-pagination { min-height: 68px; padding: 0 10px; }
 .portfolio-table-scroll { width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
 .portfolio-table-shell { position: relative; min-width: 0; }
 .portfolio-table { width: 100%; min-width: 960px; table-layout: fixed; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-/* The fixed colgroup keeps every header aligned to its body column. The six
-   widths total 100%; tablet layouts scroll instead of compressing the labels.
-   Sector gets the widest track because it is the only free-text column; the
-   numeric columns are sized for their values, so no heading has to wrap. */
+/* One fixed grid for the holdings table; the live table gets its own seven-track
+   version of the same idea, so both read at the same rhythm. Widths total 100%
+   and tablet layouts scroll instead of compressing the labels. */
 .portfolio-col-rank { width: 5%; }
 .portfolio-col-ticker { width: 12%; }
 .portfolio-col-sector { width: 26%; }
 .portfolio-col-score { width: 13%; }
 .portfolio-col-market-cap { width: 24%; }
 .portfolio-col-final-weight { width: 20%; }
+.portfolio-live-table { min-width: 960px; table-layout: auto; }
 .portfolio-table thead tr { min-height: var(--table-head-height); border-bottom: 1px solid var(--color-line); }
 .portfolio-table th {
   min-width: 0;
@@ -366,13 +315,13 @@
 .portfolio-table th button span { min-width: 0; }
 .portfolio-table th button:hover { color: var(--color-ink); }
 .portfolio-table th button svg { flex: 0 0 auto; }
-.portfolio-heading--rank,
-.portfolio-heading--score { text-align: center; }
+.portfolio-heading--rank { text-align: center; }
 .portfolio-table th.portfolio-heading--rank { text-align: center; }
-.portfolio-heading--rank button,
-.portfolio-heading--score button { justify-content: center; }
+.portfolio-heading--rank button { justify-content: center; }
+.portfolio-heading--score,
 .portfolio-heading--market-cap,
 .portfolio-heading--final-weight { text-align: right; }
+.portfolio-heading--score button,
 .portfolio-heading--market-cap button,
 .portfolio-heading--final-weight button { justify-content: flex-end; }
 .portfolio-table tbody tr { height: var(--table-row-height); border-bottom: 1px solid var(--color-line); transition: background-color 140ms ease; }
@@ -387,46 +336,33 @@
 .portfolio-table tbody tr:focus-within { background: #FCFAF7; }
 .portfolio-table td {
   overflow: hidden;
-  padding: 4px 8px;
+  /* The same 12px inline inset as the heading row, so a right-aligned number
+     and its heading share one edge instead of sitting 4px apart. */
+  padding: 4px 12px;
   color: var(--color-ink);
   font-size: var(--font-size-table-cell);
   text-overflow: ellipsis;
   vertical-align: middle;
   white-space: nowrap;
 }
-.portfolio-rank-cell { padding-left: 6px !important; text-align: center; }
-.portfolio-rank-cell span {
-  display: inline-grid;
-  width: 32px;
-  height: 32px;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--color-yellow-soft);
-  font-size: 1rem;
-  font-weight: var(--font-weight-black);
+/* Cells carry no decoration in either table: the rank is a plain number, the
+   score and money columns are plain right-aligned figures. One row shape, one
+   typographic scale, so Holdings and Live Momentum read as the same table. */
+.portfolio-rank-cell {
+  padding-left: 12px !important;
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-bold);
+  text-align: left;
 }
-.portfolio-ticker-cell { font-size: 1.15rem !important; font-weight: var(--font-weight-black); letter-spacing: -0.02em; }
+.portfolio-ticker-cell { font-size: 1.02rem !important; font-weight: var(--font-weight-black); letter-spacing: -0.01em; }
 .portfolio-ticker-link { display: inline; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; font-weight: inherit; letter-spacing: inherit; text-align: left; cursor: pointer; transition: color 160ms ease; }
 .portfolio-ticker-link:hover { color: #8D6500; }
 .portfolio-ticker-link:focus-visible { outline: 2px solid #D7AB2E; outline-offset: 2px; border-radius: 3px; }
-.portfolio-sector-cell { font-weight: var(--font-weight-medium); }
-.portfolio-score-cell,
-.portfolio-market-cap-cell,
-.portfolio-weight-value-cell { text-align: right; }
-.portfolio-score-cell { text-align: center; }
-.portfolio-score-cell span {
-  display: inline-flex;
-  min-width: 82px;
-  min-height: 31px;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-pill);
-  background: var(--color-positive-soft);
-  color: var(--color-positive);
-  font-size: 1rem;
-  font-weight: var(--font-weight-black);
-}
-.portfolio-weight-value-cell.is-final { font-weight: var(--font-weight-black); }
+.portfolio-sector-cell { color: var(--color-text-secondary); font-weight: var(--font-weight-medium); }
+.portfolio-number-cell { text-align: right; }
+.portfolio-number-cell.is-emphasis { font-weight: var(--font-weight-black); }
+.portfolio-status-cell { color: var(--color-text-secondary); }
+.portfolio-status-cell.is-held { color: var(--color-positive); font-weight: var(--font-weight-bold); }
 
 @media (min-height: 831px) and (min-width: 1101px) {
   .portfolio-table tbody tr { height: 50px; }
@@ -454,9 +390,7 @@
   .portfolio-constraint { grid-template-columns: 21px minmax(0, 1fr) auto 21px; column-gap: 7px; }
   .portfolio-table tbody tr { height: 44px; }
   .portfolio-table td { padding-block: 3px; font-size: 0.95rem; }
-  .portfolio-rank-cell span { width: 30px; height: 30px; }
-  .portfolio-ticker-cell { font-size: 1.08rem !important; }
-  .portfolio-score-cell span { min-width: 82px; min-height: 28px; font-size: 0.92rem; }
+  .portfolio-ticker-cell { font-size: 0.98rem !important; }
 }
 
 @media (max-width: 1399px) and (min-width: 1101px) {
@@ -491,10 +425,6 @@
   }
   .portfolio-sector-content .sector-legend li { font-size: 0.67rem; }
   .portfolio-sector-content .sector-legend strong { font-size: 0.71rem; }
-  /* The fixed 850px table gives Score 98px at the tablet width. Keep the badge
-     inside that cell so its trailing ellipsis cannot read as a second value. */
-  .portfolio-score-cell span { min-width: 76px; min-height: 29px; }
-
   /* While the table has columns off-screen, a soft fade on its right edge says
      "there is more" without adding chrome; it disappears at the end of the
      scroll. The inset shadow keeps that cue visible even when the cut happens

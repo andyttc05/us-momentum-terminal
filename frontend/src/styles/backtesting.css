@@ -626,9 +626,9 @@
   opacity: 0.45;
   cursor: not-allowed;
 }
-/* Same switch as the Stock Analysis log control: the track darkens, the knob
-   slides 12px, and the whole pill fills yellow — one 180ms motion, so the two
-   pages feel like the same product. */
+/* Same pill and the same switch as every other toggle in the app: nothing is
+   filled at rest, the surface answers only a hover, and the state lives in the
+   track. */
 .backtest-log-toggle {
   display: inline-flex;
   min-height: 39px;
@@ -637,7 +637,7 @@
   padding: 0 13px 0 14px;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-pill);
-  background: var(--color-surface-soft);
+  background: transparent;
   color: var(--color-ink);
   cursor: pointer;
   font-size: 0.78rem;
@@ -649,28 +649,28 @@
   background: var(--color-nav-hover);
 }
 .backtest-log-toggle[aria-checked="true"] {
-  border-color: transparent;
-  background: var(--color-yellow);
+  border-color: var(--color-line);
+  background: transparent;
 }
 .backtest-log-toggle .backtest-switch {
   display: inline-flex;
-  width: 30px;
-  height: 18px;
+  width: 34px;
+  height: 20px;
   padding: 2px;
   border-radius: var(--radius-pill);
-  background: #E4DED5;
+  background: #DDD9D3;
   transition: background-color 180ms ease;
 }
 .backtest-log-toggle .backtest-switch i {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: #FFFFFF;
   box-shadow: 0 1px 2px rgb(0 0 0 / 18%);
   transition: transform 180ms ease;
 }
-.backtest-log-toggle[aria-checked="true"] .backtest-switch { background: #14110D; }
-.backtest-log-toggle[aria-checked="true"] .backtest-switch i { transform: translateX(12px); }
+.backtest-log-toggle[aria-checked="true"] .backtest-switch { background: #EDB900; }
+.backtest-log-toggle[aria-checked="true"] .backtest-switch i { transform: translateX(14px); }
 .backtest-log-toggle:focus-visible {
   border-color: var(--color-field-border-active);
   outline: 2px solid var(--color-field-border-active);
@@ -1312,7 +1312,6 @@
 .portfolio-evolution__holdings-header {
   display: grid;
   min-width: 0;
-  min-height: 104px;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
   gap: 16px;
@@ -1321,24 +1320,21 @@
   display: grid;
   min-width: 0;
   align-content: start;
+  gap: 0;
 }
+.portfolio-evolution__holdings-panel .portfolio-evolution__toolbar { margin-top: 14px; }
+/* Date and count on one line: the signal date repeated a date the reader had
+   just chosen, so the header now says the two things that differ per row. */
 .portfolio-evolution__selected-date {
-  display: grid;
-  min-width: 0;
-  min-height: 51px;
-  align-content: start;
-  gap: 2px;
-  margin: 8px 0 0 30px;
-  overflow: hidden;
-  white-space: nowrap;
-}
-.portfolio-evolution__selected-date-primary {
   display: flex;
   min-width: 0;
   align-items: baseline;
   gap: 8px;
+  margin: 6px 0 0 30px;
+  overflow: hidden;
+  white-space: nowrap;
 }
-.portfolio-evolution__selected-date-primary > strong {
+.portfolio-evolution__selected-date > strong {
   flex: 0 0 auto;
   color: var(--color-ink);
   font-size: clamp(1.26rem, 1.7vw, 1.46rem);
@@ -1352,18 +1348,6 @@
   font-size: 0.72rem;
   font-weight: 600;
   line-height: 1.35;
-}
-.portfolio-evolution__signal-date {
-  display: inline-flex;
-  min-width: 0;
-  align-items: center;
-  overflow: hidden;
-  color: var(--color-text-secondary);
-  font-size: 0.76rem;
-  font-weight: 600;
-  line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .portfolio-evolution__toolbar {
   display: grid;
@@ -1593,35 +1577,20 @@
   padding-left: 12px !important;
   text-align: left;
 }
+/* Status is carried by colour and weight, like every other status in the app —
+   no filled pill, no grey chip under a word. */
 .portfolio-evolution__status {
   display: inline-flex;
-  width: 78px;
-  min-height: 23px;
   align-items: center;
-  justify-content: center;
-  padding: 0 8px;
-  border-radius: var(--radius-pill);
-  font-size: 0.66rem;
+  font-size: 0.78rem;
   font-weight: var(--font-weight-bold);
-  line-height: 1;
+  line-height: 1.2;
   white-space: nowrap;
 }
-.portfolio-evolution__status.is-new {
-  background: var(--color-lavender-soft);
-  color: var(--color-lavender-line);
-}
-.portfolio-evolution__status.is-retained {
-  background: #F0ECE7;
-  color: var(--color-text-secondary);
-}
-.portfolio-evolution__status.is-initial {
-  background: var(--color-positive-soft);
-  color: var(--color-positive);
-}
-.portfolio-evolution__status.is-removed {
-  background: var(--color-negative-soft);
-  color: var(--color-negative);
-}
+.portfolio-evolution__status.is-new { color: var(--color-lavender-line); }
+.portfolio-evolution__status.is-retained { color: var(--color-text-secondary); }
+.portfolio-evolution__status.is-initial { color: var(--color-positive); }
+.portfolio-evolution__status.is-removed { color: var(--color-negative); }
 .portfolio-evolution__table-wrap .table-state-row td {
   height: 230px;
 }

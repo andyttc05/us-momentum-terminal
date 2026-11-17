@@ -83,6 +83,6 @@ test("the tooltip is offset from the crosshair and never covers the end labels",
   );
   assert.match(tooltip, /export const CHART_TOOLTIP_GAP = 24;/);
   assert.match(tooltip, /export const CHART_TOOLTIP_MARGIN = 12;/);
-  assert.match(page, /const labelBoundary = left \+ plotWidth \+ pillOffset;/);
+  assert.match(page, /const labelBoundary = Math\.min\(left \+ plotWidth, pillX\) - 10;/);
   assert.match(page, /rightBoundary: labelBoundary/);
 });

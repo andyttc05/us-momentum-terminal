@@ -390,7 +390,7 @@ export function weightChangeTone(value) {
 export const HOLDINGS_SORT_FIELDS = Object.freeze([
   Object.freeze({ key: "rank", label: "#", slug: "rank" }),
   Object.freeze({ key: "ticker", label: "Ticker", slug: "ticker" }),
-  Object.freeze({ key: "weight", label: "Portfolio Weight", slug: "weight" }),
+  Object.freeze({ key: "weight", label: "Weight", slug: "weight" }),
   Object.freeze({ key: "change", label: "Change", slug: "change" }),
   Object.freeze({ key: "status", label: "Status", slug: "status" }),
 ]);

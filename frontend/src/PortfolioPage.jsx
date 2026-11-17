@@ -45,16 +45,28 @@ import {
 import { stockPath } from "./router.jsx";
 
 const rowsPerPage = 10;
-// [field, visible label, full accessible label, class suffix]
-// The visible labels stay short so all six headings fit on one line; the full
-// wording ("… at Rebalance") travels in each heading's tooltip and aria-label.
-const sortableFields = [
+// Both views render the same table with a different column list, so a reader
+// moving between Holdings and Live Momentum sees one design, not two.
+// [field, visible label, full accessible label, alignment class]
+// Visible labels stay short so a heading never wraps; the full wording travels
+// in each heading's tooltip and aria-label.
+const holdingsColumns = [
   ["rank", "#", "Rank", "rank"],
   ["ticker", "Ticker", "Ticker", "ticker"],
   ["sector", "Sector", "Sector at Rebalance", "sector"],
   ["score", "Score", "Score at Rebalance", "score"],
   ["floatAdjustedMarketCapValue", "Float Cap", "Float-Adjusted Market Cap at Rebalance", "market-cap"],
   ["finalWeight", "Weight", "Target Weight", "final-weight"],
+];
+
+const liveColumns = [
+  ["rank", "#", "Current Rank", "rank"],
+  ["ticker", "Ticker", "Ticker", "ticker"],
+  ["sector", "Sector", "Sector", "sector"],
+  ["score", "Score", "Momentum Score", "score"],
+  ["momentum", "12–1", "12–1 Momentum", "score"],
+  ["floatMarketCap", "Float Cap", "Float-Adjusted Market Cap", "market-cap"],
+  ["status", "Status", "Portfolio Status", "status"],
 ];
 
 const portfolioViews = [["holdings", "Holdings"], ["live", "Live Momentum"]];
@@ -70,6 +82,19 @@ function formatLiveMarketCap(value) {
   return `$${Math.round(value)}`;
 }
 
+/** One comparator for both tables: text sorts alphabetically, numbers by value. */
+function compareBy(key, direction) {
+  const sign = direction === "asc" ? 1 : -1;
+  return (left, right) => {
+    const a = left[key];
+    const b = right[key];
+    const result = typeof a === "string" || typeof b === "string"
+      ? String(a ?? "").localeCompare(String(b ?? ""))
+      : (a ?? 0) - (b ?? 0);
+    return result * sign;
+  };
+}
+
 const constraintIcons = {
   "max-stock": Stack,
   "max-sector": ShareNetwork,
@@ -82,6 +107,31 @@ function SortIcon({ active, direction }) {
   return direction === "asc"
     ? <ArrowUp size={14} weight="bold" aria-hidden="true" />
     : <ArrowDown size={14} weight="bold" aria-hidden="true" />;
+}
+
+/** The one column-heading row both tables share. */
+function ColumnHeadings({ columns, sort, onSort }) {
+  return (
+    <thead>
+      <tr>
+        {columns.map(([key, label, fullLabel, align]) => (
+          <th
+            scope="col"
+            key={key}
+            title={fullLabel}
+            aria-label={fullLabel}
+            className={`portfolio-heading portfolio-heading--${align}`}
+            aria-sort={sort.key === key ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}
+          >
+            <button type="button" aria-label={`Sort by ${fullLabel}`} title={fullLabel} onClick={() => onSort(key)}>
+              <span>{label}</span>
+              <SortIcon active={sort.key === key} direction={sort.direction} />
+            </button>
+          </th>
+        ))}
+      </tr>
+    </thead>
+  );
 }
 
 /**
@@ -129,7 +179,8 @@ function useTableScrollHint(ref, dependencies) {
 }
 
 export function PortfolioPage({ onSelectStock, hidden = false }) {
-  const [sort, setSort] = useState({ key: "finalWeight", direction: "desc" });
+  const [holdingsSort, setHoldingsSort] = useState({ key: "finalWeight", direction: "desc" });
+  const [liveSort, setLiveSort] = useState({ key: "rank", direction: "asc" });
   const [page, setPage] = useState(1);
   const [toast, setToast] = useState("");
   const [isExporting, setIsExporting] = useState(false);
@@ -155,7 +206,6 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
   const portfolioHoldings = portfolio?.holdings ?? [];
   const portfolioSectors = portfolio?.sectors ?? [];
   const portfolioSummary = portfolio?.summary ?? null;
-  const snapshot = dataset?.overview?.snapshot;
   const publishedRebalanceFrequency = portfolio?.metadata?.rebalanceFrequency ?? data?.backtest?.[activeUniverse]?.methodology?.rebalance_frequency;
   const rebalanceFrequency = strategyRebalanceFrequency ?? publishedRebalanceFrequency;
   const portfolioState = getPortfolioState({
@@ -179,18 +229,37 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
     error,
     refreshing,
   });
-  const columnCount = 6;
 
   useEffect(() => {
     setPage(1);
   }, [universe]);
 
-  const sortedHoldings = useMemo(() => [...portfolioHoldings].sort((left, right) => {
-    const a = left[sort.key];
-    const b = right[sort.key];
-    const result = typeof a === "string" ? a.localeCompare(b) : a - b;
-    return result * (sort.direction === "asc" ? 1 : -1);
-  }), [portfolioHoldings, sort]);
+  const sortedHoldings = useMemo(
+    () => [...portfolioHoldings].sort(compareBy(holdingsSort.key, holdingsSort.direction)),
+    [portfolioHoldings, holdingsSort],
+  );
+
+  // Live signals are shown as one flat list of the strongest names; the status
+  // column reads from the book, so both tables carry the same row shape.
+  const liveRows = useMemo(() => liveSignals.slice(0, 20).map((row, index) => {
+    const held = portfolioHoldings.some((holding) => holding.ticker === row.ticker);
+    const potential = row.activePortfolioStatus === "potential_new_entry";
+    return {
+      rank: row.rank ?? index + 1,
+      ticker: row.ticker,
+      sector: row.sector,
+      score: Number(row.score ?? row.momentumScore ?? 0),
+      momentum: Number(row.momentum ?? 0),
+      floatMarketCap: row.floatMarketCap,
+      status: held ? "Currently Held" : potential ? "Potential New Entry" : "Outside Active Portfolio",
+      held,
+    };
+  }), [liveSignals, portfolioHoldings]);
+
+  const sortedLiveRows = useMemo(
+    () => [...liveRows].sort(compareBy(liveSort.key, liveSort.direction)),
+    [liveRows, liveSort],
+  );
 
   const totalPages = Math.max(1, Math.ceil(sortedHoldings.length / rowsPerPage));
   const currentPage = Math.min(page, totalPages);
@@ -208,32 +277,20 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
   // Only primitive values are depended on: the visible page and the sort order.
   // Depending on the sliced array itself would re-run the effect on every
   // render, because `.slice()` returns a new array each time.
-  const tableScroll = useTableScrollHint(tableScrollRef, [currentPage, sort.key, sort.direction, sortedHoldings.length]);
+  const tableScroll = useTableScrollHint(tableScrollRef, [
+    currentPage,
+    holdingsSort.key,
+    holdingsSort.direction,
+    activeView,
+    sortedHoldings.length,
+  ]);
 
-  function toggleSort(key) {
-    setSort((current) => current.key === key
+  /** Same toggle for both tables: same column flips, a new column starts ascending. */
+  function toggleSort(setter, key, onReset) {
+    setter((current) => current.key === key
       ? { key, direction: current.direction === "asc" ? "desc" : "asc" }
       : { key, direction: "asc" });
-    setPage(1);
-  }
-
-  /**
-   * The two-way switch is a small tablist: arrows move between the views, Home
-   * and End jump to the first and last, and focus follows the selection so the
-   * keyboard reader stays with the view they just chose.
-   */
-  function handleViewKeyDown(event) {
-    const currentIndex = portfolioViews.findIndex(([id]) => id === activeView);
-    let nextIndex = currentIndex;
-    if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % portfolioViews.length;
-    else if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + portfolioViews.length) % portfolioViews.length;
-    else if (event.key === "Home") nextIndex = 0;
-    else if (event.key === "End") nextIndex = portfolioViews.length - 1;
-    else return;
-    event.preventDefault();
-    const nextView = portfolioViews[nextIndex][0];
-    setActiveView(nextView);
-    event.currentTarget.querySelector(`[data-portfolio-view="${nextView}"]`)?.focus();
+    onReset?.();
   }
 
   function showToast(message, kind = "updated", duration = 2600) {
@@ -367,26 +424,15 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
                 {activeView === "holdings" ? "Active Portfolio Holdings" : "Live Momentum Signals"}
               </h3>
               <div className="portfolio-card-toolbar__actions">
-                <div
-                  className="portfolio-view-switch"
-                  role="tablist"
-                  aria-label="Portfolio holdings view"
-                  onKeyDown={handleViewKeyDown}
-                >
+                <div className="period-control" role="group" aria-label="Portfolio holdings view">
                   {portfolioViews.map(([id, label]) => (
                     <button
                       key={id}
-                      id={`portfolio-view-${id}`}
-                      data-portfolio-view={id}
                       type="button"
-                      role="tab"
-                      aria-selected={activeView === id}
-                      aria-controls="portfolio-view-panel"
-                      tabIndex={activeView === id ? 0 : -1}
-                      className={activeView === id ? "is-active" : ""}
+                      aria-pressed={activeView === id}
                       onClick={() => setActiveView(id)}
                     >
-                      {label}{id === "live" && <span className="portfolio-live-dot" aria-hidden="true" />}
+                      {label}
                     </button>
                   ))}
                 </div>
@@ -402,150 +448,140 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
             </div>
           )}
         >
-          <div
-            className="portfolio-view-panel"
-            id="portfolio-view-panel"
-            role="tabpanel"
-            aria-labelledby={`portfolio-view-${activeView}`}
-            tabIndex={0}
-          >
           {activeView === "live" ? (
-            <div className="portfolio-live-panel">
-              <p className="portfolio-tab-note">Latest scores update with market data. They do not change the holdings or target weights above.</p>
-              <div className="portfolio-live-table-wrap">
+            <div className={`portfolio-table-shell${tableScroll.scrollable ? " is-scrollable" : ""}${tableScroll.atEnd ? " is-at-end" : ""}`}>
+              <div
+                className="portfolio-table-scroll"
+                ref={tableScrollRef}
+                role="region"
+                aria-label="Live momentum table — scroll horizontally for the remaining columns"
+                tabIndex={0}
+              >
                 <table className="portfolio-table portfolio-live-table">
-                  <thead>
-                    <tr>
-                      <th scope="col">Current Rank</th>
-                      <th scope="col">Ticker</th>
-                      <th scope="col">Sector</th>
-                      <th scope="col">Momentum Score</th>
-                      <th scope="col">12–1 Momentum</th>
-                      <th scope="col">Float Cap</th>
-                      <th scope="col">Portfolio Status</th>
-                    </tr>
-                  </thead>
+                  <ColumnHeadings
+                    columns={liveColumns}
+                    sort={liveSort}
+                    onSort={(key) => toggleSort(setLiveSort, key)}
+                  />
                   <tbody>
-                    {liveSignals.slice(0, 20).map((row, index) => {
-                      const held = portfolioHoldings.some((holding) => holding.ticker === row.ticker);
-                      const potential = row.activePortfolioStatus === "potential_new_entry";
-                      return (
-                        <tr key={row.ticker}>
-                          <td>{row.rank ?? index + 1}</td>
-                          <td>
-                            <a
-                              href={stockPath(row.ticker)}
-                              onClick={(event) => {
-                                if (!shouldRouteTickerClick(event)) return;
-                                event.preventDefault();
-                                onSelectStock?.(row.ticker);
-                              }}
-                            >
-                              {row.ticker}
-                            </a>
-                          </td>
-                          <td>{row.sector}</td>
-                          <td>{Number(row.score ?? row.momentumScore ?? 0).toFixed(2)}</td>
-                          <td>{Number(row.momentum ?? 0).toFixed(1)}%</td>
-                          <td>{formatLiveMarketCap(row.floatMarketCap)}</td>
-                          <td>
-                            <span className={held ? "portfolio-status-held" : ""}>
-                              {held ? "Currently Held" : potential ? "Potential New Entry" : "Outside Active Portfolio"}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {sortedLiveRows.length ? sortedLiveRows.map((row) => (
+                      <tr
+                        key={row.ticker}
+                        className="stock-row"
+                        onClick={(event) => {
+                          if (shouldOpenRow(event)) onSelectStock?.(row.ticker);
+                        }}
+                      >
+                        <td className="portfolio-rank-cell">{row.rank}</td>
+                        <td className="portfolio-ticker-cell">
+                          <a
+                            className="portfolio-ticker-link"
+                            href={stockPath(row.ticker)}
+                            aria-label={stockLinkLabel(row.ticker)}
+                            onClick={(event) => {
+                              if (!shouldRouteTickerClick(event)) return;
+                              event.preventDefault();
+                              onSelectStock?.(row.ticker);
+                            }}
+                          >
+                            {row.ticker}
+                          </a>
+                        </td>
+                        <td className="portfolio-sector-cell" title={row.sector}>{row.sector}</td>
+                        <td className="portfolio-number-cell">{row.score.toFixed(2)}</td>
+                        <td className="portfolio-number-cell">{row.momentum.toFixed(1)}%</td>
+                        <td className="portfolio-number-cell">{formatLiveMarketCap(row.floatMarketCap)}</td>
+                        <td className={`portfolio-status-cell${row.held ? " is-held" : ""}`}>{row.status}</td>
+                      </tr>
+                    )) : (
+                      <TableStateRow
+                        columns={liveColumns.length}
+                        state="empty"
+                        title="No signals available"
+                        detail="The latest momentum scores are not published yet."
+                      />
+                    )}
                   </tbody>
                 </table>
               </div>
-              <p className="portfolio-tab-note">Signal date: {meta?.as_of ?? "Unavailable"} · Published: {meta?.generated_at ?? "Unavailable"}</p>
             </div>
           ) : (
-          <div className={`portfolio-table-shell${tableScroll.scrollable ? " is-scrollable" : ""}${tableScroll.atEnd ? " is-at-end" : ""}`}>
-            <div
-              className="portfolio-table-scroll"
-              ref={tableScrollRef}
-              role="region"
-              aria-label="Holdings table — scroll horizontally for the remaining columns"
-              tabIndex={0}
-            >
-              <table
-                className="portfolio-table"
-                data-state={holdingsState}
-                aria-busy={holdingsState === "loading" || undefined}
+            <div className={`portfolio-table-shell${tableScroll.scrollable ? " is-scrollable" : ""}${tableScroll.atEnd ? " is-at-end" : ""}`}>
+              <div
+                className="portfolio-table-scroll"
+                ref={tableScrollRef}
+                role="region"
+                aria-label="Holdings table — scroll horizontally for the remaining columns"
+                tabIndex={0}
               >
-                <colgroup>
-                  <col className="portfolio-col-rank" />
-                  <col className="portfolio-col-ticker" />
-                  <col className="portfolio-col-sector" />
-                  <col className="portfolio-col-score" />
-                  <col className="portfolio-col-market-cap" />
-                  <col className="portfolio-col-final-weight" />
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th scope="col" className="portfolio-heading portfolio-heading--rank"><span>#</span></th>
-                    {sortableFields.slice(1).map(([key, label, fullLabel, className]) => (
-                      <th scope="col" key={key} title={fullLabel} aria-label={fullLabel} className={`portfolio-heading portfolio-heading--${className}`} aria-sort={sort.key === key ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}>
-                        <button type="button" aria-label={`Sort by ${fullLabel}`} title={fullLabel} onClick={() => toggleSort(key)}>
-                          <span>{label}</span>
-                          <SortIcon active={sort.key === key} direction={sort.direction} />
-                        </button>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {holdingsState === "loading" ? (
-                    <TableSkeletonRows columns={columnCount} rows={rowsPerPage} />
-                  ) : !portfolioReady ? (
-                    <TableStateRow
-                      columns={columnCount}
-                      state={holdingsState}
-                      title={portfolioState.title}
-                      detail={portfolioState.detail}
-                    />
-                  ) : visibleHoldings.length ? visibleHoldings.map((holding) => (
-                    <tr
-                      key={holding.ticker}
-                      className="stock-row"
-                      onClick={(event) => {
-                        if (shouldOpenRow(event)) onSelectStock?.(holding.ticker);
-                      }}
-                    >
-                      <td className="portfolio-rank-cell"><span>{holding.rank}</span></td>
-                      <td className="portfolio-ticker-cell">
-                        <a
-                          className="portfolio-ticker-link"
-                          href={stockPath(holding.ticker)}
-                          aria-label={stockLinkLabel(holding.ticker)}
-                          onClick={(event) => {
-                            if (!shouldRouteTickerClick(event)) return;
-                            event.preventDefault();
-                            onSelectStock?.(holding.ticker);
-                          }}
-                        >
-                          {holding.ticker}
-                        </a>
-                      </td>
-                      <td className="portfolio-sector-cell" title={holding.sector}>{holding.sector}</td>
-                      <td className="portfolio-score-cell"><span>{holding.score.toFixed(2)}</span></td>
-                      <td className="portfolio-market-cap-cell">{holding.floatAdjustedMarketCap}</td>
-                      <td className="portfolio-weight-value-cell is-final">{displayPercent(holding.finalWeight)}</td>
-                    </tr>
-                  )) : (
-                    <TableStateRow
-                      columns={columnCount}
-                      state="empty"
-                      title="No holdings available"
-                      detail="The current portfolio has no rows to display."
-                    />
-                  )}
-                </tbody>
-              </table>
+                <table
+                  className="portfolio-table"
+                  data-state={holdingsState}
+                  aria-busy={holdingsState === "loading" || undefined}
+                >
+                  <colgroup>
+                    <col className="portfolio-col-rank" />
+                    <col className="portfolio-col-ticker" />
+                    <col className="portfolio-col-sector" />
+                    <col className="portfolio-col-score" />
+                    <col className="portfolio-col-market-cap" />
+                    <col className="portfolio-col-final-weight" />
+                  </colgroup>
+                  <ColumnHeadings
+                    columns={holdingsColumns}
+                    sort={holdingsSort}
+                    onSort={(key) => toggleSort(setHoldingsSort, key, () => setPage(1))}
+                  />
+                  <tbody>
+                    {holdingsState === "loading" ? (
+                      <TableSkeletonRows columns={holdingsColumns.length} rows={rowsPerPage} />
+                    ) : !portfolioReady ? (
+                      <TableStateRow
+                        columns={holdingsColumns.length}
+                        state={holdingsState}
+                        title={portfolioState.title}
+                        detail={portfolioState.detail}
+                      />
+                    ) : visibleHoldings.length ? visibleHoldings.map((holding) => (
+                      <tr
+                        key={holding.ticker}
+                        className="stock-row"
+                        onClick={(event) => {
+                          if (shouldOpenRow(event)) onSelectStock?.(holding.ticker);
+                        }}
+                      >
+                        <td className="portfolio-rank-cell">{holding.rank}</td>
+                        <td className="portfolio-ticker-cell">
+                          <a
+                            className="portfolio-ticker-link"
+                            href={stockPath(holding.ticker)}
+                            aria-label={stockLinkLabel(holding.ticker)}
+                            onClick={(event) => {
+                              if (!shouldRouteTickerClick(event)) return;
+                              event.preventDefault();
+                              onSelectStock?.(holding.ticker);
+                            }}
+                          >
+                            {holding.ticker}
+                          </a>
+                        </td>
+                        <td className="portfolio-sector-cell" title={holding.sector}>{holding.sector}</td>
+                        <td className="portfolio-number-cell">{holding.score.toFixed(2)}</td>
+                        <td className="portfolio-number-cell">{holding.floatAdjustedMarketCap}</td>
+                        <td className="portfolio-number-cell is-emphasis">{displayPercent(holding.finalWeight)}</td>
+                      </tr>
+                    )) : (
+                      <TableStateRow
+                        columns={holdingsColumns.length}
+                        state="empty"
+                        title="No holdings available"
+                        detail="The current portfolio has no rows to display."
+                      />
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
           )}
           {activeView === "holdings" && <Pagination
             page={currentPage}
@@ -556,7 +592,6 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
             onPageChange={setPage}
             label="Holdings table pagination"
           />}
-          </div>
         </DashboardCard>
       </div>
       {toast && <Toast kind={toast.kind} message={toast.message} className="page-toast" durationMs={toast.duration} />}

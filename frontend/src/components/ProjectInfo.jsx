@@ -71,7 +71,7 @@ export function ProjectInfo() {
             </div>
           </header>
 
-          <dl className="project-info__sections">
+          <dl className="app-dialog__rows">
             <div>
               <dt>Data</dt>
               <dd>Validated GitHub Pages snapshots generated from Yahoo Finance by the Python pipeline.</dd>

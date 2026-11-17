@@ -383,17 +383,10 @@ export function PortfolioEvolution({
                   Historical Holdings
                 </h3>
                 <div className="portfolio-evolution__selected-date">
-                  <div className="portfolio-evolution__selected-date-primary">
-                    <strong>{selectedEvent ? formatPortfolioDate(selectedEvent.executionDate) : "No event selected"}</strong>
-                    {selectedEvent && (
-                      <span className="portfolio-evolution__holdings-count">
-                        {selectedEvent.count} Holdings
-                      </span>
-                    )}
-                  </div>
+                  <strong>{selectedEvent ? formatPortfolioDate(selectedEvent.executionDate) : "No event selected"}</strong>
                   {selectedEvent && (
-                    <span className="portfolio-evolution__signal-date">
-                      Signal: {formatPortfolioDate(selectedEvent.signalDate)}
+                    <span className="portfolio-evolution__holdings-count">
+                      {selectedEvent.count} Holdings
                     </span>
                   )}
                 </div>

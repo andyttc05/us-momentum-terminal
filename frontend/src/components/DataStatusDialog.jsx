@@ -100,30 +100,24 @@ export function DataStatusDialog({ open, onClose }) {
           </div>
         </header>
 
-        <dl className="data-status-dialog__facts">
-          <div><dt>Market data through</dt><dd>{formatDate(meta?.as_of)}</dd></div>
-          <div><dt>Last successful collection</dt><dd>{formatTimestamp(meta?.generated_at)}</dd></div>
+        <dl className="app-dialog__rows">
+          <div><dt>Data through</dt><dd>{formatDate(meta?.as_of)}</dd></div>
+          <div><dt>Last collection</dt><dd>{formatTimestamp(meta?.generated_at)}</dd></div>
           <div><dt>Published</dt><dd>{formatAge(meta?.generated_at)}</dd></div>
           <div><dt>Provider</dt><dd>{meta?.data_provider ?? "Unavailable"}</dd></div>
           <div><dt>Eligible stocks</dt><dd>{data?.stocks?.length ?? "—"}</dd></div>
           <div><dt>Browser cache</dt><dd>{browserCachedAt ? formatTimestamp(browserCachedAt) : "Not stored"}</dd></div>
           {staticSnapshot && (
             <>
-              <div><dt>Stock detail files</dt><dd>{staticSnapshot.detailCount ?? "—"}</dd></div>
-              <div><dt>Backtest schedules</dt><dd>{staticSnapshot.backtestCount ?? "—"}</dd></div>
-              <div><dt>Snapshot version</dt><dd>{staticSnapshot.publicationVersion ?? "—"}</dd></div>
+              <div><dt>Detail files</dt><dd>{staticSnapshot.detailCount ?? "—"}</dd></div>
+              <div><dt>Backtests</dt><dd>{staticSnapshot.backtestCount ?? "—"}</dd></div>
+              <div><dt>Snapshot</dt><dd>{staticSnapshot.publicationVersion ?? "—"}</dd></div>
             </>
           )}
         </dl>
 
-        <p className="data-status-dialog__note">
-          {dataMode === "static"
-            ? "The deployed site reads the latest validated snapshot published by GitHub Actions."
-            : "The local site reads the FastAPI development service and keeps the last valid browser copy if a refresh fails."}
-        </p>
-
         <footer className="data-status-dialog__footer">
-          <span>{error?.message ?? "Cached data remains visible when a refresh fails."}</span>
+          {error?.message && <span>{error.message}</span>}
           <AppButton variant="secondary" icon={ArrowClockwise} disabled={refreshing} onClick={refresh}>
             {refreshing ? "Checking…" : "Check for updates"}
           </AppButton>

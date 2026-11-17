@@ -83,7 +83,8 @@ test("the panel, scrim and close button are declared once, in dialogs.css", () =
   assert.match(close, /width: 36px;/);
   assert.match(close, /height: 36px;/);
   assert.match(close, /border-radius: 50%;/);
-  assert.match(close, /background: var\(--color-surface-soft\);/);
+  // Nothing but a hover paints the close button: no resting grey circle.
+  assert.match(close, /background: transparent;/);
   assert.match(close, /color: var\(--color-text-secondary\);/);
 
   const hover = block(dialogsRules, ".app-dialog__close:hover");

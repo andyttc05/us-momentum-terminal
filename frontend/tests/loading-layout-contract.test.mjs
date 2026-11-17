@@ -54,6 +54,6 @@ test("Stock Analysis keeps returns, summary, and ranking cards in its shell", ()
 
 test("Portfolio constraints stay unevaluated until results exist", () => {
   assert.match(portfolio, /Not evaluated/);
-  assert.match(portfolio, /<TableSkeletonRows columns=\{columnCount\} rows=\{rowsPerPage\}/);
+  assert.match(portfolio, /<TableSkeletonRows columns=\{holdingsColumns.length\} rows=\{rowsPerPage\}/);
   assert.match(portfolio, /<Pagination/);
 });

@@ -62,8 +62,8 @@
 
 /* Close: the same 36px circle in both dialogs, in every state. It is the one
    control a reader uses without reading, so its size, resting colour and hover
-   response cannot differ between the two. Focus uses the shared button ring
-   from components.css; nothing here overrides it. */
+   response cannot differ between the two. It carries no surface of its own at
+   rest — only a hover paints one, like every other quiet control in the app. */
 .app-dialog__close {
   position: absolute;
   top: 16px;
@@ -75,7 +75,7 @@
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: var(--color-surface-soft);
+  background: transparent;
   color: var(--color-text-secondary);
   cursor: pointer;
   transition: background-color 160ms ease, color 160ms ease;
@@ -130,25 +130,24 @@
   line-height: 1.5;
 }
 
-/* About Project content ---------------------------------------------------
-   An editorial list rather than cards: each section is a row with the label in
-   the column and the reading text beside it. Labels use the same small muted
-   uppercase as the Snapshot's fact labels, which is what ties the two contents
-   together without forcing them into the same shape. */
+/* Dialog content -----------------------------------------------------------
+   Both dialogs are one list of labelled rows: label in a narrow column, value
+   beside it, a hairline between rows. No cards, no tinted panels — the same
+   reading rhythm whether the row holds a sentence (About) or a timestamp
+   (Data & cache). */
 
-.project-info__sections {
+.app-dialog__rows {
   display: grid;
-  gap: 0;
   margin: 22px 0 0;
 }
-.project-info__sections > div {
+.app-dialog__rows > div {
   display: grid;
-  grid-template-columns: 104px minmax(0, 1fr);
+  grid-template-columns: 136px minmax(0, 1fr);
   gap: 18px;
-  padding: 12px 0;
+  padding: 11px 0;
   border-top: 1px solid var(--color-line);
 }
-.project-info__sections dt {
+.app-dialog__rows dt {
   color: var(--color-text-muted);
   font-size: 0.68rem;
   font-weight: var(--font-weight-bold);
@@ -156,35 +155,31 @@
   line-height: 1.45;
   text-transform: uppercase;
 }
-.project-info__sections dd {
+.app-dialog__rows dd {
   margin: 0;
+  overflow-wrap: anywhere;
   color: var(--color-text-secondary);
   font-size: 0.84rem;
+  font-weight: var(--font-weight-medium);
   line-height: 1.45;
 }
 
-/* The disclaimer is About's quiet counterpart to the Snapshot's yellow note:
-   same box geometry, neutral surface, so both dialogs close on one soft strip
-   instead of one ending in a card and the other in a bare line of small print. */
+/* The disclaimer is a plain line of small print now: it closes the About list
+   without adding a second surface under it. */
 .project-info__notice {
   margin: 16px 0 0;
-  padding: 12px 14px;
-  border: 1px solid var(--color-card-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface-soft);
   color: var(--color-text-muted);
   font-size: 0.78rem;
   line-height: 1.45;
 }
 
-/* Documentation links read as application action cards: the same height and
-   radius as the Snapshot's button, so the two dialogs end with equally weighted
-   controls. */
+/* Documentation links read as application actions: a hairline, a weight, and a
+   hover — the same quiet treatment as the rest of the app's secondary controls. */
 .project-info__links {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
-  margin-top: 12px;
+  margin-top: 14px;
 }
 .project-info__links a {
   display: flex;
@@ -194,7 +189,7 @@
   padding: 0 14px;
   border: 1px solid var(--color-card-border);
   border-radius: var(--radius-sm);
-  background: var(--color-surface-soft);
+  background: transparent;
   color: var(--color-ink);
   font-size: 0.82rem;
   font-weight: var(--font-weight-bold);
@@ -211,62 +206,13 @@
   color: var(--color-text-muted);
 }
 
-/* Published Snapshot content ---------------------------------------------
-   Two columns of soft cream facts on desktop. The values carry the ink weight
-   and the labels stay muted, so a dense metadata set still reads top-down
-   instead of turning into a wall of bold text. */
-
-.data-status-dialog__facts {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin: 22px 0 0;
-}
-.data-status-dialog__facts > div {
-  min-width: 0;
-  padding: 11px 13px;
-  border-radius: var(--radius-sm);
-  background: var(--color-surface-soft);
-}
-/* The static build publishes nine facts and the live service six. When the
-   count is odd the last card takes the whole row instead of leaving a hole next
-   to it — which also gives the long publication version room to stay on one
-   line. */
-.data-status-dialog__facts > div:last-child:nth-child(odd) {
-  grid-column: 1 / -1;
-}
-.data-status-dialog__facts dt {
-  color: var(--color-text-muted);
-  font-size: 0.68rem;
-  font-weight: var(--font-weight-bold);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-/* Long publication versions have no spaces to break on, so the value is allowed
-   to break anywhere rather than overflow the card. */
-.data-status-dialog__facts dd {
-  margin: 3px 0 0;
-  overflow-wrap: anywhere;
-  color: var(--color-ink);
-  font-size: 0.84rem;
-  font-weight: var(--font-weight-bold);
-}
-.data-status-dialog__note {
-  margin: 14px 0 0;
-  padding: 12px 14px;
-  border: 1px solid var(--color-card-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-yellow-soft);
-  color: var(--color-accent-copy);
-  font-size: 0.78rem;
-  line-height: 1.45;
-}
+/* Data & cache footer: a status line and one action, no banner. */
 .data-status-dialog__footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  margin-top: 14px;
+  margin-top: 16px;
 }
 .data-status-dialog__footer > span {
   min-width: 0;
@@ -274,8 +220,6 @@
   font-size: 0.72rem;
   line-height: 1.4;
 }
-/* Matches the documentation cards' 44px, so the button in one dialog and the
-   links in the other have the same visual weight. */
 .data-status-dialog__footer .app-button {
   flex: 0 0 auto;
   min-height: 44px;
