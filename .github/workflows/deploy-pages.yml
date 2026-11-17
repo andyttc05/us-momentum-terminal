@@ -107,7 +107,12 @@ jobs:
 
   deploy:
     needs: build
-    if: needs.build.outputs.data_status == 'updated'
+    # Publish whenever the build produced a valid artifact. A refresh that had
+    # to fall back preserves the snapshot already live, so the artifact is never
+    # worse than what is deployed — but gating on data_status == 'updated' also
+    # skipped every push build whose refresh ended up preserved, which froze the
+    # site on an old UI for days while the data stayed valid.
+    if: needs.build.outputs.data_status != 'failed'
     runs-on: ubuntu-latest
     environment:
       name: github-pages

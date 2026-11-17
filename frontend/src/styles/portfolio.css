@@ -251,27 +251,11 @@
 .portfolio-constraint.is-failed > svg { color: var(--color-negative); }
 .portfolio-constraint.is-unavailable > svg { color: var(--color-warning); }
 
-.portfolio-holdings-card { --card-body-padding-start: 7px; }
+/* The holdings card carries its own title in the header (there are no tabs any
+   more), so the body starts a short step below it and the table runs full width. */
+.portfolio-holdings-card { --card-body-padding-start: 12px; --card-body-padding-end: 0px; }
 .portfolio-holdings-card > .dashboard-card__header { align-items: center; }
-.portfolio-card-toolbar { display: flex; width: 100%; min-width: 0; align-items: center; justify-content: space-between; gap: 16px; }
-.portfolio-tabs { display: flex; min-width: 0; max-width: 100%; align-items: center; gap: 4px; overflow-x: auto; }
-.portfolio-tabs button { display: inline-flex; min-height: 42px; flex: 0 0 auto; align-items: center; gap: 8px; border: 0; border-radius: 12px; background: transparent; color: var(--color-ink); padding: 9px 16px; font: inherit; font-weight: 700; white-space: nowrap; cursor: pointer; transition: background-color 160ms ease, color 160ms ease; }
-.portfolio-tabs button:hover { background: #FAF7F0; }
-.portfolio-tabs button.is-active { background: #FFF3C9; color: var(--color-ink); }
-.portfolio-tabs button:focus-visible { outline: 2px solid #D7AB2E; outline-offset: 2px; }
-.portfolio-tabs .portfolio-live-dot { width: 9px; height: 9px; }
-.portfolio-live-dot { flex: 0 0 auto; border-radius: 50%; background: var(--color-mint); }
 .portfolio-export-control { display: flex; flex: 0 0 auto; align-items: center; justify-content: flex-end; }
-.portfolio-view-panel { min-width: 0; }
-.portfolio-tab-note { margin: 0 12px 12px; color: var(--color-text-secondary); font-size: .88rem; }
-.portfolio-live-table-wrap { overflow-x: auto; }
-.portfolio-live-table { min-width: 880px; }
-.portfolio-live-table td,.portfolio-live-table th { padding: 10px 12px; text-align: left; }
-.portfolio-live-table td a { color: inherit; font-weight: 750; text-decoration: none; }
-.portfolio-status-held { color: #16804b; font-weight: 750; }
-.portfolio-performance-empty { margin: 12px; padding: 34px; border-radius: 22px; background: #fffaf1; }
-.portfolio-performance-empty p { max-width: 680px; line-height: 1.55; }
-.portfolio-performance-empty span { color: var(--color-text-secondary); font-size: .88rem; }
 .next-rebalance-dates { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 14px 0 0; }
 .next-rebalance-dates div { display: grid; gap: 3px; min-width: 0; }
 .next-rebalance-dates strong { font-size: .9rem; }
@@ -282,13 +266,15 @@
 .portfolio-table-shell { position: relative; min-width: 0; }
 .portfolio-table { width: 100%; min-width: 960px; table-layout: fixed; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 /* The fixed colgroup keeps every header aligned to its body column. The six
-   widths total 100%; tablet layouts scroll instead of compressing the labels. */
+   widths total 100%; tablet layouts scroll instead of compressing the labels.
+   Sector gets the widest track because it is the only free-text column; the
+   numeric columns are sized for their values, so no heading has to wrap. */
 .portfolio-col-rank { width: 5%; }
-.portfolio-col-ticker { width: 11%; }
-.portfolio-col-sector { width: 18%; }
+.portfolio-col-ticker { width: 12%; }
+.portfolio-col-sector { width: 26%; }
 .portfolio-col-score { width: 13%; }
-.portfolio-col-market-cap { width: 31%; }
-.portfolio-col-final-weight { width: 22%; }
+.portfolio-col-market-cap { width: 24%; }
+.portfolio-col-final-weight { width: 20%; }
 .portfolio-table thead tr { min-height: var(--table-head-height); border-bottom: 1px solid var(--color-line); }
 .portfolio-table th {
   min-width: 0;
@@ -483,8 +469,6 @@
    card kept a 108px + 120px split, which at 250px of content width put the
    legend's name and its percentage on top of each other. */
 @media (max-width: 600px) {
-  .portfolio-tabs button { padding: 8px 11px; font-size: .88rem; }
-  .portfolio-performance-empty { padding: 22px; }
   .portfolio-summary-grid { grid-template-columns: minmax(0, 1fr); }
   .portfolio-sector-content { grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 12px; }
   .portfolio-sector-card .sector-donut { width: min(100%, 156px); }

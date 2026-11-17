@@ -17,19 +17,17 @@ test("the Portfolio page preserves its table shell with component-level loading"
   assert.match(portfolioPage, /<Pagination/);
 });
 
-test("the Portfolio page separates active holdings, performance and live signals", () => {
-  assert.match(portfolioPage, /const portfolioTabs = \[\["holdings", "Holdings"\], \["performance", "Performance"\], \["live", "Live Momentum"\]\]/);
-  assert.match(portfolioPage, /"Target Weight"/);
-  assert.match(portfolioPage, /"Score at Rebalance"/);
-  assert.match(portfolioPage, /Latest scores update with market data\. They do not change Active Portfolio/);
-  assert.match(portfolioPage, /<div className="portfolio-card-toolbar">[\s\S]*role="tablist"[\s\S]*<ExportMenu/);
-  assert.match(portfolioPage, /aria-controls="portfolio-view-panel"/);
-  assert.match(portfolioPage, /tabIndex=\{activeTab === id \? 0 : -1\}/);
-  assert.match(portfolioPage, /event\.key === "ArrowRight"/);
-  assert.doesNotMatch(portfolioPage, /portfolio-active-status|Active Portfolio Holdings/);
+test("the holdings card is one table with its title inside the card, not a tabbed view", () => {
+  assert.doesNotMatch(portfolioPage, /portfolioTabs|role="tablist"|role="tabpanel"/);
+  assert.match(portfolioPage, /className="portfolio-holdings-card"\s*\n\s*title="Active Portfolio Holdings"/);
+  assert.match(portfolioPage, /action=\{\([\s\S]*?<ExportMenu[\s\S]*?ariaLabel="Export the complete portfolio"/);
+  assert.doesNotMatch(portfolioCss, /portfolio-tabs|portfolio-live-table|portfolio-performance-empty/);
+  // Short, single-line headings; the "at rebalance" wording lives in the tooltip.
   assert.match(portfolioPage, /"Sector", "Sector at Rebalance"/);
   assert.match(portfolioPage, /"Score", "Score at Rebalance"/);
-  assert.match(portfolioPage, /"Float-Adj\. Cap", "Float-Adj\. Market Cap at Rebalance"/);
+  assert.match(portfolioPage, /"Float Cap", "Float-Adjusted Market Cap at Rebalance"/);
+  assert.match(portfolioPage, /"Weight", "Target Weight"/);
+  assert.match(portfolioPage, /"Target Weight"/);
 });
 
 test("Portfolio holding rows use the Screener row rhythm and hover treatment", () => {
@@ -58,7 +56,7 @@ test("Portfolio financial columns stay right aligned with matching badge sizes",
 });
 
 test("Portfolio holdings columns use the requested aligned six-column proportions", () => {
-  for (const [slug, percent] of [["rank", 5], ["ticker", 11], ["sector", 18], ["score", 13], ["market-cap", 31], ["final-weight", 22]]) {
+  for (const [slug, percent] of [["rank", 5], ["ticker", 12], ["sector", 26], ["score", 13], ["market-cap", 24], ["final-weight", 20]]) {
     assert.match(portfolioCss, new RegExp(`\\.portfolio-col-${slug} \\{ width: ${percent}%; \\}`));
   }
   assert.match(portfolioCss, /min-width: 960px; table-layout: fixed/);

@@ -46,16 +46,16 @@ import { stockPath } from "./router.jsx";
 
 const rowsPerPage = 10;
 // [field, visible label, full accessible label, class suffix]
+// The visible labels stay short so all six headings fit on one line; the full
+// wording ("… at Rebalance") travels in each heading's tooltip and aria-label.
 const sortableFields = [
   ["rank", "#", "Rank", "rank"],
   ["ticker", "Ticker", "Ticker", "ticker"],
   ["sector", "Sector", "Sector at Rebalance", "sector"],
   ["score", "Score", "Score at Rebalance", "score"],
-  ["floatAdjustedMarketCapValue", "Float-Adj. Cap", "Float-Adj. Market Cap at Rebalance", "market-cap"],
-  ["finalWeight", "Target Weight", "Target Weight", "final-weight"],
+  ["floatAdjustedMarketCapValue", "Float Cap", "Float-Adjusted Market Cap at Rebalance", "market-cap"],
+  ["finalWeight", "Weight", "Target Weight", "final-weight"],
 ];
-
-const portfolioTabs = [["holdings", "Holdings"], ["performance", "Performance"], ["live", "Live Momentum"]];
 
 const displayPercent = (value) => `${value.toFixed(1)}%`;
 
@@ -122,7 +122,6 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
   const [page, setPage] = useState(1);
   const [toast, setToast] = useState("");
   const [isExporting, setIsExporting] = useState(false);
-  const [activeTab, setActiveTab] = useState("holdings");
   const {
     data,
     error,
@@ -139,7 +138,6 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
   // constraint targets: nothing here is sized from a fixed 100-holding guess.
   const dataset = datasetForUniverse(data, activeUniverse);
   const portfolio = dataset?.portfolio ?? null;
-  const liveSignals = dataset?.liveSignals?.rows ?? data?.stocks ?? [];
   const targetHoldings = targetHoldingsForDataset(dataset, activeUniverse);
   const portfolioHoldings = portfolio?.holdings ?? [];
   const portfolioSectors = portfolio?.sectors ?? [];
@@ -204,20 +202,6 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
       ? { key, direction: current.direction === "asc" ? "desc" : "asc" }
       : { key, direction: "asc" });
     setPage(1);
-  }
-
-  function handleTabKeyDown(event) {
-    const currentIndex = portfolioTabs.findIndex(([id]) => id === activeTab);
-    let nextIndex = currentIndex;
-    if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % portfolioTabs.length;
-    else if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + portfolioTabs.length) % portfolioTabs.length;
-    else if (event.key === "Home") nextIndex = 0;
-    else if (event.key === "End") nextIndex = portfolioTabs.length - 1;
-    else return;
-    event.preventDefault();
-    const nextTab = portfolioTabs[nextIndex][0];
-    setActiveTab(nextTab);
-    event.currentTarget.querySelector(`[data-portfolio-tab="${nextTab}"]`)?.focus();
   }
 
   function showToast(message, kind = "updated", duration = 2600) {
@@ -345,58 +329,19 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
 
         <DashboardCard
           className="portfolio-holdings-card"
-          headerContent={(
-            <div className="portfolio-card-toolbar">
-              <div className="portfolio-tabs" role="tablist" aria-label="Portfolio views" onKeyDown={handleTabKeyDown}>
-                {portfolioTabs.map(([id, label]) => (
-                  <button
-                    key={id}
-                    id={`portfolio-tab-${id}`}
-                    data-portfolio-tab={id}
-                    type="button"
-                    role="tab"
-                    aria-selected={activeTab === id}
-                    aria-controls="portfolio-view-panel"
-                    tabIndex={activeTab === id ? 0 : -1}
-                    className={activeTab === id ? "is-active" : ""}
-                    onClick={() => setActiveTab(id)}
-                  >
-                    {label}{id === "live" && <span className="portfolio-live-dot" aria-hidden="true" />}
-                  </button>
-                ))}
-              </div>
-              <div className="portfolio-export-control">
-                <ExportMenu
-                  onExport={exportPortfolio}
-                  disabled={!portfolioReady}
-                  busy={isExporting}
-                  ariaLabel="Export the complete portfolio"
-                />
-              </div>
+          title="Active Portfolio Holdings"
+          action={(
+            <div className="portfolio-export-control">
+              <ExportMenu
+                onExport={exportPortfolio}
+                disabled={!portfolioReady}
+                busy={isExporting}
+                ariaLabel="Export the complete portfolio"
+              />
             </div>
           )}
         >
-          <div className="portfolio-view-panel" id="portfolio-view-panel" role="tabpanel" aria-labelledby={`portfolio-tab-${activeTab}`} tabIndex={0}>
-          {activeTab === "performance" ? (
-            <div className="portfolio-performance-empty">
-              <strong>Active portfolio performance is unavailable</strong>
-              <p>Published historical backtests use scheduled model rebalances. This page will show active book returns once reliable holdings level accounting is available.</p>
-              {portfolio?.metadata?.effectiveDate && <span>Active since {portfolio.metadata.effectiveDate}</span>}
-            </div>
-          ) : activeTab === "live" ? (
-            <div className="portfolio-live-table-wrap">
-              <p className="portfolio-tab-note">Latest scores update with market data. They do not change Active Portfolio holdings or target weights.</p>
-              <table className="portfolio-table portfolio-live-table">
-                <thead><tr><th>Current Rank</th><th>Ticker</th><th>Sector</th><th>Momentum Score</th><th>12–1 Momentum</th><th>Float-Adj. Market Cap</th><th>Portfolio Status</th></tr></thead>
-                <tbody>{liveSignals.slice(0, 20).map((row, index) => {
-                  const held = portfolioHoldings.some((holding) => holding.ticker === row.ticker);
-                  const potential = row.activePortfolioStatus === "potential_new_entry";
-                  return <tr key={row.ticker}><td>{row.rank ?? index + 1}</td><td><a href={stockPath(row.ticker)} onClick={(event) => { if (!shouldRouteTickerClick(event)) return; event.preventDefault(); onSelectStock?.(row.ticker); }}>{row.ticker}</a></td><td>{row.sector}</td><td>{Number(row.score ?? row.momentumScore ?? 0).toFixed(2)}</td><td>{Number(row.momentum ?? 0).toFixed(1)}%</td><td>{row.floatMarketCap ? `$${(row.floatMarketCap >= 1e12 ? (row.floatMarketCap / 1e12).toFixed(2) + "T" : (row.floatMarketCap / 1e9).toFixed(0) + "B")}` : "—"}</td><td><span className={held ? "portfolio-status-held" : ""}>{held ? "Currently Held" : potential ? "Potential New Entry" : "Outside Active Portfolio"}</span></td></tr>;
-                })}</tbody>
-              </table>
-              <p className="portfolio-tab-note">Signal date: {meta?.as_of ?? "Unavailable"} · Published: {meta?.generated_at ?? "Unavailable"}</p>
-            </div>
-          ) : <div className={`portfolio-table-shell${tableScroll.scrollable ? " is-scrollable" : ""}${tableScroll.atEnd ? " is-at-end" : ""}`}>
+          <div className={`portfolio-table-shell${tableScroll.scrollable ? " is-scrollable" : ""}${tableScroll.atEnd ? " is-at-end" : ""}`}>
             <div
               className="portfolio-table-scroll"
               ref={tableScrollRef}
@@ -479,8 +424,8 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
                 </tbody>
               </table>
             </div>
-          </div>}
-          {activeTab === "holdings" && <Pagination
+          </div>
+          <Pagination
             page={currentPage}
             totalPages={totalPages}
             rangeStart={firstResult}
@@ -488,8 +433,7 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
             total={sortedHoldings.length}
             onPageChange={setPage}
             label="Holdings table pagination"
-          />}
-          </div>
+          />
         </DashboardCard>
       </div>
       {toast && <Toast kind={toast.kind} message={toast.message} className="page-toast" durationMs={toast.duration} />}

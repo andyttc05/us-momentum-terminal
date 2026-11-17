@@ -68,7 +68,10 @@ test("GitHub Pages deploys a static scheduled snapshot without secrets", () => {
   assert.match(workflow, /export_static\.py --force/);
   assert.doesNotMatch(workflow, /FMP_API_KEY|TWELVEDATA_API_KEY/);
   assert.match(workflow, /data_status: \$\{\{ steps\.refresh_data\.outputs\.data_status \}\}/);
-  assert.match(workflow, /if: needs\.build\.outputs\.data_status == 'updated'/);
+  // A preserved snapshot is still the data that is already live, so only a
+  // genuinely failed build may skip the deploy — otherwise a UI change waits
+  // for a data refresh that may never report "updated".
+  assert.match(workflow, /if: needs\.build\.outputs\.data_status != 'failed'/);
 });
 
 test("production refreshes the latest published snapshot without a live-service dependency", () => {
