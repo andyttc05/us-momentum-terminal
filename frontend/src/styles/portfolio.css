@@ -251,16 +251,74 @@
 .portfolio-constraint.is-failed > svg { color: var(--color-negative); }
 .portfolio-constraint.is-unavailable > svg { color: var(--color-warning); }
 
-/* The holdings card carries its own title in the header (there are no tabs any
-   more), so the body starts a short step below it and the table runs full width. */
+/* The holdings card owns its header: title on the left, the two-way view switch
+   and Export on the right. Both live inside the card — nothing floats above it. */
 .portfolio-holdings-card { --card-body-padding-start: 12px; --card-body-padding-end: 0px; }
 .portfolio-holdings-card > .dashboard-card__header { align-items: center; }
+.portfolio-card-toolbar {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+}
+.portfolio-card-toolbar__actions { display: flex; min-width: 0; align-items: center; gap: 10px; margin-left: auto; }
 .portfolio-export-control { display: flex; flex: 0 0 auto; align-items: center; justify-content: flex-end; }
-.next-rebalance-dates { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 14px 0 0; }
-.next-rebalance-dates div { display: grid; gap: 3px; min-width: 0; }
-.next-rebalance-dates strong { font-size: .9rem; }
-.next-rebalance-dates span { color: var(--color-text-secondary); font-size: .72rem; }
-.next-rebalance-dates p { grid-column: 1 / -1; margin: 0; color: var(--color-text-secondary); font-size: .8rem; }
+
+/* Segmented control: one quiet track, the selected view raised out of it. */
+.portfolio-view-switch {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background: #F5F0E7;
+}
+.portfolio-view-switch button {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-text-secondary);
+  padding: 5px 13px;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: var(--font-weight-bold);
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+.portfolio-view-switch button:hover { color: var(--color-ink); }
+.portfolio-view-switch button.is-active {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  box-shadow: 0 1px 2px rgb(56 40 22 / 10%);
+}
+.portfolio-view-switch button:focus-visible { outline: 2px solid #D7AB2E; outline-offset: 2px; }
+.portfolio-view-switch .portfolio-live-dot { width: 7px; height: 7px; }
+.portfolio-live-dot { flex: 0 0 auto; border-radius: 50%; background: var(--color-mint); }
+
+.portfolio-view-panel { min-width: 0; }
+.portfolio-live-panel { min-width: 0; }
+.portfolio-live-table-wrap { overflow-x: auto; }
+/* The live table sizes to its text: seven columns of differing widths do not fit
+   the holdings colgroup, and there is nothing to keep column-aligned with. */
+.portfolio-live-table { min-width: 880px; table-layout: auto; }
+.portfolio-live-table td,
+.portfolio-live-table th { padding: 10px 12px; text-align: left; }
+.portfolio-live-table td a { color: inherit; font-weight: var(--font-weight-bold); text-decoration: none; }
+.portfolio-status-held { color: var(--color-positive); font-weight: var(--font-weight-bold); }
+.portfolio-tab-note { margin: 0 12px 12px; color: var(--color-text-secondary); font-size: var(--font-size-sm); }
+.portfolio-tab-note:first-child { margin: 2px 12px 10px; }
+
 .portfolio-holdings-card .table-pagination { min-height: 68px; padding: 0 10px; }
 .portfolio-table-scroll { width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
 .portfolio-table-shell { position: relative; min-width: 0; }

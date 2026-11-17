@@ -57,7 +57,18 @@ const sortableFields = [
   ["finalWeight", "Weight", "Target Weight", "final-weight"],
 ];
 
+const portfolioViews = [["holdings", "Holdings"], ["live", "Live Momentum"]];
+
 const displayPercent = (value) => `${value.toFixed(1)}%`;
+
+/** Compact dollar label for the live-signal table's market-cap column. */
+function formatLiveMarketCap(value) {
+  if (!value) return "—";
+  if (value >= 1e12) return `$${(value / 1e12).toFixed(2)}T`;
+  if (value >= 1e9) return `$${(value / 1e9).toFixed(0)}B`;
+  if (value >= 1e6) return `$${(value / 1e6).toFixed(0)}M`;
+  return `$${Math.round(value)}`;
+}
 
 const constraintIcons = {
   "max-stock": Stack,
@@ -122,6 +133,7 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
   const [page, setPage] = useState(1);
   const [toast, setToast] = useState("");
   const [isExporting, setIsExporting] = useState(false);
+  const [activeView, setActiveView] = useState("holdings");
   const {
     data,
     error,
@@ -138,6 +150,7 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
   // constraint targets: nothing here is sized from a fixed 100-holding guess.
   const dataset = datasetForUniverse(data, activeUniverse);
   const portfolio = dataset?.portfolio ?? null;
+  const liveSignals = dataset?.liveSignals?.rows ?? data?.stocks ?? [];
   const targetHoldings = targetHoldingsForDataset(dataset, activeUniverse);
   const portfolioHoldings = portfolio?.holdings ?? [];
   const portfolioSectors = portfolio?.sectors ?? [];
@@ -202,6 +215,25 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
       ? { key, direction: current.direction === "asc" ? "desc" : "asc" }
       : { key, direction: "asc" });
     setPage(1);
+  }
+
+  /**
+   * The two-way switch is a small tablist: arrows move between the views, Home
+   * and End jump to the first and last, and focus follows the selection so the
+   * keyboard reader stays with the view they just chose.
+   */
+  function handleViewKeyDown(event) {
+    const currentIndex = portfolioViews.findIndex(([id]) => id === activeView);
+    let nextIndex = currentIndex;
+    if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % portfolioViews.length;
+    else if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + portfolioViews.length) % portfolioViews.length;
+    else if (event.key === "Home") nextIndex = 0;
+    else if (event.key === "End") nextIndex = portfolioViews.length - 1;
+    else return;
+    event.preventDefault();
+    const nextView = portfolioViews[nextIndex][0];
+    setActiveView(nextView);
+    event.currentTarget.querySelector(`[data-portfolio-view="${nextView}"]`)?.focus();
   }
 
   function showToast(message, kind = "updated", duration = 2600) {
@@ -329,18 +361,107 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
 
         <DashboardCard
           className="portfolio-holdings-card"
-          title="Active Portfolio Holdings"
-          action={(
-            <div className="portfolio-export-control">
-              <ExportMenu
-                onExport={exportPortfolio}
-                disabled={!portfolioReady}
-                busy={isExporting}
-                ariaLabel="Export the complete portfolio"
-              />
+          headerContent={(
+            <div className="portfolio-card-toolbar">
+              <h3 className="dashboard-card__title">
+                {activeView === "holdings" ? "Active Portfolio Holdings" : "Live Momentum Signals"}
+              </h3>
+              <div className="portfolio-card-toolbar__actions">
+                <div
+                  className="portfolio-view-switch"
+                  role="tablist"
+                  aria-label="Portfolio holdings view"
+                  onKeyDown={handleViewKeyDown}
+                >
+                  {portfolioViews.map(([id, label]) => (
+                    <button
+                      key={id}
+                      id={`portfolio-view-${id}`}
+                      data-portfolio-view={id}
+                      type="button"
+                      role="tab"
+                      aria-selected={activeView === id}
+                      aria-controls="portfolio-view-panel"
+                      tabIndex={activeView === id ? 0 : -1}
+                      className={activeView === id ? "is-active" : ""}
+                      onClick={() => setActiveView(id)}
+                    >
+                      {label}{id === "live" && <span className="portfolio-live-dot" aria-hidden="true" />}
+                    </button>
+                  ))}
+                </div>
+                <div className="portfolio-export-control">
+                  <ExportMenu
+                    onExport={exportPortfolio}
+                    disabled={!portfolioReady}
+                    busy={isExporting}
+                    ariaLabel="Export the complete portfolio"
+                  />
+                </div>
+              </div>
             </div>
           )}
         >
+          <div
+            className="portfolio-view-panel"
+            id="portfolio-view-panel"
+            role="tabpanel"
+            aria-labelledby={`portfolio-view-${activeView}`}
+            tabIndex={0}
+          >
+          {activeView === "live" ? (
+            <div className="portfolio-live-panel">
+              <p className="portfolio-tab-note">Latest scores update with market data. They do not change the holdings or target weights above.</p>
+              <div className="portfolio-live-table-wrap">
+                <table className="portfolio-table portfolio-live-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Current Rank</th>
+                      <th scope="col">Ticker</th>
+                      <th scope="col">Sector</th>
+                      <th scope="col">Momentum Score</th>
+                      <th scope="col">12–1 Momentum</th>
+                      <th scope="col">Float Cap</th>
+                      <th scope="col">Portfolio Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {liveSignals.slice(0, 20).map((row, index) => {
+                      const held = portfolioHoldings.some((holding) => holding.ticker === row.ticker);
+                      const potential = row.activePortfolioStatus === "potential_new_entry";
+                      return (
+                        <tr key={row.ticker}>
+                          <td>{row.rank ?? index + 1}</td>
+                          <td>
+                            <a
+                              href={stockPath(row.ticker)}
+                              onClick={(event) => {
+                                if (!shouldRouteTickerClick(event)) return;
+                                event.preventDefault();
+                                onSelectStock?.(row.ticker);
+                              }}
+                            >
+                              {row.ticker}
+                            </a>
+                          </td>
+                          <td>{row.sector}</td>
+                          <td>{Number(row.score ?? row.momentumScore ?? 0).toFixed(2)}</td>
+                          <td>{Number(row.momentum ?? 0).toFixed(1)}%</td>
+                          <td>{formatLiveMarketCap(row.floatMarketCap)}</td>
+                          <td>
+                            <span className={held ? "portfolio-status-held" : ""}>
+                              {held ? "Currently Held" : potential ? "Potential New Entry" : "Outside Active Portfolio"}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <p className="portfolio-tab-note">Signal date: {meta?.as_of ?? "Unavailable"} · Published: {meta?.generated_at ?? "Unavailable"}</p>
+            </div>
+          ) : (
           <div className={`portfolio-table-shell${tableScroll.scrollable ? " is-scrollable" : ""}${tableScroll.atEnd ? " is-at-end" : ""}`}>
             <div
               className="portfolio-table-scroll"
@@ -425,7 +546,8 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
               </table>
             </div>
           </div>
-          <Pagination
+          )}
+          {activeView === "holdings" && <Pagination
             page={currentPage}
             totalPages={totalPages}
             rangeStart={firstResult}
@@ -433,7 +555,8 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
             total={sortedHoldings.length}
             onPageChange={setPage}
             label="Holdings table pagination"
-          />
+          />}
+          </div>
         </DashboardCard>
       </div>
       {toast && <Toast kind={toast.kind} message={toast.message} className="page-toast" durationMs={toast.duration} />}

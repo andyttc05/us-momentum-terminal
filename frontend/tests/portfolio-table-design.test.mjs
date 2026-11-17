@@ -17,17 +17,21 @@ test("the Portfolio page preserves its table shell with component-level loading"
   assert.match(portfolioPage, /<Pagination/);
 });
 
-test("the holdings card is one table with its title inside the card, not a tabbed view", () => {
-  assert.doesNotMatch(portfolioPage, /portfolioTabs|role="tablist"|role="tabpanel"/);
-  assert.match(portfolioPage, /className="portfolio-holdings-card"\s*\n\s*title="Active Portfolio Holdings"/);
-  assert.match(portfolioPage, /action=\{\([\s\S]*?<ExportMenu[\s\S]*?ariaLabel="Export the complete portfolio"/);
-  assert.doesNotMatch(portfolioCss, /portfolio-tabs|portfolio-live-table|portfolio-performance-empty/);
+test("the holdings card switches between two views from inside its own header", () => {
+  assert.match(portfolioPage, /const portfolioViews = \[\["holdings", "Holdings"\], \["live", "Live Momentum"\]\]/);
+  // Performance is gone; only holdings and live momentum remain.
+  assert.doesNotMatch(portfolioPage, /"performance"|Performance/);
+  // The title and the switch both live in the card header, next to Export.
+  assert.match(portfolioPage, /className="portfolio-card-toolbar"[\s\S]*?dashboard-card__title[\s\S]*?role="tablist"[\s\S]*?<ExportMenu/);
+  assert.match(portfolioPage, /activeView === "holdings" \? "Active Portfolio Holdings" : "Live Momentum Signals"/);
+  assert.match(portfolioPage, /aria-controls="portfolio-view-panel"/);
+  assert.match(portfolioPage, /event\.key === "ArrowRight"/);
+  assert.match(portfolioCss, /\.portfolio-view-switch button\.is-active \{/);
   // Short, single-line headings; the "at rebalance" wording lives in the tooltip.
   assert.match(portfolioPage, /"Sector", "Sector at Rebalance"/);
   assert.match(portfolioPage, /"Score", "Score at Rebalance"/);
   assert.match(portfolioPage, /"Float Cap", "Float-Adjusted Market Cap at Rebalance"/);
   assert.match(portfolioPage, /"Weight", "Target Weight"/);
-  assert.match(portfolioPage, /"Target Weight"/);
 });
 
 test("Portfolio holding rows use the Screener row rhythm and hover treatment", () => {

@@ -129,12 +129,6 @@ export function NextRebalanceCard({ frequency, today, portfolio }) {
           <RebalanceCalendar schedule={displaySchedule} />
           <CountdownClock schedule={displaySchedule} />
         </div>
-        <div className="next-rebalance-dates">
-          <div><strong>{portfolioMeta.lastRebalanceDate ?? portfolioMeta.effectiveDate ?? "—"}</strong><span>Last Rebalance / Effective</span></div>
-          <div><strong>{portfolioMeta.nextScheduledSignalDate ?? "—"}</strong><span>Next Signal Session</span></div>
-          <div><strong>{portfolioMeta.nextScheduledRebalanceDate ?? "—"}</strong><span>Next Execution Session</span></div>
-          <p>Holdings remain fixed until the next scheduled rebalance.</p>
-        </div>
       </div>
     </section>
   );
