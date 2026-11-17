@@ -18,10 +18,18 @@ test("the Portfolio page preserves its table shell with component-level loading"
 });
 
 test("the Portfolio page separates active holdings, performance and live signals", () => {
-  assert.match(portfolioPage, /\[\["holdings", "Holdings"\], \["performance", "Performance"\], \["live", "Live Momentum"\]\]/);
+  assert.match(portfolioPage, /const portfolioTabs = \[\["holdings", "Holdings"\], \["performance", "Performance"\], \["live", "Live Momentum"\]\]/);
   assert.match(portfolioPage, /"Target Weight"/);
   assert.match(portfolioPage, /"Score at Rebalance"/);
   assert.match(portfolioPage, /Latest scores update with market data\. They do not change Active Portfolio/);
+  assert.match(portfolioPage, /<div className="portfolio-card-toolbar">[\s\S]*role="tablist"[\s\S]*<ExportMenu/);
+  assert.match(portfolioPage, /aria-controls="portfolio-view-panel"/);
+  assert.match(portfolioPage, /tabIndex=\{activeTab === id \? 0 : -1\}/);
+  assert.match(portfolioPage, /event\.key === "ArrowRight"/);
+  assert.doesNotMatch(portfolioPage, /portfolio-active-status|Active Portfolio Holdings/);
+  assert.match(portfolioPage, /"Sector", "Sector at Rebalance"/);
+  assert.match(portfolioPage, /"Score", "Score at Rebalance"/);
+  assert.match(portfolioPage, /"Float-Adj\. Cap", "Float-Adj\. Market Cap at Rebalance"/);
 });
 
 test("Portfolio holding rows use the Screener row rhythm and hover treatment", () => {
@@ -47,4 +55,13 @@ test("Portfolio financial columns stay right aligned with matching badge sizes",
   assert.match(portfolioCss, /\.portfolio-table th\.portfolio-heading--rank \{ text-align: center; \}/);
   assert.match(portfolioCss, /\.portfolio-score-cell span \{[^}]*min-width: 82px;[^}]*min-height: 31px/s);
   assert.match(portfolioCss, /\.portfolio-rank-cell span \{[^}]*width: 32px;[^}]*height: 32px/s);
+});
+
+test("Portfolio holdings columns use the requested aligned six-column proportions", () => {
+  for (const [slug, percent] of [["rank", 5], ["ticker", 11], ["sector", 18], ["score", 13], ["market-cap", 31], ["final-weight", 22]]) {
+    assert.match(portfolioCss, new RegExp(`\\.portfolio-col-${slug} \\{ width: ${percent}%; \\}`));
+  }
+  assert.match(portfolioCss, /min-width: 960px; table-layout: fixed/);
+  assert.match(portfolioPage, /aria-label=\{`Sort by \$\{fullLabel\}`\}/);
+  assert.match(portfolioPage, /title=\{fullLabel\}/);
 });

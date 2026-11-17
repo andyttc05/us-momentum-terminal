@@ -112,7 +112,7 @@ test("each heading is aligned with the values it labels", () => {
     assert.match(tablesCss, new RegExp(`\\.screener-table th\\.stock-heading--${slug}`));
   }
   assert.match(tablesCss, /\.screener-table th\.stock-heading--market-cap/);
-  for (const slug of ["rank", "score", "market-cap", "raw-weight", "final-weight"]) {
+  for (const slug of ["rank", "score", "market-cap", "final-weight"]) {
     assert.match(tablesCss, new RegExp(`\\.portfolio-table th\\.portfolio-heading--${slug}`));
   }
 });

@@ -45,15 +45,17 @@ import {
 import { stockPath } from "./router.jsx";
 
 const rowsPerPage = 10;
-// [field, label, class suffix, short label used on phones]
+// [field, visible label, full accessible label, class suffix]
 const sortableFields = [
-  ["rank", "#", "rank"],
-  ["ticker", "Ticker", "ticker"],
-  ["sector", "Sector at Rebalance", "sector"],
-  ["score", "Score at Rebalance", "score"],
-  ["floatAdjustedMarketCapValue", "Float-Adj. Market Cap at Rebalance", "market-cap", "Mkt Cap"],
-  ["finalWeight", "Target Weight", "final-weight"],
+  ["rank", "#", "Rank", "rank"],
+  ["ticker", "Ticker", "Ticker", "ticker"],
+  ["sector", "Sector", "Sector at Rebalance", "sector"],
+  ["score", "Score", "Score at Rebalance", "score"],
+  ["floatAdjustedMarketCapValue", "Float-Adj. Cap", "Float-Adj. Market Cap at Rebalance", "market-cap"],
+  ["finalWeight", "Target Weight", "Target Weight", "final-weight"],
 ];
+
+const portfolioTabs = [["holdings", "Holdings"], ["performance", "Performance"], ["live", "Live Momentum"]];
 
 const displayPercent = (value) => `${value.toFixed(1)}%`;
 
@@ -204,6 +206,20 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
     setPage(1);
   }
 
+  function handleTabKeyDown(event) {
+    const currentIndex = portfolioTabs.findIndex(([id]) => id === activeTab);
+    let nextIndex = currentIndex;
+    if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % portfolioTabs.length;
+    else if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + portfolioTabs.length) % portfolioTabs.length;
+    else if (event.key === "Home") nextIndex = 0;
+    else if (event.key === "End") nextIndex = portfolioTabs.length - 1;
+    else return;
+    event.preventDefault();
+    const nextTab = portfolioTabs[nextIndex][0];
+    setActiveTab(nextTab);
+    event.currentTarget.querySelector(`[data-portfolio-tab="${nextTab}"]`)?.focus();
+  }
+
   function showToast(message, kind = "updated", duration = 2600) {
     setToast({ message, kind, duration });
     window.clearTimeout(showToast.timeout);
@@ -267,13 +283,6 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
           )}
         />
 
-        <div className="portfolio-active-status" role="status">
-          <span className="portfolio-active-status__dot" />
-          <strong>Active Portfolio</strong>
-          <span>{portfolio?.metadata?.lastRebalanceDate ? `Rebalanced ${portfolio.metadata.lastRebalanceDate}` : portfolio?.metadata?.formationType === "initial_formation" ? `Initial formation ${portfolio.metadata.effectiveDate}` : "Active book"}</span>
-          <span className="portfolio-active-status__freshness">Data {meta?.cache_state ?? "status unavailable"}</span>
-        </div>
-
         <section className="overview-kpis portfolio-kpis" aria-label="Portfolio summary">
           <KpiCard loading={portfolioState.kind === "loading"} label="Total Holdings" value={portfolioSummary?.totalHoldings ?? pendingKpi} icon={Briefcase} tint="cream" mascotVariant="cream" mascotColor="var(--color-cream)" />
           <KpiCard loading={portfolioState.kind === "loading"} label="Invested Capital" value={portfolioSummary ? `${Math.round(portfolioSummary.investedCapital)}%` : pendingKpi} icon={Target} tint="blue" mascotVariant="blue" mascotColor="var(--color-blue)" />
@@ -334,26 +343,40 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
           </section>
         </section>
 
-        <div className="portfolio-tabs" role="tablist" aria-label="Portfolio views">
-          {[["holdings", "Holdings"], ["performance", "Performance"], ["live", "Live Momentum"]].map(([id, label]) => (
-            <button key={id} type="button" role="tab" aria-selected={activeTab === id} className={activeTab === id ? "is-active" : ""} onClick={() => setActiveTab(id)}>{label}{id === "live" && <span className="portfolio-live-dot" aria-label="Live signals" />}</button>
-          ))}
-        </div>
-
         <DashboardCard
-          title={activeTab === "holdings" ? "Active Portfolio Holdings" : activeTab === "performance" ? "Portfolio Performance" : "Latest Market Signals"}
           className="portfolio-holdings-card"
-          action={(
-            <div className="portfolio-export-control">
-              <ExportMenu
-                onExport={exportPortfolio}
-                disabled={!portfolioReady}
-                busy={isExporting}
-                ariaLabel="Export the complete portfolio"
-              />
+          headerContent={(
+            <div className="portfolio-card-toolbar">
+              <div className="portfolio-tabs" role="tablist" aria-label="Portfolio views" onKeyDown={handleTabKeyDown}>
+                {portfolioTabs.map(([id, label]) => (
+                  <button
+                    key={id}
+                    id={`portfolio-tab-${id}`}
+                    data-portfolio-tab={id}
+                    type="button"
+                    role="tab"
+                    aria-selected={activeTab === id}
+                    aria-controls="portfolio-view-panel"
+                    tabIndex={activeTab === id ? 0 : -1}
+                    className={activeTab === id ? "is-active" : ""}
+                    onClick={() => setActiveTab(id)}
+                  >
+                    {label}{id === "live" && <span className="portfolio-live-dot" aria-hidden="true" />}
+                  </button>
+                ))}
+              </div>
+              <div className="portfolio-export-control">
+                <ExportMenu
+                  onExport={exportPortfolio}
+                  disabled={!portfolioReady}
+                  busy={isExporting}
+                  ariaLabel="Export the complete portfolio"
+                />
+              </div>
             </div>
           )}
         >
+          <div className="portfolio-view-panel" id="portfolio-view-panel" role="tabpanel" aria-labelledby={`portfolio-tab-${activeTab}`} tabIndex={0}>
           {activeTab === "performance" ? (
             <div className="portfolio-performance-empty">
               <strong>Active portfolio performance is unavailable</strong>
@@ -397,11 +420,10 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
                 <thead>
                   <tr>
                     <th scope="col" className="portfolio-heading portfolio-heading--rank"><span>#</span></th>
-                    {sortableFields.slice(1).map(([key, label, className, shortLabel]) => (
-                      <th scope="col" key={key} className={`portfolio-heading portfolio-heading--${className}`} aria-sort={sort.key === key ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}>
-                        <button type="button" aria-label={`Sort by ${label}`} onClick={() => toggleSort(key)}>
-                          <span className={shortLabel ? "portfolio-heading__full" : undefined}>{label}</span>
-                          {shortLabel && <span className="portfolio-heading__short" aria-hidden="true">{shortLabel}</span>}
+                    {sortableFields.slice(1).map(([key, label, fullLabel, className]) => (
+                      <th scope="col" key={key} title={fullLabel} aria-label={fullLabel} className={`portfolio-heading portfolio-heading--${className}`} aria-sort={sort.key === key ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}>
+                        <button type="button" aria-label={`Sort by ${fullLabel}`} title={fullLabel} onClick={() => toggleSort(key)}>
+                          <span>{label}</span>
                           <SortIcon active={sort.key === key} direction={sort.direction} />
                         </button>
                       </th>
@@ -467,6 +489,7 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
             onPageChange={setPage}
             label="Holdings table pagination"
           />}
+          </div>
         </DashboardCard>
       </div>
       {toast && <Toast kind={toast.kind} message={toast.message} className="page-toast" durationMs={toast.duration} />}

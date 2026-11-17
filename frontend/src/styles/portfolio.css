@@ -252,18 +252,17 @@
 .portfolio-constraint.is-unavailable > svg { color: var(--color-warning); }
 
 .portfolio-holdings-card { --card-body-padding-start: 7px; }
-.portfolio-active-status {
-  display: flex; align-items: center; gap: 12px; width: fit-content; max-width: 100%;
-  margin: -6px 0 16px; padding: 10px 16px; border: 1px solid rgba(0,0,0,.05);
-  border-radius: 999px; background: rgba(255,255,255,.88); box-shadow: 0 5px 18px rgba(50,35,20,.07);
-  font-size: .92rem;
-}
-.portfolio-active-status__dot,.portfolio-live-dot { width: 11px; height: 11px; flex: 0 0 auto; border-radius: 50%; background: var(--color-mint); }
-.portfolio-active-status__freshness { color: var(--color-text-secondary); }
-.portfolio-tabs { display: flex; gap: 4px; width: fit-content; max-width: 100%; margin: 18px 0 -7px 18px; padding: 5px; border-radius: 999px; background: #f7f2ed; position: relative; z-index: 1; overflow-x: auto; }
-.portfolio-tabs button { display: inline-flex; align-items: center; gap: 8px; border: 0; border-radius: 999px; background: transparent; color: var(--color-ink); padding: 9px 16px; font: inherit; font-weight: 700; white-space: nowrap; cursor: pointer; }
-.portfolio-tabs button.is-active { background: #ffe7a2; box-shadow: 0 2px 7px rgba(80,55,20,.08); }
+.portfolio-holdings-card > .dashboard-card__header { align-items: center; }
+.portfolio-card-toolbar { display: flex; width: 100%; min-width: 0; align-items: center; justify-content: space-between; gap: 16px; }
+.portfolio-tabs { display: flex; min-width: 0; max-width: 100%; align-items: center; gap: 4px; overflow-x: auto; }
+.portfolio-tabs button { display: inline-flex; min-height: 42px; flex: 0 0 auto; align-items: center; gap: 8px; border: 0; border-radius: 12px; background: transparent; color: var(--color-ink); padding: 9px 16px; font: inherit; font-weight: 700; white-space: nowrap; cursor: pointer; transition: background-color 160ms ease, color 160ms ease; }
+.portfolio-tabs button:hover { background: #FAF7F0; }
+.portfolio-tabs button.is-active { background: #FFF3C9; color: var(--color-ink); }
+.portfolio-tabs button:focus-visible { outline: 2px solid #D7AB2E; outline-offset: 2px; }
 .portfolio-tabs .portfolio-live-dot { width: 9px; height: 9px; }
+.portfolio-live-dot { flex: 0 0 auto; border-radius: 50%; background: var(--color-mint); }
+.portfolio-export-control { display: flex; flex: 0 0 auto; align-items: center; justify-content: flex-end; }
+.portfolio-view-panel { min-width: 0; }
 .portfolio-tab-note { margin: 0 12px 12px; color: var(--color-text-secondary); font-size: .88rem; }
 .portfolio-live-table-wrap { overflow-x: auto; }
 .portfolio-live-table { min-width: 880px; }
@@ -279,45 +278,36 @@
 .next-rebalance-dates span { color: var(--color-text-secondary); font-size: .72rem; }
 .next-rebalance-dates p { grid-column: 1 / -1; margin: 0; color: var(--color-text-secondary); font-size: .8rem; }
 .portfolio-holdings-card .table-pagination { min-height: 68px; padding: 0 10px; }
-/* The shared export control shares the card header row with the title: the
-   title stays left aligned, the button sits on the right, and the table
-   columns are untouched. */
-.portfolio-holdings-card > .dashboard-card__header { align-items: center; }
-.portfolio-export-control { display: flex; align-items: center; justify-content: flex-end; }
 .portfolio-table-scroll { width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
 .portfolio-table-shell { position: relative; min-width: 0; }
-.portfolio-table { width: 100%; min-width: 850px; table-layout: fixed; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-/* One colgroup, one set of proportions, `table-layout: fixed` — the header and
-   the body are laid out by the same widths, so a column can never drift between
-   them. # / Ticker / Sector / Score / Market cap / Raw / Final = 100%.
-   Rank and Score are a hair wider than the raw 5/11 sketch: their fixed-size
-   badges (32px circle, 82px pill) would otherwise be clipped at the 1100px
-   breakpoint, where the table is only 882px wide. */
-.portfolio-col-rank { width: 5.5%; }
-.portfolio-col-ticker { width: 11.5%; }
-.portfolio-col-sector { width: 14.5%; }
-.portfolio-col-score { width: 11.5%; }
-.portfolio-col-market-cap { width: 22%; }
-.portfolio-col-raw-weight { width: 17%; }
-.portfolio-col-final-weight { width: 18%; }
-.portfolio-table thead tr { height: var(--table-head-height); border-bottom: 1px solid var(--color-line); }
+.portfolio-table { width: 100%; min-width: 960px; table-layout: fixed; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+/* The fixed colgroup keeps every header aligned to its body column. The six
+   widths total 100%; tablet layouts scroll instead of compressing the labels. */
+.portfolio-col-rank { width: 5%; }
+.portfolio-col-ticker { width: 11%; }
+.portfolio-col-sector { width: 18%; }
+.portfolio-col-score { width: 13%; }
+.portfolio-col-market-cap { width: 31%; }
+.portfolio-col-final-weight { width: 22%; }
+.portfolio-table thead tr { min-height: var(--table-head-height); border-bottom: 1px solid var(--color-line); }
 .portfolio-table th {
-  overflow: hidden;
-  padding: 0 8px;
+  min-width: 0;
+  padding: 10px 12px;
   color: var(--color-text-secondary);
   font-size: var(--font-size-table-heading);
   font-weight: var(--font-weight-black);
-  letter-spacing: var(--letter-spacing-table-heading);
+  letter-spacing: 0.015em;
+  line-height: 1.25;
   text-align: left;
-  text-overflow: ellipsis;
   text-transform: uppercase;
-  white-space: nowrap;
+  vertical-align: middle;
 }
 .portfolio-table th button {
-  display: inline-flex;
-  max-width: 100%;
+  display: flex;
+  width: 100%;
+  min-width: 0;
   align-items: center;
-  gap: 5px;
+  gap: 8px;
   padding: 5px 0;
   border: 0;
   background: transparent;
@@ -327,32 +317,19 @@
   letter-spacing: inherit;
   text-align: inherit;
   text-transform: inherit;
-  white-space: nowrap;
   transition: color 160ms ease;
 }
+.portfolio-table th button span { min-width: 0; }
 .portfolio-table th button:hover { color: var(--color-ink); }
 .portfolio-table th button svg { flex: 0 0 auto; }
-/* Phones swap the long "Float-Adj. Market Cap" heading for a short one so the
-   column keeps its full width without clipping; desktop keeps the full label. */
-.portfolio-heading__short { display: none; }
-/* Below a wide desktop the market-cap column is still too narrow for the full
-   label: because the heading is right-aligned, the overflow would eat its first
-   letters instead of trailing off with an ellipsis. The sort button keeps the
-   full name in its aria-label either way. */
-@media (max-width: 1340px) {
-  .portfolio-heading--market-cap .portfolio-heading__full { display: none; }
-  .portfolio-heading--market-cap .portfolio-heading__short { display: inline; }
-}
 .portfolio-heading--rank,
 .portfolio-heading--score { text-align: center; }
 .portfolio-table th.portfolio-heading--rank { text-align: center; }
 .portfolio-heading--rank button,
 .portfolio-heading--score button { justify-content: center; }
 .portfolio-heading--market-cap,
-.portfolio-heading--raw-weight,
 .portfolio-heading--final-weight { text-align: right; }
 .portfolio-heading--market-cap button,
-.portfolio-heading--raw-weight button,
 .portfolio-heading--final-weight button { justify-content: flex-end; }
 .portfolio-table tbody tr { height: var(--table-row-height); border-bottom: 1px solid var(--color-line); transition: background-color 140ms ease; }
 .portfolio-table tbody tr:last-child { border-bottom: 0; }
@@ -506,8 +483,6 @@
    card kept a 108px + 120px split, which at 250px of content width put the
    legend's name and its percentage on top of each other. */
 @media (max-width: 600px) {
-  .portfolio-active-status { align-items: flex-start; flex-wrap: wrap; border-radius: 20px; margin-top: 4px; }
-  .portfolio-tabs { width: calc(100% - 12px); margin-left: 6px; }
   .portfolio-tabs button { padding: 8px 11px; font-size: .88rem; }
   .portfolio-performance-empty { padding: 22px; }
   .portfolio-summary-grid { grid-template-columns: minmax(0, 1fr); }
