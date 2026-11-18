@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ChartBar, CrownSimple, Scales, Sigma, Stack } from "@phosphor-icons/react";
+import { ArrowLeft, ChartBar, Scales, Sigma, Stack } from "@phosphor-icons/react";
 import { AppButton } from "./components/AppButton.jsx";
 import { ChartState, Skeleton } from "./components/DataState.jsx";
 import { DashboardCard } from "./components/DashboardCard.jsx";
@@ -626,7 +626,6 @@ export function StockAnalysisPage({ ticker = "NVDA", onBack, backLabel = "Screen
               </span>
             </div>
             <div className="stock-summary-block">
-              <CrownSimple size={24} weight="fill" aria-hidden="true" />
               <span className="stock-summary-block__copy">
                 <span className="stock-summary-block__label">Rank</span>
                 <strong

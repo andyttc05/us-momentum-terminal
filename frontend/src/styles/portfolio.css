@@ -284,13 +284,13 @@
 /* Seven tracks, same rhythm as the six above: the free-text Sector column takes
    the slack instead of the status column, so nothing reads as empty space. */
 .portfolio-live-table { min-width: 1020px; }
-.portfolio-col-live-ticker { width: 10%; }
-.portfolio-col-live-sector { width: 19%; }
+.portfolio-col-live-ticker { width: 11%; }
+.portfolio-col-live-sector { width: 24%; }
 .portfolio-col-live-score { width: 9%; }
 .portfolio-col-live-momentum { width: 10%; }
-.portfolio-col-live-market-cap { width: 12%; }
+.portfolio-col-live-market-cap { width: 13%; }
 .portfolio-col-live-weight { width: 10%; }
-.portfolio-col-live-status { width: 25%; }
+.portfolio-col-live-status { width: 18%; }
 .portfolio-table thead tr { min-height: var(--table-head-height); border-bottom: 1px solid var(--color-line); }
 .portfolio-table th {
   min-width: 0;
@@ -363,7 +363,9 @@
 .portfolio-sector-cell { color: var(--color-text-secondary); font-weight: var(--font-weight-medium); }
 .portfolio-number-cell { text-align: right; }
 .portfolio-number-cell.is-emphasis { font-weight: var(--font-weight-black); }
-.portfolio-status-cell { color: var(--color-text-secondary); }
+/* Last column, so it ends on the card's right edge like the weight column does
+   in the holdings table — no trailing hole after the text. */
+.portfolio-status-cell { color: var(--color-text-secondary); text-align: right; }
 .portfolio-status-cell.is-held { color: var(--color-positive); font-weight: var(--font-weight-bold); }
 
 @media (min-height: 831px) and (min-width: 1101px) {
