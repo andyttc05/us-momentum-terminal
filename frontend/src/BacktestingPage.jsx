@@ -923,6 +923,14 @@ function PerformanceAndRisk({ report, reportWindow, metrics, config, state = "re
     },
   ];
 
+  // Two columns instead of four: a fourth column held a single cash-flow row
+  // and left a tall empty gap, and the columns never lined up with the hero
+  // above them. Strategy measures stack on the left, benchmarks on the right.
+  const perfColumns = [
+    { key: "strategy", groups: groups.filter((group) => group.title !== "Benchmarks") },
+    { key: "benchmarks", groups: groups.filter((group) => group.title === "Benchmarks") },
+  ];
+
   return (
     <DashboardCard title="Performance & Risk" className="backtest-perf-card">
       <div className="backtest-perf-hero" aria-label="Headline returns">
@@ -939,23 +947,27 @@ function PerformanceAndRisk({ report, reportWindow, metrics, config, state = "re
         ))}
       </div>
       <div className="backtest-perf-columns">
-        {groups.map((group) => (
-          <section className="backtest-perf-group" key={group.title} aria-label={group.title}>
-            <h4 className="backtest-perf-group__title">{group.title}</h4>
-            {group.rows.map(({ label, value, tone = "", tip, plain = false }) => (
-              <div className="backtest-perf-row" key={label}>
-                <span className="backtest-perf-row__label">
-                  {label}
-                  <InfoTooltip label={label}>{tip}</InfoTooltip>
-                </span>
-                <strong
-                  className={`backtest-perf-row__value${tone ? ` is-${tone}` : ""}${plain ? " is-plain" : ""}`}
-                >
-                  {loading ? <Skeleton width="52px" height="12px" /> : value}
-                </strong>
-              </div>
+        {perfColumns.map((column) => (
+          <div className="backtest-perf-column" key={column.key}>
+            {column.groups.map((group) => (
+              <section className="backtest-perf-group" key={group.title} aria-label={group.title}>
+                <h4 className="backtest-perf-group__title">{group.title}</h4>
+                {group.rows.map(({ label, value, tone = "", tip, plain = false }) => (
+                  <div className="backtest-perf-row" key={label}>
+                    <span className="backtest-perf-row__label">
+                      {label}
+                      <InfoTooltip label={label}>{tip}</InfoTooltip>
+                    </span>
+                    <strong
+                      className={`backtest-perf-row__value${tone ? ` is-${tone}` : ""}${plain ? " is-plain" : ""}`}
+                    >
+                      {loading ? <Skeleton width="52px" height="12px" /> : value}
+                    </strong>
+                  </div>
+                ))}
+              </section>
             ))}
-          </section>
+          </div>
         ))}
       </div>
       <dl className="backtest-perf-foot" aria-label="Investment settings">

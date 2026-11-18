@@ -164,6 +164,29 @@
   line-height: 1.45;
 }
 
+/* The snapshot list is a grid of short facts, so it runs two per line with the
+   label above its value. Twelve stacked rows made the dialog as tall as the
+   page behind it for six numbers a reader actually wants. auto-fit collapses
+   to one column on a phone without a second breakpoint to keep in sync. */
+.app-dialog__rows--compact {
+  grid-template-columns: repeat(auto-fit, minmax(186px, 1fr));
+  column-gap: 26px;
+  margin-top: 16px;
+}
+.app-dialog__rows--compact > div {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 3px;
+  padding: 10px 0;
+  border-top: 0;
+  border-bottom: 1px solid var(--color-line);
+}
+.app-dialog__rows--compact dd {
+  color: var(--color-ink);
+  font-size: 0.9rem;
+  font-weight: var(--font-weight-bold);
+  line-height: 1.35;
+}
+
 /* The disclaimer is a plain line of small print now: it closes the About list
    without adding a second surface under it. */
 .project-info__notice {
@@ -171,6 +194,11 @@
   color: var(--color-text-muted);
   font-size: 0.78rem;
   line-height: 1.45;
+}
+.project-info__notice a {
+  color: var(--color-accent-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 /* Documentation links read as application actions: a hairline, a weight, and a

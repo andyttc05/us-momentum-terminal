@@ -157,3 +157,43 @@ test("motion is optional", () => {
   assert.match(dialogsCss, /@media \(prefers-reduced-motion: reduce\)/);
   assert.match(dialogsCss, /\.app-dialog__close,[\s\S]*?transition: none;/);
 });
+
+test("the snapshot dialog offers one refresh action, not two", () => {
+  // "Check for updates" and "Refresh market data" ran the same confirmation
+  // path with different waits; one button now covers both, falling back to a
+  // plain revalidation when no broker is configured.
+  assert.equal((dataStatus.match(/<AppButton/g) ?? []).length, 1);
+  assert.doesNotMatch(dataStatus, /Check for updates"[\s\S]{0,400}?<AppButton/);
+  assert.match(dataStatus, /refreshBrokerEnabled \? "Refresh market data" : "Check for updates"/);
+  assert.match(dataStatus, /if \(!refreshBrokerEnabled\) \{\s*await refresh\(\);/);
+});
+
+test("the snapshot dialog keeps six facts in a compact two-per-row grid", () => {
+  // Twelve stacked rows made the panel taller than the page for six numbers.
+  assert.match(dataStatus, /className="app-dialog__rows app-dialog__rows--compact"/);
+  const rows = [...dataStatus.matchAll(/<dt>([^<]+)<\/dt>/g)].map((match) => match[1]);
+  assert.deepEqual(rows, ["Market data", "Updated", "Provider", "Stocks", "Backtests", "Last refresh"]);
+  // Diagnostics a reader cannot act on stay out of the panel.
+  for (const dropped of ["Publication version", "Refresh request", "Browser cache", "Detail files"]) {
+    assert.doesNotMatch(dataStatus, new RegExp(`<dt>${dropped}</dt>`));
+  }
+  assert.match(
+    dialogsRules,
+    /\.app-dialog__rows--compact \{\s*grid-template-columns: repeat\(auto-fit, minmax\(186px, 1fr\)\);/,
+  );
+});
+
+test("the About dialog states each fact once, in one line", () => {
+  const rows = [...projectInfo.matchAll(/<dd>([\s\S]*?)<\/dd>/g)]
+    .map((match) => match[1].replace(/\s+/g, " ").trim());
+  assert.deepEqual(rows, [
+    "Validated Yahoo Finance snapshots published through GitHub Pages.",
+    "12–1 momentum, volatility-adjusted scoring, constrained portfolios.",
+    "Monthly to annual signals, next-session execution, transaction costs.",
+    "Curated 200-stock universe, current fundamentals, end-of-day snapshots.",
+  ]);
+  // The disclaimer and the Turnstile attribution share one line of small print.
+  assert.equal((projectInfo.match(/project-info__notice/g) ?? []).length, 1);
+  assert.match(projectInfo, /Research only, not investment advice\./);
+  assert.match(projectInfo, /Refresh verification by Cloudflare Turnstile/);
+});

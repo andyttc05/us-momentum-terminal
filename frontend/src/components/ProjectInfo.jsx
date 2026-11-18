@@ -65,8 +65,7 @@ export function ProjectInfo() {
               <p className="app-dialog__eyebrow">About the project</p>
               <h2 id="project-info-title" className="app-dialog__title">US Momentum Terminal</h2>
               <p className="app-dialog__description">
-                An academic research terminal for studying risk-adjusted US equity momentum,
-                portfolio construction and historical behaviour.
+                A research terminal for risk-adjusted US equity momentum.
               </p>
             </div>
           </header>
@@ -74,28 +73,27 @@ export function ProjectInfo() {
           <dl className="app-dialog__rows">
             <div>
               <dt>Data</dt>
-              <dd>Validated GitHub Pages snapshots generated from Yahoo Finance by the Python pipeline.</dd>
+              <dd>Validated Yahoo Finance snapshots published through GitHub Pages.</dd>
             </div>
             <div>
               <dt>Method</dt>
-              <dd>12–1 momentum, daily volatility, cross-sectional scoring and constrained portfolio construction.</dd>
+              <dd>12–1 momentum, volatility-adjusted scoring, constrained portfolios.</dd>
             </div>
             <div>
               <dt>Backtesting</dt>
-              <dd>Monthly, quarterly, semiannual or annual signals, next-session execution and transaction costs.</dd>
+              <dd>Monthly to annual signals, next-session execution, transaction costs.</dd>
             </div>
             <div>
               <dt>Limitations</dt>
-              <dd>Curated stock universe, current fundamentals, historical survivorship limitations and end-of-day snapshots.</dd>
+              <dd>Curated 200-stock universe, current fundamentals, end-of-day snapshots.</dd>
             </div>
           </dl>
 
-          <p className="project-info__notice">Research and education only. Not investment advice.</p>
           <p className="project-info__notice">
-            Refresh verification uses Cloudflare Turnstile under the{" "}
+            Research only, not investment advice. Refresh verification by Cloudflare Turnstile ·{" "}
             <a href="https://www.cloudflare.com/turnstile-privacy-policy/" target="_blank" rel="noreferrer">
-              Turnstile Privacy Addendum
-            </a>.
+              Privacy
+            </a>
           </p>
 
           <nav className="project-info__links" aria-label="Project documentation">

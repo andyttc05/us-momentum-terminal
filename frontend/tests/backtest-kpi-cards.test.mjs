@@ -104,10 +104,45 @@ test("Performance & Risk puts the headline figures first and the rest in grouped
   assert.match(page, /<PerformanceAndRisk[\s\S]*?metrics=\{metrics\}[\s\S]*?state=/);
 });
 
-test("narrow desktop Performance & Risk groups use two roomy columns", () => {
+test("Performance & Risk stacks strategy groups in one column and benchmarks in the other", () => {
+  const summaryStart = page.indexOf("function PerformanceAndRisk");
+  const summaryEnd = page.indexOf("function AdvancedSettings", summaryStart);
+  const summary = page.slice(summaryStart, summaryEnd);
+
+  // Two columns of stacked groups: Return, Cash Flow and Risk on the left,
+  // Benchmarks on the right. A fourth column used to hold a single cash-flow
+  // row and left a tall empty gap beneath it.
+  assert.match(summary, /const perfColumns = \[/);
+  assert.match(summary, /groups\.filter\(\(group\) => group\.title !== "Benchmarks"\)/);
+  assert.match(summary, /groups\.filter\(\(group\) => group\.title === "Benchmarks"\)/);
+  assert.match(summary, /className="backtest-perf-column"/);
+  // The groups render through the two-column split, never a flat four-up list.
+  assert.match(summary, /perfColumns\.map\(/);
+  assert.doesNotMatch(summary, /\{groups\.map\(/);
+});
+
+test("Performance & Risk keeps two balanced columns and collapses to one on narrow screens", () => {
   assert.match(
     styles,
-    /@media \(max-width: 1399px\) and \(min-width: 1101px\) \{\s*\.backtest-perf-columns \{\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);\s*gap: 4px 34px;[\s\S]*?\.backtest-perf-row__label \{ flex: 1 1 auto; \}/,
+    /\.backtest-perf-columns \{\s*display: grid;\s*grid-template-columns: minmax\(0, 1\.12fr\) minmax\(0, 1fr\);/,
+  );
+  assert.match(styles, /\.backtest-perf-column \{\s*display: grid;/);
+  // Tablet: the column wrappers dissolve so the four groups flow two-up and no
+  // row stretches a value to the far edge of the card.
+  assert.match(
+    styles,
+    /@media \(max-width: 1100px\) \{[\s\S]*?\.backtest-perf-columns \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); gap: 16px 30px; \}[\s\S]*?\.backtest-perf-column \{ display: contents; \}/,
+  );
+  // Phone: one column of groups.
+  assert.match(
+    styles,
+    /@media \(max-width: 600px\) \{[\s\S]*?\.backtest-perf-columns \{ grid-template-columns: minmax\(0, 1fr\); gap: 18px 0; \}/,
+  );
+  // Four narrow columns are gone for good: the one-row cash-flow column was
+  // what left the empty hole this layout replaces.
+  assert.doesNotMatch(
+    styles,
+    /\.backtest-perf-columns \{\s*display: grid;\s*grid-template-columns: repeat\(4,/,
   );
 });
 
@@ -119,4 +154,21 @@ test("the monthly performance card and the separate risk card are gone", () => {
   assert.match(page, /title="Performance & Risk"/);
   // Annual returns stay: they are the calendar-year view of the same returns.
   assert.match(page, /<AnnualReturnTable/);
+});
+
+test("the Advanced Settings band is inset from the card edge with room above it", () => {
+  // The full-bleed hairline sat 4px under the date inputs and read as a cramped
+  // seam. It is now inset to the card padding, with the form keeping its air.
+  const band = styles.slice(
+    styles.indexOf(".backtest-advanced::before"),
+    styles.indexOf("}", styles.indexOf(".backtest-advanced__title")),
+  );
+  assert.match(
+    styles,
+    /\.backtest-advanced::before \{\s*position: absolute;\s*top: 0;\s*right: 19px;\s*left: 19px;\s*height: 1px;\s*background: var\(--color-line\);/,
+  );
+  assert.match(band, /min-height: 54px;/);
+  // No full-bleed border on the toggle any more.
+  assert.doesNotMatch(styles, /\.backtest-advanced__toggle \{[\s\S]{0,220}?border-top: 1px solid/);
+  assert.match(styles, /\.backtest-config \{[\s\S]{0,220}?padding: 17px 19px 13px;/);
 });

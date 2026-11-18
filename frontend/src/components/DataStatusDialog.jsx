@@ -14,20 +14,6 @@ function formatDate(value) {
   return `${MONTHS[Number(match[2]) - 1]} ${Number(match[3])}, ${match[1]}`;
 }
 
-function formatTimestamp(value) {
-  if (!value) return "—";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return String(value);
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZoneName: "short",
-  }).format(parsed);
-}
-
 function formatAge(value) {
   if (!value) return "unknown";
   const timestamp = new Date(value).getTime();
@@ -50,7 +36,6 @@ export function DataStatusDialog({ open, onClose }) {
     checkingForUpdates,
     dataMode,
     dataOrigin,
-    browserCachedAt,
     refresh,
     refreshMarketData,
     refreshBrokerEnabled,
@@ -85,11 +70,17 @@ export function DataStatusDialog({ open, onClose }) {
           ? "Updating market data"
         : "Current published data";
   const staticSnapshot = meta?.staticSnapshot;
-  const publicationVersion = staticSnapshot?.publicationVersion ?? meta?.publication_version;
   const stale = isPublicationStale(meta?.generated_at);
   const marketRefreshActive = ["updating", "queued"].includes(refreshAttempt?.state);
 
-  async function requestMarketRefresh() {
+  // One action, not two. The broker refresh already revalidates the published
+  // manifest on its way through, so a separate "check" button only offered the
+  // same outcome with a longer wait.
+  async function requestRefresh() {
+    if (!refreshBrokerEnabled) {
+      await refresh();
+      return;
+    }
     try {
       const token = await getRefreshChallenge();
       await refreshMarketData({ challengeToken: token });
@@ -99,6 +90,12 @@ export function DataStatusDialog({ open, onClose }) {
       await refreshMarketData({ requestError: verificationError });
     }
   }
+
+  const actionLabel = marketRefreshActive
+    ? "Updating…"
+    : checkingForUpdates || (refreshing && !marketRefreshActive)
+      ? "Checking…"
+      : refreshBrokerEnabled ? "Refresh market data" : "Check for updates";
 
   return (
     <dialog
@@ -122,45 +119,31 @@ export function DataStatusDialog({ open, onClose }) {
           </div>
         </header>
 
-        <dl className="app-dialog__rows">
-          <div><dt>Market data as-of</dt><dd>{formatDate(meta?.as_of)}</dd></div>
-          <div><dt>Last successful collection</dt><dd>{formatTimestamp(meta?.generated_at)}</dd></div>
-          <div><dt>Data age</dt><dd>{formatAge(meta?.generated_at)}{stale ? " · stale" : ""}</dd></div>
-          <div><dt>Provider status</dt><dd>{meta?.connection_status === "connected" ? `${meta?.data_provider ?? "Provider"} · connected` : (meta?.data_provider ?? "Unavailable")}</dd></div>
-          <div><dt>Publication version</dt><dd>{publicationVersion ?? "—"}</dd></div>
-          <div><dt>Last refresh attempt</dt><dd>{refreshAttempt?.requestedAt ? formatTimestamp(refreshAttempt.requestedAt) : "None"}</dd></div>
-          <div><dt>Refresh result</dt><dd>{refreshAttempt?.result ?? "No request yet"}</dd></div>
-          {refreshAttempt?.requestId && <div><dt>Refresh request</dt><dd>{refreshAttempt.requestId}</dd></div>}
-          <div><dt>Eligible stocks</dt><dd>{data?.stocks?.length ?? "—"}</dd></div>
-          <div><dt>Browser cache</dt><dd>{browserCachedAt ? formatTimestamp(browserCachedAt) : "Not stored"}</dd></div>
-          {staticSnapshot && (
-            <>
-              <div><dt>Detail files</dt><dd>{staticSnapshot.detailCount ?? "—"}</dd></div>
-              <div><dt>Backtests</dt><dd>{staticSnapshot.backtestCount ?? "—"}</dd></div>
-            </>
-          )}
+        {/* Six facts in three paired rows instead of a twelve-row list: the
+            version string, the raw request id and the browser-cache timestamp
+            were diagnostics nobody opens this dialog to read. */}
+        <dl className="app-dialog__rows app-dialog__rows--compact">
+          <div><dt>Market data</dt><dd>{formatDate(meta?.as_of)}</dd></div>
+          <div><dt>Updated</dt><dd>{formatAge(meta?.generated_at)}{stale ? " · stale" : ""}</dd></div>
+          <div><dt>Provider</dt><dd>{meta?.connection_status === "connected" ? `${meta?.data_provider ?? "Provider"} · connected` : (meta?.data_provider ?? "Unavailable")}</dd></div>
+          <div><dt>Stocks</dt><dd>{data?.stocks?.length ?? "—"}</dd></div>
+          <div><dt>Backtests</dt><dd>{staticSnapshot?.backtestCount ?? "—"}</dd></div>
+          <div><dt>Last refresh</dt><dd>{refreshAttempt?.result ?? "No request yet"}</dd></div>
         </dl>
 
         <footer className="data-status-dialog__footer">
-          {error?.message && <span>{error.message}</span>}
-          <AppButton variant="secondary" icon={ArrowClockwise} disabled={refreshing} onClick={refresh}>
-            {checkingForUpdates || (refreshing && !marketRefreshActive)
-              ? "Checking…"
-              : "Check for updates"}
+          {/* The "Last refresh" row already reports a failed request verbatim;
+              repeating it here only added a line of duplication. */}
+          {error?.message && error.message !== refreshAttempt?.result && <span>{error.message}</span>}
+          <AppButton
+            variant="primary"
+            icon={ArrowClockwise}
+            disabled={refreshing}
+            onClick={requestRefresh}
+            title={refreshBrokerEnabled ? "Request a secure publish refresh" : "Revalidate the published snapshot"}
+          >
+            {actionLabel}
           </AppButton>
-          {dataMode === "static" && (
-            <AppButton
-              variant="primary"
-              icon={ArrowClockwise}
-              disabled={refreshing || !refreshBrokerEnabled}
-              onClick={requestMarketRefresh}
-              title={refreshBrokerEnabled ? "Request a secure publish refresh" : "Refresh broker is not configured"}
-            >
-              {marketRefreshActive
-                ? "Updating…"
-                : refreshBrokerEnabled ? "Refresh market data" : "Refresh unavailable"}
-            </AppButton>
-          )}
         </footer>
       </section>
     </dialog>

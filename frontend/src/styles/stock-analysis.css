@@ -72,6 +72,9 @@
 .stock-summary-block + .stock-summary-block { flex: 1 1 0; min-width: max-content; padding-left: clamp(10px, 1.5vw, 22px); border-left: 1px solid var(--color-line); }
 .stock-summary-block--price { gap: clamp(8px, 1vw, 14px); }
 .stock-summary-block > svg { flex: 0 0 auto; color: var(--color-ink); }
+/* The rank keeps the same icon+label+value rhythm as market cap, but the crown
+   carries the app's gold so the two blocks stay distinguishable at a glance. */
+.stock-summary-block > .stock-summary-block__rank-icon { color: var(--color-yellow-line); }
 .stock-summary-block__copy { display: grid; min-width: 0; gap: 2px; line-height: 1.2; }
 .stock-summary-block__label { color: var(--color-text-secondary); font-size: var(--font-size-meta); font-weight: var(--font-weight-bold); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
 .stock-summary-block__value { font-size: 1.02rem; font-weight: var(--font-weight-black); font-variant-numeric: tabular-nums; white-space: nowrap; }

@@ -32,7 +32,7 @@
   grid-template-columns: minmax(330px, 1.64fr) 1px minmax(200px, 0.86fr) minmax(175px, 0.7fr);
   align-items: start;
   gap: clamp(14px, 1.6vw, 22px);
-  padding: 17px 19px 4px;
+  padding: 17px 19px 13px;
 }
 .backtest-config__period,
 .backtest-config__universe { min-width: 0; }
@@ -182,17 +182,29 @@
 
 /* Advanced settings ------------------------------------------------------- */
 
-.backtest-advanced { background: var(--color-card); }
+/* The collapse control is a separate band, not a third row of the form. Its
+   hairline used to run edge to edge and sat 4px under the date inputs, which
+   read as a cramped seam rather than a section break. The line is now inset to
+   the card's own padding and the form above keeps real breathing room. */
+.backtest-advanced { position: relative; background: var(--color-card); }
+.backtest-advanced::before {
+  position: absolute;
+  top: 0;
+  right: 19px;
+  left: 19px;
+  height: 1px;
+  background: var(--color-line);
+  content: "";
+}
 .backtest-advanced__toggle {
   display: grid;
   width: 100%;
-  min-height: 50px;
+  min-height: 54px;
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 18px;
   padding: 0 19px;
   border: 0;
-  border-top: 1px solid var(--color-card-border);
   background: transparent;
   color: var(--color-ink);
   cursor: pointer;
@@ -829,11 +841,13 @@
 /* Performance & risk ------------------------------------------------------ */
 
 .backtest-perf-card > .dashboard-card__body {
-  --card-body-padding-start: 9px;
+  --card-body-padding-start: 12px;
   --card-body-padding-end: 18px;
 }
 /* Four headline figures, separated by hairlines instead of nested cards: the
-   values stay large without a wall of boxes. */
+   values stay large without a wall of boxes. Every label reserves two lines so
+   a wrapped label ("Money-Weighted Return / XIRR") cannot push its own value
+   below the three beside it. */
 .backtest-perf-hero {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -841,7 +855,9 @@
   border-bottom: 1px solid var(--color-line);
 }
 .backtest-perf-hero__item {
+  display: flex;
   min-width: 0;
+  flex-direction: column;
   padding: 0 20px;
   border-left: 1px solid var(--color-line);
 }
@@ -849,7 +865,9 @@
 .backtest-perf-hero__label {
   display: flex;
   min-width: 0;
-  align-items: center;
+  min-height: 2.6em;
+  align-content: flex-start;
+  align-items: flex-start;
   gap: 3px;
   color: var(--color-text-muted);
   font-size: 0.74rem;
@@ -859,7 +877,8 @@
 }
 .backtest-perf-hero__value {
   display: block;
-  margin-top: 9px;
+  margin-top: auto;
+  padding-top: 9px;
   color: var(--color-ink);
   font-size: clamp(1.5rem, 2.05vw, 1.95rem);
   font-weight: 900;
@@ -869,12 +888,21 @@
 }
 .backtest-perf-hero__value.is-positive { color: #178D4A; }
 .backtest-perf-hero__value.is-negative { color: #EB3B44; }
-/* Grouped label/value rows read faster than seventeen equal-weight tiles. */
+/* Grouped label/value rows read faster than seventeen equal-weight tiles.
+   Two columns, each stacking its own groups: strategy measures on the left,
+   benchmark-relative measures on the right. Four narrow columns left a
+   one-row cash-flow column and a large hole beneath the risk block. */
 .backtest-perf-columns {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 4px 34px;
+  grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr);
+  gap: 0 clamp(26px, 3.2vw, 48px);
   padding-top: 18px;
+}
+.backtest-perf-column {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 16px;
 }
 .backtest-perf-group { min-width: 0; }
 .backtest-perf-group__title {
@@ -939,23 +967,15 @@
 }
 .backtest-summary-state { margin-top: 12px; }
 
-/* A narrow desktop has four headline figures but not enough room for four
-   independent label/value columns. Two roomy columns keep Schedule and
-   $1,000 monthly inflow separate instead of allowing them to collide. */
-@media (max-width: 1399px) and (min-width: 1101px) {
-  .backtest-perf-columns {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 4px 34px;
-  }
-  .backtest-perf-row__label { flex: 1 1 auto; }
-}
-
-/* Tablet and phone landscape share one band, so the card has one step: two
-   columns of figures and two columns of groups. */
+/* Tablet and phone landscape: the column wrappers dissolve, so the four groups
+   flow two-up and every label keeps a value within reach instead of stretching
+   the row across the whole card. */
 @media (max-width: 1100px) {
   .backtest-perf-hero { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 18px; }
   .backtest-perf-hero__item:nth-child(3) { padding-left: 4px; border-left: 0; }
-  .backtest-perf-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 34px; }
+  .backtest-perf-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 30px; }
+  .backtest-perf-column { display: contents; }
+  .backtest-perf-row__label { flex: 1 1 auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1654,8 +1674,10 @@
   .backtest-config {
     grid-template-columns: minmax(0, 1fr);
     row-gap: 14px;
-    padding: 14px 14px 6px;
+    padding: 14px 14px 12px;
   }
+  .backtest-advanced::before { right: 14px; left: 14px; }
+  .backtest-advanced__toggle { padding: 0 14px; }
   .backtest-config__period,
   .backtest-config__universe,
   .backtest-run-group { grid-column: 1 / -1; }
@@ -1666,6 +1688,9 @@
 
   .backtest-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .backtest-kpis .kpi-card__value { font-size: 1.7rem; }
+  /* Three 110px cards on a 390px screen clipped "Latest Execution" mid-word.
+     One full-width card per row keeps every label and value readable. */
+  .portfolio-evolution__kpis { grid-template-columns: minmax(0, 1fr); }
 
   /* The money field asked for a 250px minimum inside a 250px card, so its
      right edge sat outside the card. Stack the header instead. */
@@ -1700,7 +1725,7 @@
   /* Two figure columns need ~270px for a label and a nowrap value; at this
      width the value (146px on its own) ran past the card, so the groups take
      the full width instead. */
-  .backtest-perf-columns { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .backtest-perf-columns { grid-template-columns: minmax(0, 1fr); gap: 18px 0; }
   .backtest-perf-row__value { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .backtest-summary-top { grid-template-columns: minmax(0, 1fr); }
   .backtest-return-metrics { grid-template-columns: minmax(0, 1fr); }
