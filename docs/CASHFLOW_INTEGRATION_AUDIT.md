@@ -418,6 +418,21 @@ deployed page to the dollar. That payload predates this change, so it carries no
 the account drawdown and caption render correctly regardless of refresh timing
 redeploying. A later publication build will publish the field directly.
 
+An earlier feature-branch Pages dispatch also built successfully, but the `github-pages`
+environment rejected the feature ref because deployment is restricted to protected branches. The
+tested commit was then fast-forwarded to `main` without rewriting history.
+
+- Production workflow: `43586357811`
+- Source commit: `9e90cf7524bd9c50f47f5216caee4e7c5d7c8345`
+- Build job: success
+- Deploy job: success
+- Deployment status: success
+- Deployed URL: https://andyttc05.github.io/us-momentum-terminal/
+
+The live Backtesting page shows publication `2026-11-14-cashflow-accounts-v14`, the default inflow
+account result, and the expected `$0` / actual / unpaid withdrawal breakdown after a `$20,000` monthly
+outflow run.
+
 ## Remaining Limitations
 
 - Individual held securities are not simulated share-by-share for user cash flows. The account
