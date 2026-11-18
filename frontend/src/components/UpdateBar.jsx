@@ -45,15 +45,15 @@ function formatDateLabel(iso) {
  * make it say something that reads like "published on Friday". Formatting
  * happens here so every page shows the same date style in the same place.
  */
-export function UpdateBar({ ariaLabel = "Refresh data", onRefresh, busy = false, className = "" }) {
+export function UpdateBar({ ariaLabel = "Check for updates", onRefresh, busy = false, className = "" }) {
   const [statusOpen, setStatusOpen] = useState(false);
-  const { data, meta, status, error, refreshing, refresh, staticMode, dataOrigin } = useMarket();
+  const { data, meta, status, error, refreshing, refresh, staticMode, dataOrigin, refreshAttempt } = useMarket();
 
   const hasData = hasMarketData(data);
   const fetching = refreshing || busy;
   const cacheState = meta?.cache_state;
   const publishedOnly = staticMode;
-  const fetchState = getFetchDisplayState({
+  let fetchState = getFetchDisplayState({
     staticMode: publishedOnly,
     data,
     status,
@@ -61,6 +61,9 @@ export function UpdateBar({ ariaLabel = "Refresh data", onRefresh, busy = false,
     error,
     refreshing: fetching,
   });
+  if (refreshAttempt?.state === "updating" || refreshAttempt?.state === "queued") fetchState = "updating";
+  if (refreshAttempt?.state === "updated") fetchState = "updated";
+  if (refreshAttempt?.state === "failed") fetchState = "failed";
 
   /* The pill dates the *collection*, on every page. It used to carry the market
      data's as-of date (or, on Backtesting, the window's end), which stands still
@@ -106,6 +109,7 @@ export function UpdateBar({ ariaLabel = "Refresh data", onRefresh, busy = false,
           icon={ArrowClockwise}
           iconOnly
           ariaLabel={ariaLabel}
+          title={ariaLabel}
           className="refresh-button"
           onClick={onRefresh ?? (() => refresh())}
           disabled={fetching}

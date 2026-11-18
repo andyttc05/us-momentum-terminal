@@ -54,13 +54,19 @@ Scheduled and manual builds restore the Python provider cache, refresh the publi
 build the static frontend and deploy the Pages artifact. A new publication is not committed by the
 scheduled job; the deployed artifact receives the latest data.
 
+Yahoo bars are requested in bounded, serialized batches with exponential backoff. A ticker omitted
+from an otherwise successful batch is retried individually through the provider chain; the
+publication records every failure and the exporter rejects an export unless all 200 requested price
+series were loaded. Eligibility filters may still leave fewer than 200 eligible stocks, but a provider
+omission is never accepted.
+
 ## Validation and rollback
 
 The export is rejected when:
 
 - the universe or publication version is stale;
 - the provider is disconnected;
-- fewer than 95% of requested stocks are present;
+- any requested price series is missing, or fewer than 95% of requested stocks are eligible;
 - either model portfolio or either backtest is unavailable;
 - the market date is older than ten days;
 - fewer than 98% of stock detail pages can be built;
@@ -77,27 +83,34 @@ it with an older checkout copy.
 `MarketProvider` uses this order:
 
 1. Read the last valid publication from browser storage and render it immediately.
-2. Fetch the current same-origin static publication in the background.
-3. Write a valid response back to browser storage.
-4. On failure, keep the last valid browser copy and label it cached.
-5. In local live mode, use the same fallback around the FastAPI request.
+2. Revalidate the small same-origin `manifest.json` in the background.
+3. Compare publication version, collection timestamp and market date.
+4. Download `publication.json` only when that identity changed, then require its exact stock count,
+   complete universe accounting, both model books and both backtests to match the manifest.
+5. Write only a complete validated publication back to browser storage.
+6. On failure, keep the last valid browser copy and label it cached.
+7. In local live mode, use the same fallback around the FastAPI request.
 
 The update pill opens **Data & Cache**, which displays:
 
-- market data date;
+- market data as-of date;
 - last successful collection timestamp;
-- age of the publication;
-- provider;
+- data age and a stale marker after 72 hours;
+- provider and connection status;
+- current publication version;
+- last visitor refresh attempt and its result;
 - eligible stock count;
 - browser cache timestamp;
-- stock-detail count and publication version for static builds.
+- stock-detail count and backtest count for static builds.
 
 ## Request deduplication
 
 Static requests share an in-flight request map. Repeated snapshot or stock requests reuse an already
 pending promise instead of issuing duplicates. Static mode checks GitHub Pages every 15 minutes. A
-manual "check for updates" bypasses the browser/request cache and preserves the last valid copy if the
-request fails.
+manual **Check for updates** revalidates the manifest without replacing the visible publication when
+its identity is unchanged. An optional **Refresh market data** action calls a separate authenticated
+broker; the browser waits for the Pages publication identity to change before reporting **Updated**.
+An accepted dispatch or unchanged JSON response alone never counts as an update.
 
 ## Failure states
 
@@ -106,6 +119,8 @@ request fails.
 | Published | A valid static snapshot loaded from GitHub Pages |
 | Cached data | Last valid browser/service copy is visible after a failed update |
 | Updating | A background check is running while existing data remains usable |
+| Updated | A newer manifest-matching publication was applied after a requested refresh |
+| Update failed | The last valid publication remains visible and the request or timeout is reported |
 | Partial data | Some symbols failed validation |
 | Unavailable | No valid publication or section is available |
 

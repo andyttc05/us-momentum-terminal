@@ -2,6 +2,8 @@ import { useEffect, useRef } from "react";
 import { ArrowClockwise, Database, X } from "@phosphor-icons/react";
 import { useMarket } from "../api/MarketProvider.jsx";
 import { AppButton } from "./AppButton.jsx";
+import { getRefreshChallenge } from "../api/refreshChallenge.js";
+import { isPublicationStale } from "../api/publicationStatus.js";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -45,10 +47,14 @@ export function DataStatusDialog({ open, onClose }) {
     status,
     error,
     refreshing,
+    checkingForUpdates,
     dataMode,
     dataOrigin,
     browserCachedAt,
     refresh,
+    refreshMarketData,
+    refreshBrokerEnabled,
+    refreshAttempt,
   } = useMarket();
 
   useEffect(() => {
@@ -73,10 +79,26 @@ export function DataStatusDialog({ open, onClose }) {
     ? "Showing the last valid cached copy"
     : status === "error" || (!data && !refreshing)
       ? "No valid snapshot is available"
-      : refreshing
+      : checkingForUpdates
         ? "Checking for an update"
+        : refreshing
+          ? "Updating market data"
         : "Current published data";
   const staticSnapshot = meta?.staticSnapshot;
+  const publicationVersion = staticSnapshot?.publicationVersion ?? meta?.publication_version;
+  const stale = isPublicationStale(meta?.generated_at);
+  const marketRefreshActive = ["updating", "queued"].includes(refreshAttempt?.state);
+
+  async function requestMarketRefresh() {
+    try {
+      const token = await getRefreshChallenge();
+      await refreshMarketData({ challengeToken: token });
+    } catch (verificationError) {
+      // Verification happens before any broker request. Record the failure
+      // locally and preserve the visible last-good publication.
+      await refreshMarketData({ requestError: verificationError });
+    }
+  }
 
   return (
     <dialog
@@ -101,17 +123,19 @@ export function DataStatusDialog({ open, onClose }) {
         </header>
 
         <dl className="app-dialog__rows">
-          <div><dt>Data through</dt><dd>{formatDate(meta?.as_of)}</dd></div>
-          <div><dt>Last collection</dt><dd>{formatTimestamp(meta?.generated_at)}</dd></div>
-          <div><dt>Published</dt><dd>{formatAge(meta?.generated_at)}</dd></div>
-          <div><dt>Provider</dt><dd>{meta?.data_provider ?? "Unavailable"}</dd></div>
+          <div><dt>Market data as-of</dt><dd>{formatDate(meta?.as_of)}</dd></div>
+          <div><dt>Last successful collection</dt><dd>{formatTimestamp(meta?.generated_at)}</dd></div>
+          <div><dt>Data age</dt><dd>{formatAge(meta?.generated_at)}{stale ? " · stale" : ""}</dd></div>
+          <div><dt>Provider status</dt><dd>{meta?.connection_status === "connected" ? `${meta?.data_provider ?? "Provider"} · connected` : (meta?.data_provider ?? "Unavailable")}</dd></div>
+          <div><dt>Publication version</dt><dd>{publicationVersion ?? "—"}</dd></div>
+          <div><dt>Last refresh attempt</dt><dd>{refreshAttempt?.requestedAt ? formatTimestamp(refreshAttempt.requestedAt) : "None"}</dd></div>
+          <div><dt>Refresh result</dt><dd>{refreshAttempt?.result ?? "No request yet"}</dd></div>
           <div><dt>Eligible stocks</dt><dd>{data?.stocks?.length ?? "—"}</dd></div>
           <div><dt>Browser cache</dt><dd>{browserCachedAt ? formatTimestamp(browserCachedAt) : "Not stored"}</dd></div>
           {staticSnapshot && (
             <>
               <div><dt>Detail files</dt><dd>{staticSnapshot.detailCount ?? "—"}</dd></div>
               <div><dt>Backtests</dt><dd>{staticSnapshot.backtestCount ?? "—"}</dd></div>
-              <div><dt>Snapshot</dt><dd>{staticSnapshot.publicationVersion ?? "—"}</dd></div>
             </>
           )}
         </dl>
@@ -119,8 +143,23 @@ export function DataStatusDialog({ open, onClose }) {
         <footer className="data-status-dialog__footer">
           {error?.message && <span>{error.message}</span>}
           <AppButton variant="secondary" icon={ArrowClockwise} disabled={refreshing} onClick={refresh}>
-            {refreshing ? "Checking…" : "Check for updates"}
+            {checkingForUpdates || (refreshing && !marketRefreshActive)
+              ? "Checking…"
+              : "Check for updates"}
           </AppButton>
+          {dataMode === "static" && (
+            <AppButton
+              variant="primary"
+              icon={ArrowClockwise}
+              disabled={refreshing || !refreshBrokerEnabled}
+              onClick={requestMarketRefresh}
+              title={refreshBrokerEnabled ? "Request a secure publish refresh" : "Refresh broker is not configured"}
+            >
+              {marketRefreshActive
+                ? "Updating…"
+                : refreshBrokerEnabled ? "Refresh market data" : "Refresh unavailable"}
+            </AppButton>
+          )}
         </footer>
       </section>
     </dialog>

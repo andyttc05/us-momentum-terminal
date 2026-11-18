@@ -206,15 +206,17 @@
   color: var(--color-text-muted);
 }
 
-/* Data & cache footer: a status line and one action, no banner. */
+/* Data & cache footer: a status line and up to two actions, without a banner. */
 .data-status-dialog__footer {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 18px;
   margin-top: 16px;
 }
 .data-status-dialog__footer > span {
+  flex: 1 1 100%;
   min-width: 0;
   color: var(--color-text-muted);
   font-size: 0.72rem;
@@ -223,7 +225,8 @@
 .data-status-dialog__footer .app-button {
   flex: 0 0 auto;
   min-height: 44px;
-  /* The action keeps the right edge whether or not an error line precedes it. */
+}
+.data-status-dialog__footer .app-button:first-of-type {
   margin-left: auto;
 }
 

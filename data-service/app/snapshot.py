@@ -482,6 +482,10 @@ def load_series(
                         failures.append({"provider": "none", "stage": stage, "symbol": symbol, "error": message})
                         continue
                     try:
+                        if not resolved.result.adjusted:
+                            raise ProviderNoData(
+                                f"only an unadjusted series was available for {symbol}"
+                            )
                         results[symbol] = resolved.result
                         if resolved.used_backup:
                             failures.append(
@@ -1480,14 +1484,20 @@ def build_publication(force: bool = False, progress=None, previous_publication: 
             sources[row["source"]] = sources.get(row["source"], 0) + 1
         backup_rows = sum(1 for row in stocks if row["isBackup"])
         backups_used = [row["ticker"] for row in stocks if row["isBackup"]]
-        symbol_failures = [failure["symbol"] for failure in failures if failure.get("symbol") and failure.get("stage") in {"fetch", "provider"}]
+        symbol_failures = [
+            failure["symbol"] for failure in failures
+            if failure.get("symbol") and failure.get("stage") in {"fetch", "provider", "symbol"}
+        ]
         scanned_count = sum(1 for symbol in TICKERS if symbol in series_map)
         cached_count = sum(1 for symbol in TICKERS if symbol in series_map and series_map[symbol].cached)
         fresh_count = max(0, scanned_count - cached_count)
         # "Degraded" means the screen is running on backup data or not at all;
         # a single unavailable symbol is reported separately.
         degraded = backup_rows > 0 or not stocks
-        partial = bool(symbol_failures or failures)
+        # A failed batch that was fully recovered ticker-by-ticker is not an
+        # incomplete dataset. Keep the diagnostic in ``failures`` but publish
+        # only when every required universe series is actually present.
+        partial = bool(symbol_failures)
         if not stocks:
             cache_state = "empty"
         elif partial:

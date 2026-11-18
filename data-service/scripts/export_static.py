@@ -123,12 +123,22 @@ def validate_publication(
     meta = payload.get("meta") or {}
     stocks = payload.get("stocks") or []
     requested = (payload.get("universe") or {}).get("requested") or 0
+    loaded = (payload.get("universe") or {}).get("loaded")
     if meta.get("connection_status") != "connected":
         errors.append("provider connection is not connected")
     if not stocks:
         errors.append("snapshot contains no eligible stocks")
     if requested and len(stocks) < max(1, round(requested * min_stock_ratio)):
         errors.append(f"only {len(stocks)} of {requested} universe stocks are available")
+    # Eligibility filters may legitimately exclude a stock (for example an
+    # ADR or sub-$5 security), but a provider omission is never publishable.
+    # This is intentionally checked independently of the eligible stock ratio.
+    if requested and loaded != requested:
+        errors.append(f"only {loaded or 0} of {requested} universe price series loaded")
+    if (payload.get("universe") or {}).get("partial"):
+        errors.append("universe refresh is partial")
+    if (payload.get("universe") or {}).get("unavailable"):
+        errors.append("universe has unavailable ticker(s)")
     if not (payload.get("portfolio") or {}).get("available"):
         errors.append("model portfolio is unavailable")
     portfolios = payload.get("portfolios") or {}

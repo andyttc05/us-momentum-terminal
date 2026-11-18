@@ -10,7 +10,9 @@ dividends for every sample ticker without an API key.
 from __future__ import annotations
 
 import logging
+import random
 import threading
+import time
 from datetime import datetime, timezone
 
 import pandas as pd
@@ -31,6 +33,7 @@ logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 
 _LIMITER = RateLimiter(per_minute=120, burst=16)
 _BATCH_LOCK = threading.Lock()
+_DETAIL_QUOTE_LOCK = threading.Lock()
 
 
 def _now() -> str:
@@ -71,8 +74,48 @@ def _series_from_cache(cached: dict, *, is_fresh: bool, cache_key: str | None = 
     )
 
 
+def _complete(adjusted: bool, bars: list[NormalizedBar]) -> bool:
+    return adjusted and len(bars) >= max(1, settings.yahoo_min_bars)
+
+
 class _BatchMixin:
     """Yahoo can answer for many tickers in one HTTP round-trip."""
+
+    def _download(self, yf, symbols: list[str], years: int):
+        """Download one deliberately small Yahoo batch with bounded retries.
+
+        ``yfinance.download`` can return a successful frame that is missing a
+        subset of requested columns when Yahoo throttles one of its internal
+        chart calls.  That is not a successful universe fetch: callers receive
+        only the validated symbols and ``load_series`` recovers every omission
+        individually (and through the configured provider chain).
+        """
+        last_error = None
+        attempts = max(0, settings.yahoo_retry_attempts)
+        for attempt in range(attempts + 1):
+            _LIMITER.acquire(max(1, min(len(symbols), 8)))
+            try:
+                # yfinance itself fans out when threads=True. Serializing the
+                # small batches avoids two outer workers multiplying that fan
+                # out into a Yahoo rate-limit burst.
+                with _BATCH_LOCK:
+                    return yf.download(
+                        symbols,
+                        period=f"{years}y",
+                        interval="1d",
+                        auto_adjust=False,
+                        actions=True,
+                        group_by="ticker",
+                        threads=False,
+                        progress=False,
+                        timeout=settings.request_timeout,
+                    )
+            except Exception as exc:  # noqa: BLE001 - normalized below
+                last_error = exc
+                if attempt < attempts:
+                    delay = settings.yahoo_retry_base_seconds * (2 ** attempt)
+                    time.sleep(delay + random.uniform(0, delay * 0.2))
+        raise ProviderUnavailable(f"Yahoo batch failed after {attempts + 1} attempts: {last_error}")
 
     def fetch_many(self, symbols, years: int | None = None):
         symbols = list(symbols)
@@ -82,7 +125,11 @@ class _BatchMixin:
 
         for symbol in symbols:
             cached = cache.read("yahoo_bars", f"{symbol}:{years or settings.history_years}y", ttl)
-            if cached and cached.get("adjusted"):
+            if (
+                cached
+                and cached.get("adjusted")
+                and len(cached.get("bars") or []) >= max(1, settings.yahoo_min_bars)
+            ):
                 out[symbol] = _series_from_cache(cached, is_fresh=True)
             else:
                 pending.append(symbol)
@@ -92,81 +139,76 @@ class _BatchMixin:
 
         yf = _import_yfinance()
         years = years or settings.history_years
-        _LIMITER.acquire(max(1, min(len(pending), 8)))
-        try:
-            frame = yf.download(
-                pending,
-                period=f"{years}y",
-                interval="1d",
-                auto_adjust=False,
-                actions=True,
-                group_by="ticker",
-                threads=True,
-                progress=False,
-                timeout=settings.request_timeout,
-            )
-        except Exception as exc:  # noqa: BLE001
-            frame = None
-            batch_error = exc
-        else:
-            batch_error = None
-
-        for symbol in pending:
-            series_frame = None
-            if frame is not None and not frame.empty:
-                try:
-                    series_frame = frame[symbol] if isinstance(frame.columns, pd.MultiIndex) else frame
-                except KeyError:
-                    series_frame = None
-            if series_frame is None or series_frame.dropna(subset=["Close"]).empty:
+        batch_size = max(1, settings.yahoo_batch_size)
+        for start in range(0, len(pending), batch_size):
+            batch = pending[start:start + batch_size]
+            try:
+                frame = self._download(yf, batch, years)
+            except ProviderUnavailable:
+                # Do not manufacture empty SeriesResults. The caller's
+                # per-symbol retry records the actual ticker failures.
                 continue
 
-            fetched_at = _now()
-            bars = []
-            adjusted = bool(
-                "Adj Close" in series_frame.columns
-                and series_frame["Adj Close"].notna().all()
-            )
-            for index, row in series_frame.dropna(subset=["Close"]).iterrows():
-                bars.append(
-                    NormalizedBar(
-                        symbol=symbol,
-                        date=index.strftime("%Y-%m-%d"),
-                        open=_num(row.get("Open")),
-                        high=_num(row.get("High")),
-                        low=_num(row.get("Low")),
-                        close=_num(row.get("Close")),
-                        adjusted_close=_num(row.get("Adj Close")),
-                        volume=_num(row.get("Volume")),
-                        market_cap=None,
-                        dividends=_num(row.get("Dividends")),
-                        stock_splits=_num(row.get("Stock Splits")),
-                        data_source=self.id,
-                        last_updated=fetched_at,
-                    )
+            for symbol in batch:
+                series_frame = None
+                if frame is not None and not frame.empty:
+                    try:
+                        series_frame = frame[symbol] if isinstance(frame.columns, pd.MultiIndex) else frame
+                    except KeyError:
+                        series_frame = None
+                if series_frame is None or series_frame.dropna(subset=["Close"]).empty:
+                    continue
+
+                fetched_at = _now()
+                bars = []
+                adjusted = bool(
+                    "Adj Close" in series_frame.columns
+                    and series_frame["Adj Close"].notna().all()
                 )
-            if not bars:
-                continue
-            cache.write_bars(
-                "yahoo_bars",
-                f"{symbol}:{years}y",
-                {
-                    "symbol": symbol,
-                    "fetched_at": fetched_at,
-                    "adjusted": adjusted,
-                    "corporate_actions_complete": True,
-                    "bars": [bar.serialize() for bar in bars],
-                },
-            )
-            out[symbol] = SeriesResult(
-                symbol=symbol,
-                bars=bars,
-                source=self.id,
-                source_label=self.label,
-                fetched_at=fetched_at,
-                adjusted=adjusted,
-                warnings=[] if adjusted else ["provider did not return adjusted closes"],
-            )
+                for index, row in series_frame.dropna(subset=["Close"]).iterrows():
+                    bars.append(
+                        NormalizedBar(
+                            symbol=symbol,
+                            date=index.strftime("%Y-%m-%d"),
+                            open=_num(row.get("Open")),
+                            high=_num(row.get("High")),
+                            low=_num(row.get("Low")),
+                            close=_num(row.get("Close")),
+                            adjusted_close=_num(row.get("Adj Close")),
+                            volume=_num(row.get("Volume")),
+                            market_cap=None,
+                            dividends=_num(row.get("Dividends")),
+                            stock_splits=_num(row.get("Stock Splits")),
+                            data_source=self.id,
+                            last_updated=fetched_at,
+                        )
+                    )
+                if not bars:
+                    continue
+                if not _complete(adjusted, bars):
+                    # Drop this symbol from the batch result so load_series runs
+                    # its individual retry and provider fallback chain.
+                    continue
+                cache.write_bars(
+                    "yahoo_bars",
+                    f"{symbol}:{years}y",
+                    {
+                        "symbol": symbol,
+                        "fetched_at": fetched_at,
+                        "adjusted": adjusted,
+                        "corporate_actions_complete": True,
+                        "bars": [bar.serialize() for bar in bars],
+                    },
+                )
+                out[symbol] = SeriesResult(
+                    symbol=symbol,
+                    bars=bars,
+                    source=self.id,
+                    source_label=self.label,
+                    fetched_at=fetched_at,
+                    adjusted=adjusted,
+                    warnings=[] if adjusted else ["provider did not return adjusted closes"],
+                )
         return out
 
 
@@ -190,33 +232,58 @@ class YahooProvider(_BatchMixin, ProviderAdapter):
         key = f"{symbol}:{years}y"
         ttl = cache_ttl()
         cached = cache.read("yahoo_bars", key, ttl)
-        if cached and cached.get("adjusted"):
+        if (
+            cached
+            and cached.get("adjusted")
+            and len(cached.get("bars") or []) >= max(1, settings.yahoo_min_bars)
+        ):
             return _series_from_cache(cached, is_fresh=True)
 
         yf = _import_yfinance()
-        _LIMITER.acquire()
-        try:
-            frame = yf.Ticker(symbol).history(
-                period=f"{years}y",
-                interval="1d",
-                auto_adjust=False,
-                actions=True,
-                timeout=settings.request_timeout,
-            )
-        except Exception as exc:  # noqa: BLE001 - normalize every client failure
-            message = str(exc)
+        frame = None
+        accepted = False
+        last_error = None
+        attempts = max(0, settings.yahoo_retry_attempts)
+        for attempt in range(attempts + 1):
+            _LIMITER.acquire()
+            try:
+                frame = yf.Ticker(symbol).history(
+                    period=f"{years}y", interval="1d", auto_adjust=False,
+                    actions=True, timeout=settings.request_timeout,
+                )
+                adjusted = bool(
+                    frame is not None
+                    and not frame.empty
+                    and "Adj Close" in frame.columns
+                    and frame["Adj Close"].notna().all()
+                )
+                if frame is not None and not frame.empty and adjusted and len(frame) >= max(1, settings.yahoo_min_bars):
+                    accepted = True
+                    break
+                last_error = ProviderNoData(
+                    f"incomplete history for {symbol}: {0 if frame is None else len(frame)} "
+                    f"rows, adjusted={adjusted}"
+                )
+            except Exception as exc:  # noqa: BLE001 - normalize every client failure
+                last_error = exc
+            if attempt < attempts:
+                delay = settings.yahoo_retry_base_seconds * (2 ** attempt)
+                time.sleep(delay + random.uniform(0, delay * 0.2))
+
+        if not accepted:
+            message = str(last_error or f"no rows returned for {symbol}")
             stale = cache.read_stale("yahoo_bars", key)
-            if stale:
+            if (
+                stale
+                and stale.get("adjusted")
+                and len(stale.get("bars") or []) >= max(1, settings.yahoo_min_bars)
+            ):
                 return _series_from_cache(stale, is_fresh=False, cache_key=key)
             if "429" in message or "Too Many Requests" in message:
-                raise ProviderRateLimited(message) from exc
-            raise ProviderUnavailable(message) from exc
-
-        if frame is None or frame.empty:
-            stale = cache.read_stale("yahoo_bars", key)
-            if stale:
-                return _series_from_cache(stale, is_fresh=False, cache_key=key)
-            raise ProviderNoData(f"no rows returned for {symbol}")
+                raise ProviderRateLimited(message) from last_error
+            if isinstance(last_error, ProviderNoData):
+                raise last_error
+            raise ProviderUnavailable(message) from last_error
 
         fetched_at = _now()
         bars: list[NormalizedBar] = []
@@ -275,11 +342,29 @@ class YahooProvider(_BatchMixin, ProviderAdapter):
             return QuoteSnapshot(**cached)
 
         yf = _import_yfinance()
-        _LIMITER.acquire()
         fast = None
-        try:
-            fast = yf.Ticker(symbol).fast_info
-        except Exception as exc:  # noqa: BLE001
+        last_error = None
+        attempts = max(0, settings.yahoo_retry_attempts)
+        for attempt in range(attempts + 1):
+            _LIMITER.acquire()
+            try:
+                with _DETAIL_QUOTE_LOCK:
+                    candidate = yf.Ticker(symbol).fast_info
+                if (
+                    candidate
+                    and str(candidate.get("quoteType") or "") not in {"", "NONE"}
+                    and candidate.get("exchange")
+                ):
+                    fast = candidate
+                    break
+                last_error = ProviderNoData(f"incomplete quote metadata for {symbol}")
+            except Exception as exc:  # noqa: BLE001
+                last_error = exc
+            if attempt < attempts:
+                delay = settings.yahoo_retry_base_seconds * (2 ** attempt)
+                time.sleep(delay + random.uniform(0, delay * 0.2))
+
+        if fast is None:
             stale = cache.read_stale("yahoo_quotes", symbol)
             if stale and "quote_type" in stale:
                 return QuoteSnapshot(**{
@@ -287,11 +372,14 @@ class YahooProvider(_BatchMixin, ProviderAdapter):
                     "cached": True,
                     "cache_age_seconds": cache.age_seconds("yahoo_quotes", symbol),
                 })
-            raise ProviderUnavailable(str(exc)) from exc
+            message = str(last_error or f"no quote metadata for {symbol}")
+            if "429" in message or "Too Many Requests" in message:
+                raise ProviderRateLimited(message) from last_error
+            if isinstance(last_error, ProviderNoData):
+                raise last_error
+            raise ProviderUnavailable(message) from last_error
 
         quote_type = str(fast.get("quoteType") or "")
-        if not quote_type or quote_type == "NONE":
-            raise ProviderNoData(f"no quote metadata for {symbol}")
 
         snapshot = QuoteSnapshot(
             symbol=symbol,
@@ -314,25 +402,58 @@ class YahooProvider(_BatchMixin, ProviderAdapter):
 
     def fetch_detailed_quote(self, symbol: str) -> QuoteSnapshot:
         cached = cache.read("yahoo_quotes", symbol, settings.ttl_meta)
-        if cached and cached.get("float_shares") and cached.get("sector"):
+        if cached and cached.get("float_shares") and cached.get("quote_type"):
             return QuoteSnapshot(**cached)
 
         yf = _import_yfinance()
-        _LIMITER.acquire()
-        try:
-            info = yf.Ticker(symbol).info
-        except Exception as exc:  # noqa: BLE001
+        info = None
+        last_error = None
+        attempts = max(0, settings.yahoo_retry_attempts)
+        for attempt in range(attempts + 1):
+            _LIMITER.acquire()
+            try:
+                # yfinance's profile endpoint shares cookie/crumb state between
+                # calls. Serializing it avoids Yahoo treating the candidate
+                # recovery pass as a burst and returning metadata without the
+                # float-share field.
+                with _DETAIL_QUOTE_LOCK:
+                    candidate = yf.Ticker(symbol).info
+                float_shares = _num((candidate or {}).get("floatShares"))
+                if (
+                    candidate
+                    and candidate.get("quoteType") not in {"", "NONE", None}
+                    and float_shares is not None
+                    and float_shares > 0
+                ):
+                    info = candidate
+                    break
+                last_error = ProviderNoData(f"incomplete detailed quote metadata for {symbol}")
+            except Exception as exc:  # noqa: BLE001
+                last_error = exc
+            if attempt < attempts:
+                delay = settings.yahoo_retry_base_seconds * (2 ** attempt)
+                time.sleep(delay + random.uniform(0, delay * 0.2))
+
+        if info is None:
             stale = cache.read_stale("yahoo_quotes", symbol)
-            if stale and "quote_type" in stale:
+            stale_age = cache.age_seconds("yahoo_quotes", symbol)
+            if (
+                stale
+                and stale.get("float_shares")
+                and stale_age <= settings.fundamental_fallback_max_age
+            ):
                 return QuoteSnapshot(**{
                     **stale,
                     "cached": True,
-                    "cache_age_seconds": cache.age_seconds("yahoo_quotes", symbol),
+                    "cache_age_seconds": stale_age,
                 })
-            raise ProviderUnavailable(str(exc)) from exc
+            message = str(last_error or f"no detailed quote metadata for {symbol}")
+            if "429" in message or "Too Many Requests" in message:
+                raise ProviderRateLimited(message) from last_error
+            if isinstance(last_error, ProviderNoData):
+                raise last_error
+            raise ProviderUnavailable(message) from last_error
 
-        if not info or info.get("quoteType") == "NONE":
-            raise ProviderNoData(f"no detailed quote metadata for {symbol}")
         snapshot = QuoteSnapshot(
             symbol=symbol,
             name=info.get("shortName") or info.get("longName"),

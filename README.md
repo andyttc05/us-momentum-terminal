@@ -64,6 +64,8 @@ flowchart LR
     Static --> Pages[GitHub Pages]
     Pages --> Browser[React browser app]
     Browser --> Cache[Browser cache]
+    Browser -. verified request .-> Broker[Optional refresh broker]
+    Broker -. workflow_dispatch .-> Python
     Python -. optional local/live mode .-> FastAPI[FastAPI]
     FastAPI -. /api/snapshot .-> Browser
 ```
@@ -77,6 +79,12 @@ the resulting Pages artifact. A failed refresh preserves the previous valid snap
 
 The FastAPI service remains available for local development, provider diagnostics and an optional
 live-data deployment.
+
+On opening, the browser renders its last valid browser-cached publication immediately. It then
+revalidates the small Pages `manifest.json`; only a changed publication version, generated timestamp
+or market date causes `publication.json` to download. The Data & Cache panel distinguishes this safe
+check from **Refresh market data**, which is an optional secure broker request. See
+[refresh-broker setup](docs/REFRESH_BROKER.md). No Render deployment is required.
 
 ## Technology
 
