@@ -15,9 +15,10 @@ from third-party providers and are governed by those providers' own terms of
 use.
 
 - **Yahoo Finance** (via the unofficial `yfinance` client) — default provider.
-- **Stooq** — backup provider.
-- **Twelve Data, Financial Modeling Prep, Alpha Vantage, Finnhub** — optional
-  backup providers, enabled only when the corresponding API key is configured.
+- **Stooq** — retained adapter, currently disabled for scoring because its
+  anonymous export is blocked and it supplies no adjusted closes.
+- **Twelve Data and Financial Modeling Prep** — optional backup providers,
+  enabled only when the corresponding API key is configured.
 
 Provider-retrieved price history is written to the local runtime cache
 (`data-service/cache/`) and is **not** committed. GitHub Actions publishes a
