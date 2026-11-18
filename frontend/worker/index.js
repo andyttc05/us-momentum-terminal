@@ -98,6 +98,23 @@ function manifestUrl(env) {
   return `https://${owner}.github.io/${repository}/data/manifest.json`;
 }
 
+/**
+ * Resolve a published path against the site root.
+ *
+ * The manifest lives at `<site>/data/manifest.json`, but its `publicationPath`
+ * is published relative to the site root (`data/publication.json`). Resolving
+ * that path against the manifest directory doubled the `data` segment and
+ * requested `/data/data/publication.json`, which always returned 404. The
+ * broker then never observed the publication it had just deployed.
+ */
+export function resolvePublishedUrl(manifestUrlValue, publishedPath) {
+  const base = new URL(manifestUrlValue);
+  const directory = base.pathname.replace(/[^/]*$/, "");
+  const root = directory.replace(/\/data\/$/, "/");
+  const path = String(publishedPath || "data/publication.json").replace(/^\/+/, "");
+  return new URL(path, new URL(root, base.origin)).toString();
+}
+
 function githubHeaders(env) {
   return {
     accept: "application/vnd.github+json",
@@ -169,7 +186,7 @@ async function publishedPublication(env, requestedAt) {
 
     const publicationPath = manifest.publicationPath || "data/publication.json";
     const publicationResponse = await fetch(
-      new URL(publicationPath, url.replace(/manifest\.json(?:\?.*)?$/, "")),
+      resolvePublishedUrl(url, publicationPath),
       {
         headers: { accept: "application/json", "cache-control": "no-cache" },
         cf: { cacheTtl: 0, cacheEverything: false },
@@ -212,6 +229,9 @@ function publicStatus(state) {
     publicationVersion: state.publication?.publicationVersion ?? null,
     asOf: state.publication?.asOf ?? null,
     stockCount: state.publication?.stockCount ?? null,
+    // Why the last publication check did not confirm the new snapshot. This is
+    // a schema reason code only; it never includes URLs, headers or tokens.
+    publicationCheck: state.publicationReason || null,
     retryAt: state.failureBackoffUntil
       ? new Date(state.failureBackoffUntil).toISOString()
       : null,
@@ -405,6 +425,7 @@ export class RefreshCoordinator {
       }
       if (conclusion === "success") {
         const publication = await publishedPublication(this.env, active.requestedAt);
+        active.publicationReason = publication.available ? null : publication.reason || "unavailable";
         if (publication.available) {
           active.status = "succeeded";
           active.message = "A new validated publication is live.";
@@ -420,7 +441,7 @@ export class RefreshCoordinator {
           return this.completeFailure(
             active,
             "failed",
-            "The workflow completed but no new valid publication became visible.",
+            "The workflow completed but no new valid publication was visible.",
             "publication_not_visible",
           );
         }

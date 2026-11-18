@@ -144,6 +144,14 @@ its identity is unchanged. An optional **Refresh market data** action calls a se
 broker; the browser waits for the Pages publication identity to change before reporting **Updated**.
 An accepted dispatch or unchanged JSON response alone never counts as an update.
 
+The broker confirms success by re-reading the deployed `data/manifest.json` and then the publication
+it points at. `publicationPath` is published relative to the site root, so it is resolved against the
+site root rather than the manifest directory; resolving it against `data/` requested
+`/data/data/publication.json`, which always 404'd and left every completed workflow reported as
+failed after the publication grace window. `GET /api/status` exposes the resulting
+`publicationCheck` reason code (`publication_unavailable`, `invalid_publication`,
+`awaiting_new_publication`, ...) so an unresolved detection is diagnosable without Worker logs.
+
 Live diagnostics write to the git-ignored `data-service/docs/` directory. Provider probes, data-quality
 audits, verification reports and sensitivity results are development evidence, not production data.
 

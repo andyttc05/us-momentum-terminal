@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import refreshWorker, { RefreshCoordinator } from "../worker/index.js";
+import refreshWorker, { RefreshCoordinator, resolvePublishedUrl } from "../worker/index.js";
 
 const ORIGIN = "https://andyttc05.github.io";
 const REPOSITORY = "andyttc05/us-momentum-terminal";
@@ -105,6 +105,10 @@ function testHarness({ workflowStatus = "queued", conclusion = null, publication
         run_started_at: runStatus === "in_progress" ? new Date().toISOString() : null,
       });
     }
+    // GitHub Pages serves the manifest from the data directory while
+    // publicationPath is site-root relative. A doubled "/data/data/" request
+    // must fail here, exactly as it did in production.
+    if (url.includes("/data/data/")) return new Response("not found", { status: 404 });
     if (url.includes("/data/manifest.json")) return Response.json(published.manifest);
     if (url.includes("/data/publication.json")) return Response.json(published.publication);
     return new Response("not found", { status: 404 });
@@ -387,6 +391,81 @@ test("status endpoint is idle before requests and exposes no credentials", async
     const body = await response.json();
     assert.equal(body.status, "idle");
     assert.doesNotMatch(JSON.stringify(body), /server-only|test-token|secret/i);
+  } finally {
+    harness.restore();
+  }
+});
+
+test("published paths resolve against the site root, never a doubled data directory", () => {
+  const manifest = "https://andyttc05.github.io/us-momentum-terminal/data/manifest.json";
+  assert.equal(
+    resolvePublishedUrl(manifest, "data/publication.json"),
+    "https://andyttc05.github.io/us-momentum-terminal/data/publication.json",
+  );
+  assert.equal(
+    resolvePublishedUrl(manifest, "/data/publication.json"),
+    "https://andyttc05.github.io/us-momentum-terminal/data/publication.json",
+  );
+  // A custom manifest host keeps working when it is not served from a data
+  // directory; the path is then resolved against the manifest's own directory.
+  assert.equal(
+    resolvePublishedUrl("https://data.example.test/manifest.json", "publication.json"),
+    "https://data.example.test/publication.json",
+  );
+});
+
+test("the broker reads the publication from the path GitHub Pages actually serves", async () => {
+  const harness = testHarness();
+  try {
+    await refreshWorker.fetch(refreshRequest(), harness.env);
+    harness.setRun("completed", "success");
+    let active = harness.values.get("refresh");
+    active.lastCheckedAt = 0;
+    harness.values.set("refresh", active);
+
+    const body = await (await statusRequest(harness.env, active.requestId)).json();
+    assert.equal(body.status, "succeeded");
+    assert.equal(body.publicationCheck, null);
+
+    const publicationCalls = harness.calls
+      .map((call) => call.url)
+      .filter((url) => url.includes("publication.json"));
+    assert.ok(publicationCalls.length > 0, "the publication must be requested");
+    for (const url of publicationCalls) {
+      assert.ok(
+        url.startsWith("https://andyttc05.github.io/us-momentum-terminal/data/publication.json"),
+        `unexpected publication URL: ${url}`,
+      );
+      assert.ok(!url.includes("/data/data/"), `doubled data segment: ${url}`);
+    }
+  } finally {
+    harness.restore();
+  }
+});
+
+test("a publication that is unreachable is reported with a reason instead of success", async () => {
+  const harness = testHarness();
+  try {
+    await refreshWorker.fetch(refreshRequest(), harness.env);
+    harness.setRun("completed", "success");
+    // Only a doubled path would answer; the real site-root path 404s.
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (input, options = {}) => {
+      const url = String(input);
+      if (url.includes("/data/publication.json")) {
+        harness.calls.push({ url, options });
+        return new Response("not found", { status: 404 });
+      }
+      return originalFetch(input, options);
+    };
+
+    let active = harness.values.get("refresh");
+    active.lastCheckedAt = 0;
+    harness.values.set("refresh", active);
+    const body = await (await statusRequest(harness.env, active.requestId)).json();
+    assert.equal(body.status, "running");
+    assert.equal(body.generatedAt, null);
+    assert.equal(body.publicationCheck, "publication_unavailable");
   } finally {
     harness.restore();
   }

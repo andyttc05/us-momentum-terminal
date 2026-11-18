@@ -63,6 +63,8 @@ pnpm-debug.log*
 # ---------------------------------------------------------------------------
 # Local Worker deployment config (use the checked-in example as a template)
 frontend/worker/wrangler.toml
+# Wrangler's local build cache, recreated by every deploy.
+.wrangler/
 
 # Market-data cache. Contains provider-retrieved price history and is
 # recreated on demand, so it must not be committed.
