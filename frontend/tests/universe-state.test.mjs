@@ -89,9 +89,13 @@ test("dataset resolution keeps every page on one universe's selection", () => {
     const holdingTickers = new Set(dataset.portfolio.holdings.map((holding) => holding.ticker));
     assert.deepEqual(new Set(dataset.stockTickers), holdingTickers);
     assert.ok(dataset.stocks.every((stock) => holdingTickers.has(stock.ticker)));
-    // Ranks are the real cross-sectional ranks, in order.
-    const ranks = dataset.stocks.map((stock) => stock.rank);
-    assert.deepEqual(ranks, [...ranks].sort((left, right) => left - right));
+    // The active book retains its own holding order between rebalances, so
+    // dataset rows follow portfolio order even when today's live rank differs.
+    assert.deepEqual(
+      dataset.stockTickers,
+      dataset.portfolio.holdings.map((holding) => holding.ticker),
+    );
+    assert.ok(dataset.stocks.every((stock) => Number.isInteger(stock.rank)));
   }
 });
 

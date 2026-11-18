@@ -88,6 +88,7 @@ class Settings:
     yahoo_batch_size: int = _int("DATA_YAHOO_BATCH_SIZE", 8)
     yahoo_retry_attempts: int = _int("DATA_YAHOO_RETRY_ATTEMPTS", 3)
     yahoo_retry_base_seconds: float = _float("DATA_YAHOO_RETRY_BASE_SECONDS", 1.25)
+    yahoo_recovery_workers: int = _int("DATA_YAHOO_RECOVERY_WORKERS", 2)
     # The curated universe requires 210 observations before a name is eligible.
     # A non-empty but materially truncated batch response is a provider failure,
     # not a valid ticker, and must enter individual recovery.

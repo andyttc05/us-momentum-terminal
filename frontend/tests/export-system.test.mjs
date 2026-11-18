@@ -170,7 +170,9 @@ test("Backtesting CSV and workbook retain every configured trading date", async 
   assert.deepEqual(benchmarkSheet.rows.slice(1).map((row) => row[0]), ["SPY", "SPMO"]);
   const summarySheet = data.workbookSheets.find((sheet) => sheet.name === "Performance Summary");
   const summary = new Map(summarySheet.rows.slice(1).map(([label, value]) => [label, value]));
-  assert.ok(Math.abs(summary.get("Total Return") - block.metrics.cumulative_return) < 0.02);
+  // The published metric is rounded to one decimal; the workbook retains the
+  // linked unrounded return.
+  assert.ok(Math.abs(summary.get("Total Return") - block.metrics.cumulative_return) <= 0.05);
   assert.equal(summary.get("Final Portfolio Value"), data.workbookSheets[0].rows.at(-1)[1]);
 
   const { workbook, archive } = await readWorkbook(data.workbookSheets);

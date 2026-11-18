@@ -107,6 +107,15 @@ def _set_github_output(name: str, value: object) -> None:
         handle.write(f"{name}={normalized}\n")
 
 
+def _print_refresh_diagnostics(payload: dict, errors: list[str] | None = None) -> None:
+    """Emit the runtime refresh report to Actions logs without provider secrets."""
+    report = {
+        "errors": list(errors or []),
+        **(payload.get("diagnostics") or {}),
+    }
+    print("REFRESH_DIAGNOSTICS " + json.dumps(report, indent=2), file=sys.stderr, flush=True)
+
+
 def validate_publication(
     payload: dict,
     *,
@@ -328,6 +337,7 @@ def build_static(
         min_stock_ratio=min_stock_ratio,
     )
     if errors:
+        _print_refresh_diagnostics(payload, errors)
         raise RuntimeError("; ".join(errors))
 
     stocks = payload.get("stocks") or []

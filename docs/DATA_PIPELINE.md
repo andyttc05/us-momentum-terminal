@@ -35,9 +35,15 @@ Yahoo is an unofficial provider with no published service-level guarantee. The c
 
 - requests small serialized batches with a client-side rate limiter;
 - retries transient failures with bounded exponential backoff;
-- rejects empty, truncated, or unadjusted ticker series;
-- retries omitted tickers individually through the provider chain;
+- trims only incomplete trailing rows whose adjusted close has not yet been
+  published;
+- rejects interior adjusted-close gaps, short histories, and unadjusted series;
+- retries omitted tickers through a separately bounded, rate-limited recovery
+  pool and records each batch omission and recovery attempt;
+- uses valid stale cached history when a live response is empty or truncated,
+  while preventing a short response from replacing a longer valid cache;
 - serializes detailed quote recovery to avoid Yahoo metadata rate limits;
+- reuses verified float-share cache within `FUNDAMENTAL_FALLBACK_MAX_AGE`;
 - records ticker-level failures instead of fabricating bars or fundamental values.
 
 No CAPTCHA or access-control bypass is implemented. Provider keys remain server-side and are never
@@ -96,6 +102,13 @@ The exporter writes into a temporary directory and swaps it into place only afte
 provider fetch or validation fails, the existing snapshot remains untouched and the workflow skips
 the Pages deployment. This keeps the currently deployed publication available instead of replacing
 it with an older checkout copy.
+
+Failure logs contain a `REFRESH_DIAGNOSTICS` JSON object generated from the
+current run. It separates missing or invalid price history from universe
+eligibility and portfolio investability, and includes the exact missing ticker
+lists, exclusion categories, float-share coverage, provider attempts, and
+portfolio construction reasons. Provider response headers and credentials are
+never included.
 
 ## Browser freshness and fallback
 

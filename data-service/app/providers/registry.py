@@ -277,26 +277,59 @@ class ProviderRegistry:
         return None
 
     def detailed_quotes(self, symbols: list[str], progress=None) -> dict[str, dict]:
+        quotes, _ = self.detailed_quotes_with_diagnostics(symbols, progress=progress)
+        return quotes
+
+    def detailed_quotes_with_diagnostics(
+        self,
+        symbols: list[str],
+        progress=None,
+    ) -> tuple[dict[str, dict], list[dict]]:
+        """Resolve detailed metadata and retain bounded per-ticker failures."""
         from concurrent.futures import ThreadPoolExecutor
 
         out: dict[str, dict] = {}
+        failures: list[dict] = []
 
         def worker(symbol: str):
-            resolved = self.detailed_quote(symbol)
-            if not resolved:
-                return symbol, None
-            quote, provider_id = resolved
-            return symbol, {**quote.__dict__, "provider": provider_id}
+            attempts = []
+            for provider_id in self.chain():
+                adapter = self._adapters[provider_id]
+                started = time.perf_counter()
+                try:
+                    if hasattr(adapter, "fetch_detailed_quote"):
+                        quote = adapter.fetch_detailed_quote(symbol)
+                    else:
+                        quote = adapter.fetch_quote(symbol)
+                    attempts.append({
+                        "provider": provider_id,
+                        "ok": True,
+                        "category": None,
+                        "error": None,
+                        "elapsed_ms": int((time.perf_counter() - started) * 1000),
+                    })
+                    return symbol, {**quote.__dict__, "provider": provider_id}, None
+                except Exception as exc:  # noqa: BLE001 - safe public diagnostics
+                    attempts.append({
+                        "provider": provider_id,
+                        "ok": False,
+                        "category": type(exc).__name__,
+                        "error": str(exc)[:200],
+                        "elapsed_ms": int((time.perf_counter() - started) * 1000),
+                    })
+            return symbol, None, {"symbol": symbol, "attempts": attempts}
 
         completed = 0
         with ThreadPoolExecutor(max_workers=max(1, settings.quote_fetch_workers)) as pool:
-            for symbol, payload in pool.map(worker, symbols):
+            for symbol, payload, failure in pool.map(worker, symbols):
                 completed += 1
                 if payload:
                     out[symbol] = payload
+                elif failure:
+                    failures.append(failure)
                 if progress:
                     progress(completed)
-        return out
+        return out, failures
 
 
 registry = ProviderRegistry()

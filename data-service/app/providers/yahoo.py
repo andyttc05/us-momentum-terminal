@@ -69,9 +69,92 @@ def _series_from_cache(cached: dict, *, is_fresh: bool, cache_key: str | None = 
         cache_age_seconds=age,
         warnings=[
             *cached.get("warnings", []),
+            *cached.get("quality_warnings", []),
             *([] if is_fresh else [f"serving cached bars; live refresh failed ({age or 0:.0f}s old)"]),
         ],
     )
+
+
+def _cache_bars_are_complete(cached: dict, *, min_bars: int | None = None) -> bool:
+    """Validate cached adjusted history without trusting its metadata alone.
+
+    A cache entry can contain trailing rows from an in-progress session whose
+    adjusted close has not been published yet. Those rows are ignored, but an
+    interior adjusted-close gap is a quality failure and is never accepted.
+    """
+    if not cached or not cached.get("adjusted"):
+        return False
+    minimum = max(1, int(min_bars or settings.yahoo_min_bars))
+    rows = cached.get("bars") or []
+    close_rows = [
+        row for row in rows
+        if isinstance(row.get("close"), (int, float)) and row["close"] > 0
+    ]
+    adjusted_positions = [
+        index for index, row in enumerate(close_rows)
+        if isinstance(row.get("adjusted_close"), (int, float)) and row["adjusted_close"] > 0
+    ]
+    if len(adjusted_positions) < minimum:
+        return False
+    last_adjusted = adjusted_positions[-1]
+    return all(
+        isinstance(row.get("adjusted_close"), (int, float)) and row["adjusted_close"] > 0
+        for row in close_rows[:last_adjusted + 1]
+    )
+
+
+def _prepare_history_frame(frame: pd.DataFrame, symbol: str) -> tuple[pd.DataFrame, list[str]]:
+    """Return rows with a complete adjusted path and explicit quality reasons.
+
+    Yahoo can append the current, still-forming session before its adjusted
+    close is available. Such trailing rows are excluded. A missing adjusted
+    close *inside* the retained history is rejected: filling it from the raw
+    close would change total-return momentum and is never allowed.
+    """
+    if frame is None or frame.empty:
+        raise ProviderNoData(f"empty history for {symbol}")
+    required = ("Close", "Adj Close")
+    missing_columns = [column for column in required if column not in frame.columns]
+    if missing_columns:
+        raise ProviderNoData(
+            f"missing batch columns for {symbol}: {', '.join(missing_columns)}"
+        )
+
+    close = pd.to_numeric(frame["Close"], errors="coerce")
+    adjusted = pd.to_numeric(frame["Adj Close"], errors="coerce")
+    close_valid = close.notna() & (close > 0)
+    adjusted_valid = adjusted.notna() & (adjusted > 0)
+    if not close_valid.any():
+        raise ProviderNoData(f"no usable close observations for {symbol}")
+    adjusted_positions = [index for index, valid in enumerate(adjusted_valid) if valid]
+    if not adjusted_positions:
+        raise ProviderNoData(f"adjusted close is unavailable for {symbol}")
+
+    last_adjusted = adjusted_positions[-1]
+    interior_gaps = [
+        index for index in range(last_adjusted + 1)
+        if close_valid.iloc[index] and not adjusted_valid.iloc[index]
+    ]
+    if interior_gaps:
+        raise ProviderNoData(
+            f"adjusted close has {len(interior_gaps)} interior gap(s) for {symbol}"
+        )
+
+    cleaned = frame.loc[close_valid & adjusted_valid].copy()
+    cleaned["Close"] = close.loc[cleaned.index]
+    cleaned["Adj Close"] = adjusted.loc[cleaned.index]
+    if len(cleaned) < max(1, settings.yahoo_min_bars):
+        raise ProviderNoData(
+            f"truncated history for {symbol}: {len(cleaned)} usable rows, "
+            f"need {settings.yahoo_min_bars}"
+        )
+    trailing = int(close_valid.sum() - adjusted_valid.sum())
+    warnings = (
+        [f"excluded {trailing} incomplete trailing observation(s) without adjusted close"]
+        if trailing > 0
+        else []
+    )
+    return cleaned, warnings
 
 
 def _complete(adjusted: bool, bars: list[NormalizedBar]) -> bool:
@@ -117,7 +200,7 @@ class _BatchMixin:
                     time.sleep(delay + random.uniform(0, delay * 0.2))
         raise ProviderUnavailable(f"Yahoo batch failed after {attempts + 1} attempts: {last_error}")
 
-    def fetch_many(self, symbols, years: int | None = None):
+    def fetch_many(self, symbols, years: int | None = None, issues: dict | None = None):
         symbols = list(symbols)
         ttl = cache_ttl()
         out: dict[str, SeriesResult] = {}
@@ -125,11 +208,7 @@ class _BatchMixin:
 
         for symbol in symbols:
             cached = cache.read("yahoo_bars", f"{symbol}:{years or settings.history_years}y", ttl)
-            if (
-                cached
-                and cached.get("adjusted")
-                and len(cached.get("bars") or []) >= max(1, settings.yahoo_min_bars)
-            ):
+            if _cache_bars_are_complete(cached):
                 out[symbol] = _series_from_cache(cached, is_fresh=True)
             else:
                 pending.append(symbol)
@@ -144,9 +223,17 @@ class _BatchMixin:
             batch = pending[start:start + batch_size]
             try:
                 frame = self._download(yf, batch, years)
-            except ProviderUnavailable:
+            except ProviderUnavailable as exc:
                 # Do not manufacture empty SeriesResults. The caller's
                 # per-symbol retry records the actual ticker failures.
+                if issues is not None:
+                    for symbol in batch:
+                        issues[symbol] = {
+                            "provider": self.id,
+                            "stage": "batch_request",
+                            "error": str(exc)[:200],
+                            "category": "ProviderUnavailable",
+                        }
                 continue
 
             for symbol in batch:
@@ -157,14 +244,29 @@ class _BatchMixin:
                     except KeyError:
                         series_frame = None
                 if series_frame is None or series_frame.dropna(subset=["Close"]).empty:
+                    if issues is not None:
+                        issues[symbol] = {
+                            "provider": self.id,
+                            "stage": "batch_validation",
+                            "error": "batch response omitted the ticker or returned no closes",
+                            "category": "ProviderNoData",
+                        }
                     continue
 
+                try:
+                    series_frame, quality_warnings = _prepare_history_frame(series_frame, symbol)
+                except ProviderNoData as exc:
+                    if issues is not None:
+                        issues[symbol] = {
+                            "provider": self.id,
+                            "stage": "batch_validation",
+                            "error": str(exc)[:200],
+                            "category": type(exc).__name__,
+                        }
+                    continue
                 fetched_at = _now()
                 bars = []
-                adjusted = bool(
-                    "Adj Close" in series_frame.columns
-                    and series_frame["Adj Close"].notna().all()
-                )
+                adjusted = True
                 for index, row in series_frame.dropna(subset=["Close"]).iterrows():
                     bars.append(
                         NormalizedBar(
@@ -197,6 +299,7 @@ class _BatchMixin:
                         "fetched_at": fetched_at,
                         "adjusted": adjusted,
                         "corporate_actions_complete": True,
+                        "quality_warnings": quality_warnings,
                         "bars": [bar.serialize() for bar in bars],
                     },
                 )
@@ -207,9 +310,17 @@ class _BatchMixin:
                     source_label=self.label,
                     fetched_at=fetched_at,
                     adjusted=adjusted,
-                    warnings=[] if adjusted else ["provider did not return adjusted closes"],
+                    warnings=quality_warnings,
                 )
+                if issues is not None:
+                    issues.pop(symbol, None)
         return out
+
+    def fetch_many_with_diagnostics(self, symbols, years: int | None = None):
+        """Batch entry point that also reports omitted or invalid tickers."""
+        issues: dict[str, dict] = {}
+        results = self.fetch_many(symbols, years, issues)
+        return results, issues
 
 
 class YahooProvider(_BatchMixin, ProviderAdapter):
@@ -232,15 +343,12 @@ class YahooProvider(_BatchMixin, ProviderAdapter):
         key = f"{symbol}:{years}y"
         ttl = cache_ttl()
         cached = cache.read("yahoo_bars", key, ttl)
-        if (
-            cached
-            and cached.get("adjusted")
-            and len(cached.get("bars") or []) >= max(1, settings.yahoo_min_bars)
-        ):
+        if _cache_bars_are_complete(cached):
             return _series_from_cache(cached, is_fresh=True)
 
         yf = _import_yfinance()
         frame = None
+        quality_warnings: list[str] = []
         accepted = False
         last_error = None
         attempts = max(0, settings.yahoo_retry_attempts)
@@ -251,19 +359,9 @@ class YahooProvider(_BatchMixin, ProviderAdapter):
                     period=f"{years}y", interval="1d", auto_adjust=False,
                     actions=True, timeout=settings.request_timeout,
                 )
-                adjusted = bool(
-                    frame is not None
-                    and not frame.empty
-                    and "Adj Close" in frame.columns
-                    and frame["Adj Close"].notna().all()
-                )
-                if frame is not None and not frame.empty and adjusted and len(frame) >= max(1, settings.yahoo_min_bars):
-                    accepted = True
-                    break
-                last_error = ProviderNoData(
-                    f"incomplete history for {symbol}: {0 if frame is None else len(frame)} "
-                    f"rows, adjusted={adjusted}"
-                )
+                frame, quality_warnings = _prepare_history_frame(frame, symbol)
+                accepted = True
+                break
             except Exception as exc:  # noqa: BLE001 - normalize every client failure
                 last_error = exc
             if attempt < attempts:
@@ -273,11 +371,7 @@ class YahooProvider(_BatchMixin, ProviderAdapter):
         if not accepted:
             message = str(last_error or f"no rows returned for {symbol}")
             stale = cache.read_stale("yahoo_bars", key)
-            if (
-                stale
-                and stale.get("adjusted")
-                and len(stale.get("bars") or []) >= max(1, settings.yahoo_min_bars)
-            ):
+            if _cache_bars_are_complete(stale):
                 return _series_from_cache(stale, is_fresh=False, cache_key=key)
             if "429" in message or "Too Many Requests" in message:
                 raise ProviderRateLimited(message) from last_error
@@ -287,7 +381,7 @@ class YahooProvider(_BatchMixin, ProviderAdapter):
 
         fetched_at = _now()
         bars: list[NormalizedBar] = []
-        adjusted = bool("Adj Close" in frame.columns and frame["Adj Close"].notna().all())
+        adjusted = True
         for index, row in frame.iterrows():
             try:
                 date = index.strftime("%Y-%m-%d")
@@ -319,6 +413,7 @@ class YahooProvider(_BatchMixin, ProviderAdapter):
             "fetched_at": fetched_at,
             "adjusted": adjusted,
             "corporate_actions_complete": True,
+            "quality_warnings": quality_warnings,
             "bars": [bar.serialize() for bar in bars],
         }
         cache.write_bars("yahoo_bars", key, payload)
@@ -329,7 +424,7 @@ class YahooProvider(_BatchMixin, ProviderAdapter):
             source_label=self.label,
             fetched_at=fetched_at,
             adjusted=adjusted,
-            warnings=[] if adjusted else ["provider did not return adjusted closes"],
+            warnings=quality_warnings,
         )
 
     # ------------------------------------------------------------------- quote

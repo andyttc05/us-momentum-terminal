@@ -9,8 +9,8 @@ from unittest.mock import patch
 import pandas as pd
 
 from app.config import settings
-from app.models import ProviderRateLimited, ProviderUnavailable
-from app.providers.yahoo import YahooProvider
+from app.models import ProviderNoData, ProviderRateLimited, ProviderUnavailable
+from app.providers.yahoo import YahooProvider, _cache_bars_are_complete, _prepare_history_frame
 
 
 class FakeYahoo:
@@ -171,8 +171,74 @@ class YahooRetryTests(unittest.TestCase):
             patch("app.providers.yahoo.cache.read_stale", return_value=short_cache),
             patch("app.providers.yahoo._LIMITER"),
         ):
-            with self.assertRaisesRegex(Exception, "incomplete history"):
+            with self.assertRaises(ProviderNoData):
                 YahooProvider().fetch_series("BKH", years=1)
+
+    def test_incomplete_trailing_session_is_trimmed_without_filling_adjusted_close(self) -> None:
+        index = pd.date_range("2026-11-14", periods=3, freq="B")
+        frame = pd.DataFrame(
+            {
+                "Open": [10, 11, 12],
+                "High": [11, 12, 13],
+                "Low": [9, 10, 11],
+                "Close": [10, 11, 12],
+                "Adj Close": [10, 10.5, None],
+                "Volume": [100, 110, 120],
+                "Dividends": [0, 0, 0],
+                "Stock Splits": [0, 0, 0],
+            },
+            index=index,
+        )
+        tuned = replace(settings, yahoo_min_bars=2)
+        with patch("app.providers.yahoo.settings", tuned):
+            cleaned, warnings = _prepare_history_frame(frame, "AAA")
+
+        self.assertEqual(len(cleaned), 2)
+        self.assertEqual(cleaned["Adj Close"].tolist(), [10, 10.5])
+        self.assertIn("incomplete trailing", warnings[0])
+
+    def test_interior_adjusted_close_gap_is_rejected(self) -> None:
+        index = pd.date_range("2026-11-14", periods=3, freq="B")
+        frame = pd.DataFrame(
+            {
+                "Open": [10, 11, 12],
+                "High": [11, 12, 13],
+                "Low": [9, 10, 11],
+                "Close": [10, 11, 12],
+                "Adj Close": [10, None, 11],
+                "Volume": [100, 110, 120],
+                "Dividends": [0, 0, 0],
+                "Stock Splits": [0, 0, 0],
+            },
+            index=index,
+        )
+        tuned = replace(settings, yahoo_min_bars=2)
+        with (
+            patch("app.providers.yahoo.settings", tuned),
+            self.assertRaisesRegex(ProviderNoData, "interior gap"),
+        ):
+            _prepare_history_frame(frame, "AAA")
+
+    def test_cached_history_accepts_only_complete_adjusted_data(self) -> None:
+        def payload(adjusted_values):
+            return {
+                "adjusted": True,
+                "bars": [
+                    {
+                        "symbol": "AAA",
+                        "date": f"2026-11-{index + 10:02d}",
+                        "close": 10 + index,
+                        "adjusted_close": value,
+                    }
+                    for index, value in enumerate(adjusted_values)
+                ],
+            }
+
+        tuned = replace(settings, yahoo_min_bars=3)
+        with patch("app.providers.yahoo.settings", tuned):
+            self.assertTrue(_cache_bars_are_complete(payload([10, 11, 12, None])))
+            self.assertFalse(_cache_bars_are_complete(payload([10, None, 12])))
+            self.assertFalse(_cache_bars_are_complete(payload([10, 11])))
 
     def test_incomplete_float_metadata_is_retried_and_never_written_partial(self) -> None:
         class DetailedTicker:

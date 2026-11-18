@@ -77,6 +77,13 @@ jobs:
           restore-keys: |
             market-data-${{ runner.os }}-
 
+      - name: Verify restored market-data cache
+        run: |
+          mkdir -p data-service/cache
+          printf 'Restored Python cache: %s files, %s\n' \
+            "$(find data-service/cache -type f | wc -l)" \
+            "$(du -sh data-service/cache | cut -f1)"
+
       - name: Recover last deployed portfolio state
         env:
           REPOSITORY: ${{ github.repository }}

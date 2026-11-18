@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from app.snapshot import build_universe_datasets  # noqa: E402
+from app.snapshot import _carry_active_portfolio_rows, build_universe_datasets  # noqa: E402
 
 
 def ranked_stocks(count: int = 100) -> list[dict]:
@@ -114,6 +114,33 @@ class UniverseDatasetTests(unittest.TestCase):
         self.assertEqual(datasets["top20"]["overview"]["snapshot"]["portfolioStocks"], "20")
         self.assertEqual(datasets["top20"]["overview"]["snapshot"]["eligibleStocks"], "100")
         self.assertEqual(datasets["top20"]["overview"]["snapshot"]["scannedStocks"], "102")
+
+    def test_retained_active_holding_keeps_a_marked_portfolio_only_row(self) -> None:
+        stocks = ranked_stocks(99)
+        previous_row = {**ranked_stocks(100)[-1], "date": "2026-11-13"}
+        combined = _carry_active_portfolio_rows(
+            stocks,
+            {
+                "top100": portfolio([f"T{index:02d}" for index in range(100)]),
+                "top20": portfolio([f"T{index:02d}" for index in range(20)]),
+            },
+            {"stocks": [previous_row]},
+        )
+        carried = next(row for row in combined if row["ticker"] == "T99")
+
+        self.assertTrue(carried["portfolioOnly"])
+        self.assertFalse(carried["universeEligible"])
+        payload_data = payload({
+            "top100": portfolio([f"T{index:02d}" for index in range(100)]),
+            "top20": portfolio([f"T{index:02d}" for index in range(20)]),
+        }, stocks=combined)
+        payload_data["universe"]["eligible"] = 99
+        datasets = build_universe_datasets(payload_data)
+        self.assertEqual(len(datasets["top100"]["stockTickers"]), 100)
+        self.assertEqual(
+            datasets["top100"]["overview"]["snapshot"]["eligibleStocks"],
+            "99",
+        )
 
     def test_performance_is_scoped_to_the_dataset_backtest(self) -> None:
         performance = {

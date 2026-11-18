@@ -57,6 +57,7 @@ from .portfolio import (
     SECTOR_CAP,
     WEIGHTING_METHOD_ID,
     build_portfolio,
+    rank_for_selection,
 )
 from .providers.registry import registry
 from .universe import (
@@ -384,14 +385,22 @@ def load_series(
     batch_size = max(1, settings.history_batch_size)
     batches = [symbols[index:index + batch_size] for index in range(0, len(symbols), batch_size)]
 
-    if hasattr(primary, "fetch_many") and batches:
+    if (
+        (hasattr(primary, "fetch_many") or hasattr(primary, "fetch_many_with_diagnostics"))
+        and batches
+    ):
         from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout, as_completed
 
         def fetch_batch(batch: list[str]):
             try:
-                return batch, primary.fetch_many(batch, years), None
+                if hasattr(primary, "fetch_many_with_diagnostics"):
+                    values, batch_issues = primary.fetch_many_with_diagnostics(batch, years)
+                else:
+                    values = primary.fetch_many(batch, years)
+                    batch_issues = {}
+                return batch, values, batch_issues, None
             except Exception as exc:  # noqa: BLE001 - fallback handles this batch
-                return batch, {}, f"{type(exc).__name__}: {exc}"[:200]
+                return batch, {}, {}, f"{type(exc).__name__}: {exc}"[:200]
 
         completed = 0
         # A provider call that never returns used to hang this function forever:
@@ -413,7 +422,7 @@ def load_series(
             futures = {pool.submit(fetch_batch, batch): batch for batch in batches}
             try:
                 for future in as_completed(futures, timeout=batch_budget):
-                    batch, batch_results, error = future.result()
+                    batch, batch_results, batch_issues, error = future.result()
                     results.update(batch_results)
                     completed += len(batch)
                     if error:
@@ -422,6 +431,20 @@ def load_series(
                             "stage": "batch",
                             "error": error,
                             "symbols": len(batch),
+                        })
+                    for symbol in batch:
+                        if symbol in batch_results:
+                            continue
+                        issue = batch_issues.get(symbol) or {
+                            "provider": primary_id,
+                            "stage": "batch_validation",
+                            "category": "ProviderNoData",
+                            "error": "batch response omitted or failed validation",
+                        }
+                        failures.append({
+                            **issue,
+                            "symbol": symbol,
+                            "stage": "batch_omission",
                         })
                     report("loading_bars", completed)
             except FuturesTimeout:
@@ -469,7 +492,10 @@ def load_series(
         # Same bounded wait as the batch phase: one symbol that never answers
         # must cost one missing symbol, not the whole publication.
         symbol_budget = max(1.0, float(settings.warm_timeout))
-        pool = ThreadPoolExecutor(max_workers=max(1, settings.series_fetch_workers))
+        recovery_workers = settings.series_fetch_workers
+        if primary_id == "yahoo":
+            recovery_workers = min(recovery_workers, settings.yahoo_recovery_workers)
+        pool = ThreadPoolExecutor(max_workers=max(1, recovery_workers))
         try:
             futures = {pool.submit(fetch_one, symbol): symbol for symbol in missing}
             try:
@@ -487,6 +513,24 @@ def load_series(
                                 f"only an unadjusted series was available for {symbol}"
                             )
                         results[symbol] = resolved.result
+                        failures.append({
+                            "provider": resolved.result.source,
+                            "stage": "recovery_success",
+                            "symbol": symbol,
+                            "observations": len(resolved.result.bars),
+                            "adjusted_close_complete": resolved.result.adjusted,
+                            "cached": resolved.result.cached,
+                            "cache_age_seconds": resolved.result.cache_age_seconds,
+                            "attempts": [
+                                {
+                                    "provider": attempt.provider,
+                                    "ok": attempt.ok,
+                                    "error": attempt.error,
+                                    "category": attempt.error_kind,
+                                }
+                                for attempt in resolved.attempts
+                            ],
+                        })
                         if resolved.used_backup:
                             failures.append(
                                 {
@@ -938,53 +982,71 @@ def _assess_universe(
         member = MEMBER_BY_TICKER[symbol]
         quote = quotes.get(symbol) or {}
 
-        def exclude(reason: str) -> None:
+        def exclude(reason: str, category: str) -> None:
             excluded.append(
                 {
                     "symbol": symbol,
                     "stage": "universe",
+                    "category": category,
                     "reason": reason,
                     "rows": series.rows,
                 }
             )
 
         if series.latest_date != as_of:
-            exclude(f"stale series: latest observation {series.latest_date or 'missing'}, common as-of {as_of}")
+            exclude(
+                f"stale series: latest observation {series.latest_date or 'missing'}, common as-of {as_of}",
+                "stale_price_history",
+            )
             continue
         if member.instrument_type != "Common stock":
-            exclude(f"security type {member.instrument_type} is outside the common-stock universe")
+            exclude(
+                f"security type {member.instrument_type} is outside the common-stock universe",
+                "security_type",
+            )
             continue
         quote_type = str(
             quote.get("quote_type")
             or (member.instrument_type.upper().replace(" ", "_") if member.source != "core" else "")
         ).upper()
         if quote_type not in {"EQUITY", "COMMON_STOCK"}:
-            exclude("provider did not verify a common-stock security type")
+            exclude("provider did not verify a common-stock security type", "security_type")
             continue
         exchange = _exchange_label(quote.get("exchange") or member.exchange)
         if exchange not in SUPPORTED_EXCHANGES:
-            exclude(f"exchange {exchange} is outside NYSE, NASDAQ, and NYSE American")
+            exclude(
+                f"exchange {exchange} is outside NYSE, NASDAQ, and NYSE American",
+                "exchange",
+            )
             continue
         currency = str(quote.get("currency") or ("USD" if member.source != "core" else "")).upper()
         if currency != "USD":
-            exclude("provider did not verify USD currency")
+            exclude("provider did not verify USD currency", "currency")
             continue
         if series.rows < MIN_UNIVERSE_OBSERVATIONS:
             exclude(
-                f"only {series.rows} observations; universe requires {MIN_UNIVERSE_OBSERVATIONS}"
+                f"only {series.rows} observations; universe requires {MIN_UNIVERSE_OBSERVATIONS}",
+                "insufficient_history",
             )
             continue
         price = float(series.frame["close"].iloc[-1])
         if not math.isfinite(price) or price < MIN_PRICE:
-            exclude(f"last close ${price:.2f} is below the ${MIN_PRICE:.0f} minimum")
+            exclude(
+                f"last close ${price:.2f} is below the ${MIN_PRICE:.0f} minimum",
+                "minimum_price",
+            )
             continue
         average_dollar_volume = _average_daily_dollar_volume(series)
         if average_dollar_volume is None:
-            exclude("insufficient volume history for the 3-month dollar-volume filter")
+            exclude(
+                "insufficient volume history for the 3-month dollar-volume filter",
+                "liquidity",
+            )
             continue
         if average_dollar_volume < MIN_AVERAGE_DAILY_DOLLAR_VOLUME:
             exclude(
-                f"3-month average dollar volume ${average_dollar_volume / 1e6:.2f}M is below $2M"
+                f"3-month average dollar volume ${average_dollar_volume / 1e6:.2f}M is below $2M",
+                "liquidity",
             )
             continue
         eligible[symbol] = series
@@ -1180,6 +1242,135 @@ def _constraint_state(portfolio: dict) -> str:
     return "unavailable"
 
 
+def _refresh_diagnostics(
+    *,
+    requested_symbols: list[str],
+    results: dict[str, SeriesResult],
+    series_map: dict[str, SymbolSeries],
+    failures: list[dict],
+    universe_excluded: list[dict],
+    momentum_excluded: list[dict],
+    scored: list[dict],
+    detail_candidates: list[str],
+    quotes: dict[str, dict],
+    detail_failures: list[dict],
+    cached_fundamental_symbols: list[str],
+    portfolios: dict[str, dict],
+) -> dict:
+    """Explain price, eligibility and portfolio coverage with runtime values."""
+    loaded_symbols = [symbol for symbol in requested_symbols if symbol in series_map]
+    missing_price_history = [
+        symbol for symbol in requested_symbols if symbol not in series_map
+    ]
+    invalid_adjusted_close = sorted({
+        str(failure.get("symbol"))
+        for failure in failures
+        if failure.get("symbol")
+        and (
+            "adjusted" in str(failure.get("error") or "").lower()
+            or "adjusted_close" in str(failure.get("category") or "").lower()
+        )
+    } | {
+        symbol for symbol, result in results.items()
+        if not result.adjusted
+    })
+
+    exclusions = [*universe_excluded, *momentum_excluded]
+    categories = (
+        "stale_price_history",
+        "insufficient_history",
+        "security_type",
+        "exchange",
+        "currency",
+        "minimum_price",
+        "liquidity",
+        "invalid_momentum",
+        "invalid_adjusted_close",
+    )
+    eligibility = {
+        "excludedByCategory": {
+            category: sorted(
+                str(row.get("symbol"))
+                for row in exclusions
+                if row.get("category") == category and row.get("symbol")
+            )
+            for category in categories
+        },
+        "excludedTotal": len(exclusions),
+    }
+
+    detail_set = set(detail_candidates)
+    float_flags = {
+        row["symbol"]: (
+            isinstance((quotes.get(row["symbol"]) or {}).get("float_shares"), (int, float))
+            and quotes[row["symbol"]]["float_shares"] > 0
+        )
+        for row in scored
+    }
+    missing_float_shares = [
+        symbol for symbol in detail_candidates if not float_flags.get(symbol, False)
+    ]
+    invalid_float_market_cap = [
+        row["symbol"]
+        for row in scored
+        if float_flags.get(row["symbol"])
+        and not (
+            isinstance(row.get("float_market_cap"), (int, float))
+            and math.isfinite(row["float_market_cap"])
+            and row["float_market_cap"] > 0
+        )
+    ]
+    ranked = rank_for_selection(scored)
+    portfolio_diagnostics = {}
+    for universe, target in DATASET_TARGET_HOLDINGS.items():
+        book = portfolios.get(universe) or {}
+        holdings = book.get("holdings") or []
+        portfolio_diagnostics[universe] = {
+            "target": target,
+            "available": bool(book.get("available")),
+            "scoredCandidates": len(scored),
+            "investableCandidates": len(ranked),
+            "selectedBeforeWeighting": min(target, len(ranked)),
+            "selected": len(holdings),
+            "reason": book.get("reason"),
+            "excludedNoMarketCap": list(book.get("excluded_no_market_cap") or []),
+            "excludedNoScore": list(book.get("excluded_no_score") or []),
+            "validation": book.get("validation"),
+        }
+
+    return {
+        "requested": len(requested_symbols),
+        "loaded": len(loaded_symbols),
+        "eligible": len(scored),
+        "missingPriceHistory": missing_price_history,
+        "invalidAdjustedClose": invalid_adjusted_close,
+        "insufficientHistory": eligibility["excludedByCategory"]["insufficient_history"],
+        "missingFloatShares": missing_float_shares,
+        "invalidFloatMarketCap": invalid_float_market_cap,
+        "eligibility": eligibility,
+        "fundamentals": {
+            "candidates": len(detail_candidates),
+            "verifiedFloatShares": sum(
+                1 for symbol in detail_set if float_flags.get(symbol, False)
+            ),
+            "verifiedFloatMarketCaps": sum(
+                1 for row in scored
+                if row["symbol"] in detail_set
+                and isinstance(row.get("float_market_cap"), (int, float))
+                and row["float_market_cap"] > 0
+            ),
+            "verifiedCacheFallbacks": list(cached_fundamental_symbols),
+            "providerFailures": detail_failures,
+        },
+        "portfolio": portfolio_diagnostics,
+        "priceRecovery": failures,
+        "asOf": max(
+            (series.latest_date for series in series_map.values() if series.latest_date),
+            default=None,
+        ),
+    }
+
+
 def _momentum_row(row: dict) -> dict:
     """One Top Momentum row from a ranked stock row (tolerant of partial rows)."""
     price = row.get("price")
@@ -1209,7 +1400,7 @@ def build_universe_datasets(payload: dict, performances: dict[str, dict] | None 
     as_of = str(meta.get("as_of") or "")
     generated_at = str(meta.get("generated_at") or "")
     scanned_count = (payload.get("universe") or {}).get("scanned") or 0
-    eligible_count = len(stocks)
+    eligible_count = (payload.get("universe") or {}).get("eligible") or len(stocks)
 
     datasets: dict[str, dict] = {}
     for universe in DATASET_UNIVERSES:
@@ -1222,7 +1413,14 @@ def build_universe_datasets(payload: dict, performances: dict[str, dict] | None 
             if holding.get("ticker")
         }
         if selected:
-            rows = [row for row in stocks if row.get("ticker") in selected]
+            holding_order = {
+                holding.get("ticker"): index
+                for index, holding in enumerate(portfolio.get("holdings") or [])
+            }
+            rows = sorted(
+                [row for row in stocks if row.get("ticker") in selected],
+                key=lambda row: holding_order.get(row.get("ticker"), len(holding_order)),
+            )
         else:
             rows = stocks[:target]
         portfolio_summary = portfolio.get("summary") or {}
@@ -1255,6 +1453,46 @@ def build_universe_datasets(payload: dict, performances: dict[str, dict] | None 
             },
         }
     return datasets
+
+
+def _carry_active_portfolio_rows(
+    stocks: list[dict],
+    portfolios: dict[str, dict],
+    previous_publication: dict | None,
+) -> list[dict]:
+    """Keep verified display rows for retained holdings outside today's screen.
+
+    The semiannual lifecycle intentionally retains an active holding even if
+    one daily screen excludes it. The dataset still needs that row so its
+    portfolio, screener and exports describe the same book. Carried rows are
+    marked portfolio-only and retain their original market date and source.
+    """
+    indexed = {row.get("ticker"): row for row in stocks if row.get("ticker")}
+    previous_rows = {
+        row.get("ticker"): row
+        for row in (previous_publication or {}).get("stocks", [])
+        if row.get("ticker")
+    }
+    carried: list[dict] = []
+    carried_tickers: set[str] = set()
+    for book in portfolios.values():
+        for holding in book.get("holdings") or []:
+            ticker = holding.get("ticker")
+            if not ticker or ticker in indexed or ticker in carried_tickers:
+                continue
+            previous = previous_rows.get(ticker)
+            if not previous:
+                continue
+            row = {
+                **previous,
+                "portfolioOnly": True,
+                "universeEligible": False,
+                "activePortfolioStatus": "currently_held",
+            }
+            carried.append(row)
+            carried_tickers.add(ticker)
+            indexed[ticker] = row
+    return [*stocks, *carried]
 
 
 def build_publication(force: bool = False, progress=None, previous_publication: dict | None = None) -> dict:
@@ -1310,6 +1548,13 @@ def build_publication(force: bool = False, progress=None, previous_publication: 
         scored, momentum_excluded = compute_snapshot(universe_map)
         for row in momentum_excluded:
             row["stage"] = "momentum"
+            reason = str(row.get("reason") or "").lower()
+            if "adjusted close" in reason:
+                row["category"] = "invalid_adjusted_close"
+            elif "observation" in reason or "12-1 window" in reason:
+                row["category"] = "insufficient_history"
+            else:
+                row["category"] = "invalid_momentum"
         excluded = [*universe_excluded, *momentum_excluded]
 
         # Fast quote data supplies display metadata. Full float-share data is
@@ -1329,7 +1574,7 @@ def build_publication(force: bool = False, progress=None, previous_publication: 
         detail_candidates = [row["symbol"] for row in scored[:150]]
         if progress:
             progress("loading_fundamentals", 0, len(detail_candidates))
-        detailed_quotes = registry.detailed_quotes(
+        detailed_quotes, fundamental_failures = registry.detailed_quotes_with_diagnostics(
             detail_candidates,
             progress=(lambda completed: progress("loading_fundamentals", completed, len(detail_candidates))) if progress else None,
         )
@@ -1448,6 +1693,20 @@ def build_publication(force: bool = False, progress=None, previous_publication: 
             portfolio_id: build_portfolio(scored, target_holdings=target_holdings)
             for portfolio_id, target_holdings in (("top100", 100), ("top20", 20))
         }
+        diagnostics = _refresh_diagnostics(
+            requested_symbols=list(TICKERS),
+            results=results,
+            series_map=series_map,
+            failures=failures,
+            universe_excluded=universe_excluded,
+            momentum_excluded=momentum_excluded,
+            scored=scored,
+            detail_candidates=detail_candidates,
+            quotes=quotes,
+            detail_failures=fundamental_failures,
+            cached_fundamental_symbols=cached_fundamental_symbols,
+            portfolios=portfolios,
+        )
         portfolio = portfolios["top100"]
         portfolio_tickers = {
             holding["ticker"]
@@ -1649,6 +1908,7 @@ def build_publication(force: bool = False, progress=None, previous_publication: 
                 "status": registry.status(),
                 "configured_keys": settings.keys_present(),
             },
+            "diagnostics": diagnostics,
         }
 
         previous_datasets = (previous_publication or {}).get("datasets") or {}
@@ -1663,9 +1923,22 @@ def build_publication(force: bool = False, progress=None, previous_publication: 
         # The compatibility field remains an alias for the active book. Daily
         # rankings are explicitly published separately and cannot replace it.
         portfolios = {key: lifecycle[key]["activePortfolio"] for key in DATASET_UNIVERSES}
+        for universe in DATASET_UNIVERSES:
+            candidate_diagnostics = dict(diagnostics["portfolio"][universe])
+            active = portfolios[universe]
+            diagnostics["portfolio"][universe] = {
+                **candidate_diagnostics,
+                "available": bool(active.get("available")),
+                "selected": len(active.get("holdings") or []),
+                "reason": active.get("reason"),
+                "validation": active.get("validation"),
+                "candidate": candidate_diagnostics,
+            }
         payload["portfolios"] = portfolios
         payload["portfolio"] = portfolios["top100"]
         payload["portfolioStates"] = lifecycle
+        stocks = _carry_active_portfolio_rows(stocks, portfolios, previous_publication)
+        payload["stocks"] = stocks
 
         # One dataset per universe, then the legacy top-level sections mirror the
         # Top 100 dataset so older cached clients stay self-consistent.
