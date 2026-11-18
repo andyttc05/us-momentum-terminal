@@ -93,6 +93,40 @@ async function requestRefreshBroker(challengeToken) {
   }
 }
 
+async function requestRefreshStatus(requestId) {
+  if (!REFRESH_BROKER_URL || !requestId) {
+    throw new ApiError("The refresh status is unavailable.", { code: "refresh_status_unavailable" });
+  }
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), 20_000);
+  try {
+    const response = await fetch(
+      `${REFRESH_BROKER_URL}/api/status?requestId=${encodeURIComponent(requestId)}`,
+      {
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+        signal: controller.signal,
+      },
+    );
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new ApiError(body?.message || "Refresh status is unavailable.", {
+        status: response.status,
+        code: body?.code || "refresh_status_unavailable",
+      });
+    }
+    return body;
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    if (error?.name === "AbortError") {
+      throw new ApiError("Refresh status timed out.", { code: "refresh_status_timeout" });
+    }
+    throw new ApiError("Refresh status is unavailable.", { code: "refresh_status_unavailable" });
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
 async function devCall(method, ...args) {
   if (!import.meta.env.DEV) throw new Error("The local data service is only available in development.");
   const developmentApi = await import("./devClient.js");
@@ -123,6 +157,9 @@ export const api = {
   requestMarketRefresh: (challengeToken) => DATA_MODE === "static"
     ? requestRefreshBroker(challengeToken)
     : devCall("refresh"),
+  refreshStatus: (requestId) => DATA_MODE === "static"
+    ? requestRefreshStatus(requestId)
+    : Promise.resolve({ status: "idle" }),
   refreshBrokerEnabled: Boolean(REFRESH_BROKER_URL),
   setProvider: (id) => devCall("setProvider", id),
 };

@@ -45,6 +45,7 @@ test("published snapshot supports every backtest schedule as an on-demand file",
 
 test("frontend hydrates cache first and uses same-origin static paths", () => {
   const provider = source("../src/api/MarketProvider.jsx");
+  const automatic = source("../src/api/autoRefresh.js");
   const client = source("../src/api/client.js");
   const updateBar = source("../src/components/UpdateBar.jsx");
   assert.match(provider, /readCachedPublication\(\)/);
@@ -57,11 +58,18 @@ test("frontend hydrates cache first and uses same-origin static paths", () => {
   assert.match(client, /devCall\("backtest", config\)/);
   assert.match(client, /dedupe\(`stock:\$\{symbol\}`/);
   assert.match(updateBar, /DataStatusDialog/);
+  assert.match(provider, /runAutomaticRefresh\(/);
+  assert.match(provider, /automaticRefreshClaimed\(\)/);
+  assert.match(automatic, /sessionStorage/);
+  assert.match(provider, /REFRESH_POLL_INTERVAL_MS = 15 \* 1000/);
+  assert.match(provider, /REFRESH_POLL_TIMEOUT_MS = 50 \* 60 \* 1000/);
 });
 
 test("GitHub Pages deploys a static scheduled snapshot without secrets", () => {
   const workflow = source("../../.github/workflows/deploy-pages.yml");
   assert.match(workflow, /schedule:/);
+  assert.match(workflow, /workflow_dispatch:/);
+  assert.match(workflow, /refresh_request_id:/);
   assert.match(workflow, /cron:\s*"23 22 \* \* 1-5"/);
   assert.match(workflow, /VITE_DATA_MODE:\s*static/);
   assert.match(workflow, /python data-service\/scripts\/export_static\.py/);

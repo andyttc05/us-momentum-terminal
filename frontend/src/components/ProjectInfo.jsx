@@ -91,6 +91,12 @@ export function ProjectInfo() {
           </dl>
 
           <p className="project-info__notice">Research and education only. Not investment advice.</p>
+          <p className="project-info__notice">
+            Refresh verification uses Cloudflare Turnstile under the{" "}
+            <a href="https://www.cloudflare.com/turnstile-privacy-policy/" target="_blank" rel="noreferrer">
+              Turnstile Privacy Addendum
+            </a>.
+          </p>
 
           <nav className="project-info__links" aria-label="Project documentation">
             <a href={`${repositoryUrl}#readme`} target="_blank" rel="noreferrer">

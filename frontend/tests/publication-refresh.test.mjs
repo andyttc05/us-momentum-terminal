@@ -9,7 +9,12 @@ import {
   validManifest,
 } from "../src/api/publicationStatus.js";
 import { waitForPublishedRefresh } from "../src/api/refreshPolling.js";
-import refreshWorker, { RefreshCoordinator } from "../worker/index.js";
+import refreshWorker from "../worker/index.js";
+import {
+  claimAutomaticRefresh,
+  automaticRefreshClaimed,
+  runAutomaticRefresh,
+} from "../src/api/autoRefresh.js";
 
 const manifest = {
   schemaVersion: 2,
@@ -139,65 +144,76 @@ test("refresh polling does not apply or fail immediately on a transient manifest
   assert.equal(checks, 2);
 });
 
-test("refresh coordinator serializes and coalesces concurrent visitor requests", async () => {
+test("automatic refresh is claimed once per browser session", () => {
   const values = new Map();
-  const storage = {
-    get: async (key) => values.get(key),
-    put: async (key, value) => values.set(key, value),
-    delete: async (key) => values.delete(key),
-  };
-  const calls = [];
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = async (url, options) => {
-    calls.push({ url: String(url), options });
-    if (String(url).includes("actions/workflows")) return new Response(null, { status: 204 });
-    return new Response("not found", { status: 404 });
+  const previousWindow = globalThis.window;
+  globalThis.window = {
+    sessionStorage: {
+      getItem: (key) => values.get(key) ?? null,
+      setItem: (key, value) => values.set(key, value),
+    },
   };
   try {
-    const coordinator = new RefreshCoordinator({ storage }, {
-      GITHUB_REFRESH_TOKEN: "not-exposed",
-      GITHUB_REPOSITORY: "andyttc05/us-momentum-terminal",
-    });
-    const [first, second] = await Promise.all([coordinator.fetch(), coordinator.fetch()]);
-    const bodies = await Promise.all([first.json(), second.json()]);
-    assert.equal(bodies.filter((body) => body.alreadyRunning === false).length, 1);
-    assert.equal(bodies.filter((body) => body.alreadyRunning === true).length, 1);
-    assert.equal(calls.filter((call) => call.url.includes("/dispatches")).length, 1);
-    assert.match(calls.find((call) => call.url.includes("/dispatches")).url, /actions\/workflows\/deploy-pages\.yml\/dispatches$/);
+    assert.equal(automaticRefreshClaimed(), false);
+    assert.equal(claimAutomaticRefresh(), true);
+    assert.equal(claimAutomaticRefresh(), false);
+    assert.equal(automaticRefreshClaimed(), true);
   } finally {
-    globalThis.fetch = originalFetch;
+    globalThis.window = previousWindow;
   }
 });
 
-test("a completed publication releases the refresh lock without a duplicate dispatch", async () => {
+test("first-load refresh loads data before obtaining a challenge and requesting a workflow", async () => {
   const values = new Map();
-  const storage = {
-    get: async (key) => values.get(key),
-    put: async (key, value) => values.set(key, value),
-    delete: async (key) => values.delete(key),
-  };
-  const calls = [];
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = async (url) => {
-    calls.push(String(url));
-    if (String(url).includes("actions/workflows")) return new Response(null, { status: 204 });
-    return new Response(JSON.stringify({
-      generatedAt: new Date(Date.now() + 60_000).toISOString(),
-    }), { status: 200 });
+  const previousWindow = globalThis.window;
+  globalThis.window = {
+    sessionStorage: {
+      getItem: (key) => values.get(key) ?? null,
+      setItem: (key, value) => values.set(key, value),
+    },
   };
   try {
-    const coordinator = new RefreshCoordinator({ storage }, {
-      GITHUB_REFRESH_TOKEN: "not-exposed",
-      GITHUB_REPOSITORY: "andyttc05/us-momentum-terminal",
+    const order = [];
+    const result = await runAutomaticRefresh({
+      load: async () => { order.push("load"); },
+      getChallenge: async () => {
+        order.push("challenge");
+        return "short-lived-token";
+      },
+      refresh: async (request) => {
+        order.push(`refresh:${request.challengeToken}`);
+      },
     });
-    assert.equal((await (await coordinator.fetch()).json()).alreadyRunning, false);
-    const completed = await (await coordinator.fetch()).json();
-    assert.equal(completed.publicationAvailable, true);
-    assert.equal(completed.alreadyRunning, false);
-    assert.equal(calls.filter((url) => url.includes("/dispatches")).length, 1);
-    assert.equal(values.has("active"), false);
+    assert.equal(result.started, true);
+    assert.deepEqual(order, ["load", "challenge", "refresh:short-lived-token"]);
   } finally {
-    globalThis.fetch = originalFetch;
+    globalThis.window = previousWindow;
+  }
+});
+
+test("first-load challenge failure records a meaningful fallback without a workflow request", async () => {
+  const values = new Map();
+  const previousWindow = globalThis.window;
+  globalThis.window = {
+    sessionStorage: {
+      getItem: (key) => values.get(key) ?? null,
+      setItem: (key, value) => values.set(key, value),
+    },
+  };
+  try {
+    const requests = [];
+    const verificationError = new Error("Refresh verification failed.");
+    const result = await runAutomaticRefresh({
+      load: async () => {},
+      getChallenge: async () => { throw verificationError; },
+      refresh: async (request) => { requests.push(request); },
+    });
+    assert.equal(result.failed, true);
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].requestError, verificationError);
+    assert.equal(requests[0].challengeToken, undefined);
+  } finally {
+    globalThis.window = previousWindow;
   }
 });
 

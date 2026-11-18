@@ -16,6 +16,10 @@ on:
         description: "Optional audit label for a visitor-requested refresh"
         required: false
         default: "manual"
+      refresh_request_id:
+        description: "Broker correlation identifier"
+        required: false
+        default: ""
 
 # Allow the deployment job to publish to Pages and mint its own OIDC token.
 permissions:
@@ -93,6 +97,9 @@ jobs:
       # failed deploy.
       - name: Refresh and validate published data
         id: refresh_data
+        env:
+          REFRESH_REQUEST_ID: ${{ github.event.inputs.refresh_request_id }}
+          REFRESH_REASON: ${{ github.event.inputs.refresh_reason }}
         run: python data-service/scripts/export_static.py --force --previous-publication /tmp/previous-publication.json
 
       - name: Build static site

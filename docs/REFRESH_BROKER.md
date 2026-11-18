@@ -1,32 +1,44 @@
-# Optional secure refresh broker
+# Secure refresh broker
 
 GitHub Pages stays the production host. It cannot safely hold a GitHub token,
-so the **Refresh market data** action is intentionally unavailable until a
-small, separately deployed Cloudflare Worker is configured. The ordinary
-**Check for updates** action always works against Pages and needs no broker.
+so a small Cloudflare Worker brokers the workflow request. The Worker never
+hosts application assets and never runs Python. It exposes only:
+
+- `POST /api/refresh`
+- `GET /api/status`
+- `GET /api/health`
+
+Unknown or non-API routes return a controlled JSON `404`.
 
 The broker accepts only `POST /api/refresh` from the configured Pages origin.
 It verifies a short-lived Cloudflare Turnstile token and its action/hostname,
 then sends a `workflow_dispatch` request to the existing Pages workflow. A
 Durable Object serializes the check-and-dispatch critical section, so
 concurrent visitors receive `alreadyRunning` instead of dispatching duplicate
-Actions jobs. Its durable active marker protects against duplicates for up to
-20 minutes and is released as soon as the public manifest shows a publication
-generated after the request. GitHub Actions also retains its existing `pages`
+Actions jobs. The marker follows the actual queued/running GitHub workflow and
+does not release while the workflow is still active. If GitHub status cannot be
+checked, the lock remains in place rather than risking a duplicate scraper.
+Definitive failures receive a 15-minute backoff; successful publications receive
+a 15-minute cooldown. GitHub Actions also retains its existing `pages`
 concurrency group.
 
-The browser polls the Pages manifest and shows **Updated** only after a newer,
+On first application load, the browser renders its last valid local copy or the
+current published snapshot, checks the manifest, obtains the invisible
+Turnstile assertion, and starts or joins a refresh. A session claim prevents
+React StrictMode and route navigation from creating duplicate requests. The
+browser polls every 15 seconds for up to 50 minutes, covering the workflow's
+45-minute runner limit. It shows **Updated** only after a newer,
 manifest-matching and complete publication is actually visible. An accepted
 dispatch, a 200 response for unchanged JSON, or a timeout is never reported as
-updated. The previous valid browser snapshot remains visible on verification,
-dispatch, validation or timeout failure.
+updated. The previous valid snapshot remains visible on verification,
+dispatch, validation, workflow or timeout failure.
 
 ## Deploy
 
-1. Copy `frontend/worker/wrangler.refresh.example.toml` to a private
-   `wrangler.toml` beside `frontend/worker/index.js`; retain the Durable Object
-   binding, set the Pages origin/hostname exactly, and keep the Turnstile action
-   as `refresh`. The local `wrangler.toml` is git-ignored.
+1. Deploy beside `frontend/worker/index.js` with
+   `wrangler.refresh.example.toml`; retain the SQLite Durable Object binding and
+   migration, set the Pages origin/hostname exactly, and keep the Turnstile
+   action as `refresh`. The local `wrangler.toml` remains git-ignored.
 2. Configure a Turnstile widget for that Pages origin. Set the public site key
    as `VITE_TURNSTILE_SITE_KEY` during the Pages build and set its secret with
    `wrangler secret put TURNSTILE_SECRET_KEY`.
@@ -47,4 +59,6 @@ durable lock promptly.
 
 If any setting is absent the site remains fully static and keeps scheduled
 updates. The refresh dialog reports the feature as unavailable rather than
-falling back to an unsafe client-side GitHub request.
+falling back to an unsafe client-side GitHub request. Turnstile's
+[privacy addendum](https://www.cloudflare.com/turnstile-privacy-policy/) is
+referenced in the application's About panel and `PRIVACY.md`.

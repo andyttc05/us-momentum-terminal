@@ -17,13 +17,16 @@ import {
   validManifest,
 } from "./publicationStatus.js";
 import { waitForPublishedRefresh } from "./refreshPolling.js";
+import { automaticRefreshClaimed, runAutomaticRefresh } from "./autoRefresh.js";
+import { getRefreshChallenge } from "./refreshChallenge.js";
 
 const MarketContext = createContext(null);
 const STATIC_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
 const LOCAL_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 const STATIC_MODE = DATA_MODE === "static";
 const REFRESH_POLL_INTERVAL_MS = 15 * 1000;
-const REFRESH_POLL_TIMEOUT_MS = 12 * 60 * 1000;
+// This covers dispatch queueing plus the workflow's 45-minute runner limit.
+const REFRESH_POLL_TIMEOUT_MS = 50 * 60 * 1000;
 
 
 function cachedPublicationState() {
@@ -167,6 +170,32 @@ export function MarketProvider({ children }) {
     return { changed: !applied.skipped, payload, manifest, ...applied };
   }, [applyPayload, markPublicationVerified]);
 
+  const checkRefreshOutcome = useCallback(async (requestId) => {
+    const result = await checkPublishedSnapshot();
+    if (result.changed || !requestId) return result;
+    try {
+      const refreshStatus = await api.refreshStatus(requestId);
+      if (refreshStatus.status === "failed") {
+        throw new ApiError(refreshStatus.message || "The refresh workflow failed.", {
+          code: "refresh_workflow_failed",
+        });
+      }
+      if (refreshStatus.status === "timed_out") {
+        throw new ApiError(refreshStatus.message || "The refresh workflow timed out.", {
+          code: "refresh_workflow_timed_out",
+        });
+      }
+    } catch (statusError) {
+      // A status request is advisory. Publication polling remains authoritative
+      // unless the broker explicitly reports a terminal workflow state.
+      if (statusError?.code === "refresh_workflow_failed"
+        || statusError?.code === "refresh_workflow_timed_out") {
+        throw statusError;
+      }
+    }
+    return result;
+  }, [checkPublishedSnapshot]);
+
   const load = useCallback(async ({ isRefresh = false, trackCompletion = false, force = false } = {}) => {
     if (isRefresh) setRefreshing(true);
     if (trackCompletion) {
@@ -269,7 +298,9 @@ export function MarketProvider({ children }) {
     waitForPublishedRefresh({
       timeoutMs: remaining,
       intervalMs: REFRESH_POLL_INTERVAL_MS,
-      check: async () => mounted.current ? checkPublishedSnapshot() : { changed: true, cancelled: true },
+      check: async () => mounted.current
+        ? checkRefreshOutcome(pending.requestId)
+        : { changed: true, cancelled: true },
     }).then((result) => {
       if (cancelled || result.cancelled) return;
       const completed = {
@@ -305,7 +336,7 @@ export function MarketProvider({ children }) {
       cancelled = true;
       if (!settled) refreshResumeAttempted.current = false;
     };
-  }, [checkPublishedSnapshot, publishFinalNotice]);
+  }, [checkRefreshOutcome, publishFinalNotice]);
 
   useEffect(() => {
     if ((!refreshing && status !== "loading") || STATIC_MODE) return undefined;
@@ -359,9 +390,25 @@ export function MarketProvider({ children }) {
       if (!response?.accepted) {
         throw new ApiError("The refresh service did not queue an update.", { code: "refresh_rejected" });
       }
+      if (response.status === "succeeded" && response.publicationAvailable) {
+        const current = await checkPublishedSnapshot();
+        const completed = {
+          state: current.changed ? "updated" : "current",
+          requestedAt,
+          requestId: response.requestId,
+          completedAt: new Date().toISOString(),
+          result: current.changed ? "Published update available" : "Published data is current",
+          generatedAt: current.payload?.meta?.generated_at ?? response.generatedAt,
+        };
+        setRefreshAttempt(completed);
+        writeRefreshAttempt(completed);
+        if (current.changed) publishFinalNotice(current.payload?.meta);
+        return current.changed;
+      }
       const accepted = {
         ...requested,
         state: response.alreadyRunning ? "updating" : "queued",
+        requestId: response.requestId ?? null,
         result: response.alreadyRunning ? "An update is already running" : "Refresh queued",
       };
       setRefreshAttempt(accepted);
@@ -370,11 +417,14 @@ export function MarketProvider({ children }) {
       const result = await waitForPublishedRefresh({
         timeoutMs: REFRESH_POLL_TIMEOUT_MS,
         intervalMs: REFRESH_POLL_INTERVAL_MS,
-        check: async () => mounted.current ? checkPublishedSnapshot() : { changed: true, cancelled: true },
+        check: async () => mounted.current
+          ? checkRefreshOutcome(response.requestId)
+          : { changed: true, cancelled: true },
       });
       if (result.cancelled) return false;
       const completed = {
         state: "updated", requestedAt, completedAt: new Date().toISOString(),
+        requestId: response.requestId,
         result: "Published update available", generatedAt: result.payload?.meta?.generated_at,
       };
       setRefreshAttempt(completed);
@@ -396,7 +446,26 @@ export function MarketProvider({ children }) {
       if (refreshOperation.current === operation) refreshOperation.current = null;
       if (mounted.current) setRefreshing(false);
     }
-  }, [checkForUpdates, checkPublishedSnapshot, publishFinalNotice]);
+  }, [checkForUpdates, checkPublishedSnapshot, checkRefreshOutcome, publishFinalNotice]);
+
+  useEffect(() => {
+    if (!STATIC_MODE || !api.refreshBrokerEnabled || automaticRefreshClaimed()) return undefined;
+    const pending = readRefreshAttempt();
+    if (pending && ["updating", "queued"].includes(pending.state)) return undefined;
+
+    // Keep the cached/first published snapshot on screen while this background
+    // request runs. The timer is intentionally claimed only when it fires so a
+    // StrictMode effect replay still leaves one live timer.
+    const timer = window.setTimeout(() => {
+      runAutomaticRefresh({
+        load: () => load({ isRefresh: Boolean(initialCache.current) }),
+        getChallenge: getRefreshChallenge,
+        refresh: refreshMarketData,
+        isMounted: () => mounted.current,
+      });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [load, refreshMarketData]);
 
   const selectProvider = useCallback(async (providerId) => {
     if (STATIC_MODE) return { ok: false, message: "Provider selection is available in the local service." };

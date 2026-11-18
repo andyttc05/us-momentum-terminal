@@ -130,6 +130,7 @@ export function DataStatusDialog({ open, onClose }) {
           <div><dt>Publication version</dt><dd>{publicationVersion ?? "—"}</dd></div>
           <div><dt>Last refresh attempt</dt><dd>{refreshAttempt?.requestedAt ? formatTimestamp(refreshAttempt.requestedAt) : "None"}</dd></div>
           <div><dt>Refresh result</dt><dd>{refreshAttempt?.result ?? "No request yet"}</dd></div>
+          {refreshAttempt?.requestId && <div><dt>Refresh request</dt><dd>{refreshAttempt.requestId}</dd></div>}
           <div><dt>Eligible stocks</dt><dd>{data?.stocks?.length ?? "—"}</dd></div>
           <div><dt>Browser cache</dt><dd>{browserCachedAt ? formatTimestamp(browserCachedAt) : "Not stored"}</dd></div>
           {staticSnapshot && (

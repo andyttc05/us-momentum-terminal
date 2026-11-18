@@ -17,6 +17,16 @@ export async function waitForPublishedRefresh({
       // GitHub Pages updates its small files through a CDN. A manifest can
       // become visible a few seconds before the publication beneath it. Keep
       // polling in that case; the caller only applies a fully matching pair.
+      const transientCodes = new Set([
+        "publication_mismatch",
+        "missing_snapshot",
+        "static_failed",
+        "offline",
+        "timeout",
+        "refresh_status_unavailable",
+        "refresh_status_timeout",
+      ]);
+      if (!transientCodes.has(error?.code)) throw error;
       lastCheckError = error;
       continue;
     }
