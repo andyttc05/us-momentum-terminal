@@ -154,6 +154,39 @@ class CacheRetentionTests(unittest.TestCase):
 
 
 class DiagnosticsTests(unittest.TestCase):
+    def test_curated_universe_metadata_survives_a_quote_endpoint_omission(self) -> None:
+        result = SeriesResult(
+            symbol="AAPL",
+            bars=bars(symbol="AAPL"),
+            source="yahoo",
+            source_label="Yahoo Finance",
+            fetched_at="2026-11-18T00:00:00+00:00",
+            adjusted=True,
+        )
+        previous = {
+            "stocks": [{
+                "ticker": "AAPL",
+                "exchange": "NASDAQ",
+                "company": "Apple",
+                "sector": "Technology",
+                "marketCap": 3_000_000_000_000,
+                "marketCapCurrency": "USD",
+                "marketCapFetchedAt": "2026-11-18T00:00:00+00:00",
+                "quoteSource": "yahoo",
+            }],
+        }
+        quotes = {}
+        snapshot_module._merge_verified_quote_metadata(
+            quotes,
+            snapshot_module._verified_quote_fallbacks([previous]),
+        )
+        eligible, excluded, _ = snapshot_module._assess_universe(
+            {"AAPL": snapshot_module.to_symbol_series(result)},
+            quotes,
+        )
+        self.assertIn("AAPL", eligible)
+        self.assertEqual(excluded, [])
+
     def test_diagnostics_use_runtime_symbols_and_portfolio_reasons(self) -> None:
         result = SeriesResult(
             symbol="AAA",
@@ -193,6 +226,7 @@ class DiagnosticsTests(unittest.TestCase):
             detail_candidates=["AAA"],
             quotes={"AAA": {"float_shares": 10_000}},
             detail_failures=[],
+            cached_quote_symbols=[],
             cached_fundamental_symbols=["AAA"],
             portfolios={
                 "top100": {

@@ -142,6 +142,68 @@ def _verified_fundamental_fallbacks(
     return fallbacks
 
 
+def _verified_quote_fallbacks(
+    payloads: list[dict | None],
+    *,
+    now: datetime | None = None,
+) -> dict[str, dict]:
+    """Reuse recent verified quote metadata when Yahoo's quote endpoint omits it."""
+    current = now or datetime.now(timezone.utc)
+    maximum_age = settings.fundamental_fallback_max_age
+    fallbacks: dict[str, dict] = {}
+    for payload in payloads:
+        for stock in (payload or {}).get("stocks", []):
+            ticker = str(stock.get("ticker") or "").upper()
+            fetched_at = stock.get("marketCapFetchedAt")
+            exchange = stock.get("exchange")
+            if not ticker or ticker in fallbacks or not exchange:
+                continue
+            try:
+                fetched = datetime.fromisoformat(str(fetched_at).replace("Z", "+00:00"))
+            except (TypeError, ValueError):
+                continue
+            if fetched.tzinfo is None:
+                fetched = fetched.replace(tzinfo=timezone.utc)
+            age_seconds = max(0.0, (current - fetched).total_seconds())
+            if age_seconds > maximum_age:
+                continue
+            fallbacks[ticker] = {
+                "exchange": exchange,
+                "name": stock.get("company"),
+                "sector": stock.get("sector"),
+                "market_cap": stock.get("marketCap"),
+                "currency": stock.get("marketCapCurrency"),
+                "source": stock.get("quoteSource") or stock.get("source") or "yahoo",
+                "fetched_at": fetched_at,
+                "cache_age_seconds": round(age_seconds, 1),
+            }
+    return fallbacks
+
+
+def _merge_verified_quote_metadata(
+    quotes: dict[str, dict],
+    fallbacks: dict[str, dict],
+) -> list[str]:
+    """Fill only missing quote fields and identify symbols using verified cache."""
+    used: list[str] = []
+    for symbol, fallback in fallbacks.items():
+        quote = dict(quotes.get(symbol) or {})
+        changed = False
+        for key in ("exchange", "name", "sector", "market_cap", "currency"):
+            if quote.get(key) in (None, "") and fallback.get(key) not in (None, ""):
+                quote[key] = fallback[key]
+                changed = True
+        if changed:
+            quote.update({
+                "cached": True,
+                "cache_age_seconds": fallback["cache_age_seconds"],
+                "detail_level": quote.get("detail_level") or "verified-quote-cache",
+            })
+            quotes[symbol] = quote
+            used.append(symbol)
+    return used
+
+
 def _merge_verified_fundamentals(
     scored: list[dict],
     quotes: dict[str, dict],
@@ -1007,7 +1069,11 @@ def _assess_universe(
             continue
         quote_type = str(
             quote.get("quote_type")
-            or (member.instrument_type.upper().replace(" ", "_") if member.source != "core" else "")
+            # The curated universe carries audited instrument type, exchange
+            # and USD classification. Provider metadata enriches that record,
+            # but a quote-endpoint omission cannot relabel a known US common
+            # stock as ineligible or manufacture a different security type.
+            or member.instrument_type.upper().replace(" ", "_")
         ).upper()
         if quote_type not in {"EQUITY", "COMMON_STOCK"}:
             exclude("provider did not verify a common-stock security type", "security_type")
@@ -1019,7 +1085,7 @@ def _assess_universe(
                 "exchange",
             )
             continue
-        currency = str(quote.get("currency") or ("USD" if member.source != "core" else "")).upper()
+        currency = str(quote.get("currency") or "USD").upper()
         if currency != "USD":
             exclude("provider did not verify USD currency", "currency")
             continue
@@ -1254,6 +1320,7 @@ def _refresh_diagnostics(
     detail_candidates: list[str],
     quotes: dict[str, dict],
     detail_failures: list[dict],
+    cached_quote_symbols: list[str],
     cached_fundamental_symbols: list[str],
     portfolios: dict[str, dict],
 ) -> dict:
@@ -1361,6 +1428,9 @@ def _refresh_diagnostics(
             ),
             "verifiedCacheFallbacks": list(cached_fundamental_symbols),
             "providerFailures": detail_failures,
+        },
+        "quoteMetadata": {
+            "verifiedCacheFallbacks": list(cached_quote_symbols),
         },
         "portfolio": portfolio_diagnostics,
         "priceRecovery": failures,
@@ -1540,6 +1610,10 @@ def build_publication(force: bool = False, progress=None, previous_publication: 
             loaded_tickers,
             progress=(lambda completed: progress("loading_quotes", completed, len(loaded_tickers))) if progress else None,
         )
+        quote_fallbacks = _verified_quote_fallbacks(
+            [previous_publication, seed_publication]
+        )
+        cached_quote_symbols = _merge_verified_quote_metadata(quotes, quote_fallbacks)
         if progress:
             progress("loading_quotes", len(quotes), len(loaded_tickers))
         if progress:
@@ -1704,6 +1778,7 @@ def build_publication(force: bool = False, progress=None, previous_publication: 
             detail_candidates=detail_candidates,
             quotes=quotes,
             detail_failures=fundamental_failures,
+            cached_quote_symbols=cached_quote_symbols,
             cached_fundamental_symbols=cached_fundamental_symbols,
             portfolios=portfolios,
         )
@@ -1787,6 +1862,10 @@ def build_publication(force: bool = False, progress=None, previous_publication: 
         if portfolio_cached_fundamentals:
             warnings.append(
                 f"{len(portfolio_cached_fundamentals)} holding(s) reused verified cached float-share metadata"
+            )
+        if cached_quote_symbols:
+            warnings.append(
+                f"{len(cached_quote_symbols)} symbol(s) reused verified cached quote metadata"
             )
         if missing_current_fundamentals:
             warnings.append(
