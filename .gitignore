@@ -67,6 +67,8 @@ frontend/worker/wrangler.toml
 # Market-data cache. Contains provider-retrieved price history and is
 # recreated on demand, so it must not be committed.
 data-service/cache/
+# Generated diagnostic reports from audit/probe scripts.
+data-service/docs/
 *.log
 logs/
 tmp/

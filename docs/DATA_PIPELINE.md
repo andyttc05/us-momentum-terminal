@@ -24,6 +24,25 @@ serves before its first live build and must not describe an older weighting rule
 the validator and the browser all compare it, so a visitor with a cached linear-weight publication is
 sent to the new one instead of seeing old weights presented as current.
 
+## Provider behavior
+
+Yahoo Finance through `yfinance` is the default provider. It supplies adjusted daily bars, OHLCV,
+dividends, splits and current quote metadata. Optional Twelve Data and FMP adapters require
+server-side API keys. Stooq remains disabled because its anonymous export is blocked and it does not
+provide adjusted closes.
+
+Yahoo is an unofficial provider with no published service-level guarantee. The collection path:
+
+- requests small serialized batches with a client-side rate limiter;
+- retries transient failures with bounded exponential backoff;
+- rejects empty, truncated, or unadjusted ticker series;
+- retries omitted tickers individually through the provider chain;
+- serializes detailed quote recovery to avoid Yahoo metadata rate limits;
+- records ticker-level failures instead of fabricating bars or fundamental values.
+
+No CAPTCHA or access-control bypass is implemented. Provider keys remain server-side and are never
+included in a browser request or static publication.
+
 ## Published files
 
 | File | Purpose |
@@ -111,6 +130,9 @@ manual **Check for updates** revalidates the manifest without replacing the visi
 its identity is unchanged. An optional **Refresh market data** action calls a separate authenticated
 broker; the browser waits for the Pages publication identity to change before reporting **Updated**.
 An accepted dispatch or unchanged JSON response alone never counts as an update.
+
+Live diagnostics write to the git-ignored `data-service/docs/` directory. Provider probes, data-quality
+audits, verification reports and sensitivity results are development evidence, not production data.
 
 ## Failure states
 

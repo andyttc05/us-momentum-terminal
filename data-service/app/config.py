@@ -119,3 +119,4 @@ class Settings:
 
 settings = Settings()
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
+DOCS_DIR.mkdir(parents=True, exist_ok=True)

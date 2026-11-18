@@ -98,9 +98,9 @@ export function ProjectInfo() {
               <span>README</span>
               <ArrowUpRight size={14} weight="bold" aria-hidden="true" />
             </a>
-            <a href={`${repositoryUrl}/blob/main/docs/TECHNICAL_DOCUMENTATION.md`} target="_blank" rel="noreferrer">
+            <a href={`${repositoryUrl}/blob/main/docs/METHODOLOGY.md`} target="_blank" rel="noreferrer">
               <FileText size={18} weight="regular" aria-hidden="true" />
-              <span>Technical Documentation</span>
+              <span>Methodology</span>
               <ArrowUpRight size={14} weight="bold" aria-hidden="true" />
             </a>
           </nav>
