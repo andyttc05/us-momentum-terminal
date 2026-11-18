@@ -384,18 +384,20 @@ export function MarketProvider({ children }) {
     const requested = { state: "updating", requestedAt, result: "Refresh requested" };
     setRefreshAttempt(requested);
     writeRefreshAttempt(requested);
+    let requestId = null;
     try {
       if (requestError) throw requestError;
       const response = await api.requestMarketRefresh(challengeToken);
       if (!response?.accepted) {
         throw new ApiError("The refresh service did not queue an update.", { code: "refresh_rejected" });
       }
+      requestId = response.requestId ?? null;
       if (response.status === "succeeded" && response.publicationAvailable) {
         const current = await checkPublishedSnapshot();
         const completed = {
           state: current.changed ? "updated" : "current",
           requestedAt,
-          requestId: response.requestId,
+          requestId,
           completedAt: new Date().toISOString(),
           result: current.changed ? "Published update available" : "Published data is current",
           generatedAt: current.payload?.meta?.generated_at ?? response.generatedAt,
@@ -408,7 +410,7 @@ export function MarketProvider({ children }) {
       const accepted = {
         ...requested,
         state: response.alreadyRunning ? "updating" : "queued",
-        requestId: response.requestId ?? null,
+        requestId,
         result: response.alreadyRunning ? "An update is already running" : "Refresh queued",
       };
       setRefreshAttempt(accepted);
@@ -424,7 +426,7 @@ export function MarketProvider({ children }) {
       if (result.cancelled) return false;
       const completed = {
         state: "updated", requestedAt, completedAt: new Date().toISOString(),
-        requestId: response.requestId,
+        requestId,
         result: "Published update available", generatedAt: result.payload?.meta?.generated_at,
       };
       setRefreshAttempt(completed);
@@ -435,6 +437,7 @@ export function MarketProvider({ children }) {
     } catch (requestError) {
       const failed = {
         state: "failed", requestedAt, completedAt: new Date().toISOString(),
+        requestId,
         result: requestError.message, code: requestError.code ?? "refresh_failed",
       };
       setRefreshAttempt(failed);

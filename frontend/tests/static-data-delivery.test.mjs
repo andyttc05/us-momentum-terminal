@@ -63,6 +63,7 @@ test("frontend hydrates cache first and uses same-origin static paths", () => {
   assert.match(automatic, /sessionStorage/);
   assert.match(provider, /REFRESH_POLL_INTERVAL_MS = 15 \* 1000/);
   assert.match(provider, /REFRESH_POLL_TIMEOUT_MS = 50 \* 60 \* 1000/);
+  assert.match(provider, /const failed = \{[\s\S]*?requestId,[\s\S]*?result: requestError\.message/);
 });
 
 test("GitHub Pages deploys a static scheduled snapshot without secrets", () => {
