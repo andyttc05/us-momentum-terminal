@@ -56,31 +56,33 @@
 .stock-profile__art { position: relative; z-index: 0; flex: 0 0 auto; width: 168px; height: 124px; opacity: 0.94; pointer-events: none; }
 .stock-profile__art .mascot-duo { width: 100%; height: 100%; }
 
-.stock-price-summary { display: flex; min-width: 0; align-items: center; gap: clamp(10px, 1.5vw, 22px); padding: 10px var(--card-padding-inline); border: 1px solid rgb(234 228 220 / 78%); border-radius: var(--radius-lg); background: var(--color-surface); box-shadow: var(--shadow-card); }
+/* Three blocks on one baseline: price, market cap, rank. They share the row
+   evenly (price gets a little more, since it carries two numbers) and are
+   separated by hairlines, so the rank block is as roomy as the market cap
+   beside it instead of hugging its own text. */
+.stock-price-summary { display: flex; min-width: 0; align-items: center; column-gap: clamp(10px, 1.5vw, 22px); padding: 10px var(--card-padding-inline); border: 1px solid rgb(234 228 220 / 78%); border-radius: var(--radius-lg); background: var(--color-surface); box-shadow: var(--shadow-card); }
 .stock-price-summary__price { color: var(--color-ink); font-size: clamp(2.1rem, 3.6vw, 3.4rem); font-weight: var(--font-weight-black); letter-spacing: -0.055em; line-height: 1; white-space: nowrap; }
 .stock-price-change { display: inline-flex; min-height: 42px; align-items: center; justify-content: center; padding: 0 15px; border-radius: var(--radius-pill); font-size: clamp(0.82rem, 1.1vw, 1.15rem); font-weight: var(--font-weight-black); white-space: nowrap; }
 .stock-price-change.is-positive { background: var(--color-positive-soft); color: #078C47; }
 .stock-price-change.is-negative { background: var(--color-negative-soft); color: #D74B5B; }
-.stock-price-summary__divider { width: 1px; height: 38px; background: var(--color-line); }
-/* The last divider takes the slack so the ranking badge stays on the right. */
-.stock-price-summary__divider--last { margin-left: auto; }
-.stock-market-cap { display: inline-flex; align-items: center; gap: 11px; color: var(--color-ink); }
-.stock-market-cap > svg { flex: 0 0 auto; color: var(--color-ink); }
-.stock-market-cap__copy { display: grid; gap: 2px; line-height: 1.2; }
-.stock-market-cap__label { color: var(--color-text-secondary); font-size: var(--font-size-meta); font-weight: var(--font-weight-bold); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
-.stock-market-cap__value { font-size: 1.02rem; font-weight: var(--font-weight-black); font-variant-numeric: tabular-nums; white-space: nowrap; }
-/* Ranking tier colours: the badge reflects the stock's percentile inside the
-   eligible universe (top quintile green, middle 60% yellow, bottom quintile red). */
-/* One white pill for every tier: the rank colours the ink, not the surface, so
-   the summary row stays a row of white cards and nothing shouts. */
-.stock-rank-pill { display: inline-flex; min-height: 42px; flex: 0 0 auto; align-items: center; gap: 9px; padding: 0 16px; border: 1px solid var(--color-line); border-radius: var(--radius-pill); background: var(--color-surface); color: var(--color-text-secondary); font-size: 0.96rem; white-space: nowrap; }
-.stock-rank-pill--top { color: #16864A; }
-.stock-rank-pill--mid { color: #735500; }
-.stock-rank-pill--low { color: #D64545; }
-.stock-rank-pill--unknown { color: var(--color-text-secondary); }
-.stock-rank-pill svg { color: currentColor; }
-.stock-rank-pill--top svg { color: #F5C400; }
-.stock-rank-pill strong { font-weight: var(--font-weight-black); }
+.stock-summary-block { display: flex; min-width: 0; align-items: center; gap: 11px; }
+/* Market cap and rank split whatever the price block leaves, evenly, and never
+   shrink below their own text — which is what gives the rank block the same
+   room as the market cap beside it. */
+.stock-summary-block + .stock-summary-block { flex: 1 1 0; min-width: max-content; padding-left: clamp(10px, 1.5vw, 22px); border-left: 1px solid var(--color-line); }
+.stock-summary-block--price { gap: clamp(8px, 1vw, 14px); }
+.stock-summary-block > svg { flex: 0 0 auto; color: var(--color-ink); }
+.stock-summary-block__copy { display: grid; min-width: 0; gap: 2px; line-height: 1.2; }
+.stock-summary-block__label { color: var(--color-text-secondary); font-size: var(--font-size-meta); font-weight: var(--font-weight-bold); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
+.stock-summary-block__value { font-size: 1.02rem; font-weight: var(--font-weight-black); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Ranking tier colours: the value carries the percentile inside the eligible
+   universe (top quintile green, middle 60% gold, bottom quintile red). The
+   crown is the block's icon, so it stays gold and does not double the signal. */
+.stock-summary-block__value--top { color: #16864A; }
+.stock-summary-block__value--mid { color: #735500; }
+.stock-summary-block__value--low { color: #D64545; }
+.stock-summary-block__value--unknown { color: var(--color-text-secondary); }
+
 
 .stock-price-card { display: flex; min-height: 0; flex-direction: column; padding: 14px 14px 10px; }
 /* Eight ranges plus a scale switch: the row wraps rather than shrinking the
@@ -290,10 +292,11 @@
   .stock-profile { min-height: 100px; }
   .stock-profile > .mascot-svg { width: 66px; height: 66px; }
   .stock-profile__art { width: 140px; height: 100px; }
-  .stock-price-summary { padding: 8px 14px; gap: 12px; }
+  .stock-price-summary { padding: 8px 14px; column-gap: 12px; }
   .stock-price-summary__price { font-size: 2.55rem; }
-  .stock-price-change,
-  .stock-rank-pill { min-height: 37px; padding-inline: 12px; font-size: 0.85rem; }
+  .stock-price-change { min-height: 37px; padding-inline: 12px; font-size: 0.85rem; }
+  .stock-summary-block { gap: 9px; }
+  .stock-summary-block + .stock-summary-block { padding-left: 12px; }
   .stock-price-card { padding: 9px 11px 7px; }
   .stock-price-toolbar { min-height: 36px; }
   .stock-price-toolbar button { min-width: 42px; min-height: 29px; padding-inline: 9px; font-size: 0.8rem; }
@@ -344,11 +347,10 @@
   .stock-profile h1 { white-space: normal; }
   .stock-profile__title-row { flex-wrap: wrap; gap: 8px; }
 
+  /* Stacked: the hairlines belong to the single-row layout, so they go. */
   .stock-price-summary { flex-wrap: wrap; row-gap: 10px; }
-  .stock-price-summary__divider { display: none; }
   .stock-price-summary__price { font-size: 2.1rem; }
-  .stock-market-cap { flex: 1 1 auto; }
-  .stock-rank-pill { min-height: 38px; font-size: 0.9rem; }
+  .stock-summary-block + .stock-summary-block { padding-left: 0; border-left: 0; }
 
   /* Two rows of two: one row of four cannot show "12M Price Return" above a
      90px-wide pill without the labels touching. The vertical rules belong to

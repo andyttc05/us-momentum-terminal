@@ -600,35 +600,45 @@ export function StockAnalysisPage({ ticker = "NVDA", onBack, backLabel = "Screen
           </header>
 
           <section className="stock-price-summary" aria-label={`${ticker} price summary`}>
-            <strong className="stock-price-summary__price">
-              {summaryState === "loading"
-                ? <Skeleton width="170px" height="0.72em" />
-                : stock ? formatMoney(stock.price) : "—"}
-            </strong>
-            <span className={`stock-price-change ${stock ? ((stock.change ?? 0) >= 0 ? "is-positive" : "is-negative") : "is-unavailable"}`}>
-              {summaryState === "loading"
-                ? <Skeleton width="118px" height="14px" />
-                : stock ? <>{stock.changeAbsolute > 0 ? "+" : stock.changeAbsolute < 0 ? "−" : ""}{formatMoney(Math.abs(stock.changeAbsolute))} ({signedPercent(stock.change, 2)})</> : "—"}
-            </span>
-            <span className="stock-price-summary__divider" aria-hidden="true" />
-            <span className="stock-market-cap">
+            <div className="stock-summary-block stock-summary-block--price">
+              <strong className="stock-price-summary__price">
+                {summaryState === "loading"
+                  ? <Skeleton width="170px" height="0.72em" />
+                  : stock ? formatMoney(stock.price) : "—"}
+              </strong>
+              <span className={`stock-price-change ${stock ? ((stock.change ?? 0) >= 0 ? "is-positive" : "is-negative") : "is-unavailable"}`}>
+                {summaryState === "loading"
+                  ? <Skeleton width="118px" height="14px" />
+                  : stock ? <>{stock.changeAbsolute > 0 ? "+" : stock.changeAbsolute < 0 ? "−" : ""}{formatMoney(Math.abs(stock.changeAbsolute))} ({signedPercent(stock.change, 2)})</> : "—"}
+              </span>
+            </div>
+            {/* Market cap and rank are the same block: icon, label, value. The rank
+                used to be a pill, which gave it far less room than its neighbours. */}
+            <div className="stock-summary-block">
               <Stack size={24} weight="regular" aria-hidden="true" />
-              <span className="stock-market-cap__copy">
-                <span className="stock-market-cap__label">Market Cap</span>
-                <strong className="stock-market-cap__value">
+              <span className="stock-summary-block__copy">
+                <span className="stock-summary-block__label">Market Cap</span>
+                <strong className="stock-summary-block__value">
                   {summaryState === "loading"
                     ? <Skeleton width="82px" height="13px" />
                     : formatMarketCap(stock?.marketCap)}
                 </strong>
               </span>
-            </span>
-            <span className="stock-price-summary__divider stock-price-summary__divider--last" aria-hidden="true" />
-            <span className={`stock-rank-pill stock-rank-pill--${rankTier}`}>
-              {stock?.rank === 1 && <CrownSimple size={24} weight="fill" aria-hidden="true" />}
-              {summaryState === "loading"
-                ? <Skeleton width="82px" height="14px" />
-                : <strong>Rank #{stock?.rank ?? "—"}</strong>}
-            </span>
+            </div>
+            <div className="stock-summary-block">
+              <CrownSimple size={24} weight="fill" aria-hidden="true" />
+              <span className="stock-summary-block__copy">
+                <span className="stock-summary-block__label">Rank</span>
+                <strong
+                  className={`stock-summary-block__value stock-summary-block__value--${rankTier}`}
+                  title={stock?.rank == null ? "No rank available" : `Rank #${stock.rank}`}
+                >
+                  {summaryState === "loading"
+                    ? <Skeleton width="60px" height="14px" />
+                    : stock?.rank == null ? "—" : `#${stock.rank}`}
+                </strong>
+              </span>
+            </div>
           </section>
 
           <section className="dashboard-card stock-price-card" aria-label={`${ticker} historical price chart`}>

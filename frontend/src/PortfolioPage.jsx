@@ -66,6 +66,7 @@ const liveColumns = [
   ["score", "Score", "Momentum Score", "score"],
   ["momentum", "12–1", "12–1 Momentum", "score"],
   ["floatMarketCap", "Float Cap", "Float-Adjusted Market Cap", "market-cap"],
+  ["weight", "Weight", "Target Weight", "final-weight"],
   ["status", "Status", "Portfolio Status", "status"],
 ];
 
@@ -240,22 +241,27 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
     [portfolioHoldings, holdingsSort],
   );
 
-  // Live signals are shown as one flat list of the strongest names; the status
-  // column reads from the book, so both tables carry the same row shape.
-  const liveRows = useMemo(() => liveSignals.slice(0, 20).map((row, index) => {
-    const held = portfolioHoldings.some((holding) => holding.ticker === row.ticker);
-    const potential = row.activePortfolioStatus === "potential_new_entry";
-    return {
-      rank: row.rank ?? index + 1,
-      ticker: row.ticker,
-      sector: row.sector,
-      score: Number(row.score ?? row.momentumScore ?? 0),
-      momentum: Number(row.momentum ?? 0),
-      floatMarketCap: row.floatMarketCap,
-      status: held ? "Currently Held" : potential ? "Potential New Entry" : "Outside Active Portfolio",
-      held,
-    };
-  }), [liveSignals, portfolioHoldings]);
+  // Live signals cover the book the page is showing — 100 names for Top 100,
+  // 20 for Top 20 — and each row carries the weight the book assigns it.
+  const liveRows = useMemo(() => {
+    const weights = new Map(portfolioHoldings.map((holding) => [holding.ticker, holding.finalWeight]));
+    return liveSignals.slice(0, targetHoldings).map((row, index) => {
+      const weight = weights.get(row.ticker);
+      const held = weight !== undefined;
+      const potential = row.activePortfolioStatus === "potential_new_entry";
+      return {
+        rank: row.rank ?? index + 1,
+        ticker: row.ticker,
+        sector: row.sector,
+        score: Number(row.score ?? row.momentumScore ?? 0),
+        momentum: Number(row.momentum ?? 0),
+        floatMarketCap: row.floatMarketCap,
+        weight: Number.isFinite(weight) ? weight : null,
+        status: held ? "Currently Held" : potential ? "Potential New Entry" : "Outside Active Portfolio",
+        held,
+      };
+    });
+  }, [liveSignals, portfolioHoldings, targetHoldings]);
 
   const sortedLiveRows = useMemo(
     () => [...liveRows].sort(compareBy(liveSort.key, liveSort.direction)),
@@ -474,6 +480,7 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
                     <col className="portfolio-col-live-score" />
                     <col className="portfolio-col-live-momentum" />
                     <col className="portfolio-col-live-market-cap" />
+                    <col className="portfolio-col-live-weight" />
                     <col className="portfolio-col-live-status" />
                   </colgroup>
                   <ColumnHeadings
@@ -509,6 +516,7 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
                         <td className="portfolio-number-cell">{row.score.toFixed(2)}</td>
                         <td className="portfolio-number-cell">{row.momentum.toFixed(1)}%</td>
                         <td className="portfolio-number-cell">{formatLiveMarketCap(row.floatMarketCap)}</td>
+                        <td className="portfolio-number-cell is-emphasis">{row.weight === null ? "—" : displayPercent(row.weight)}</td>
                         <td className={`portfolio-status-cell${row.held ? " is-held" : ""}`}>{row.status}</td>
                       </tr>
                     )) : (

@@ -76,8 +76,12 @@
 .screener-table th.stock-heading--score { text-align: center; }
 .screener-table th.stock-heading--market-cap { text-align: right; }
 
+/* Every portfolio heading follows its cells: rank and status read from the left
+   edge, the figures from the right. A centred heading over right-aligned
+   numbers is what makes a column look out of line. */
 .portfolio-table th.portfolio-heading--rank,
-.portfolio-table th.portfolio-heading--score { text-align: center; }
+.portfolio-table th.portfolio-heading--status { text-align: left; }
+.portfolio-table th.portfolio-heading--score,
 .portfolio-table th.portfolio-heading--market-cap,
 .portfolio-table th.portfolio-heading--raw-weight,
 .portfolio-table th.portfolio-heading--final-weight { text-align: right; }
@@ -90,9 +94,10 @@
 .screener-table th.stock-heading--momentum button,
 .screener-table th.stock-heading--score button,
 .portfolio-table th.portfolio-heading--rank button,
-.portfolio-table th.portfolio-heading--score button { justify-content: center; }
+.portfolio-table th.portfolio-heading--status button { justify-content: flex-start; }
 
 .screener-table th.stock-heading--market-cap button,
+.portfolio-table th.portfolio-heading--score button,
 .portfolio-table th.portfolio-heading--market-cap button,
 .portfolio-table th.portfolio-heading--raw-weight button,
 .portfolio-table th.portfolio-heading--final-weight button { justify-content: flex-end; }

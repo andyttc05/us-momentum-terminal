@@ -7,6 +7,7 @@ const source = (path) => readFileSync(fileURLToPath(new URL(path, import.meta.ur
 const portfolioPage = source("../src/PortfolioPage.jsx");
 const portfolioCss = source("../src/styles/portfolio.css");
 const screenerCss = source("../src/styles/screener.css");
+const tableCss = source("../src/styles/tables.css");
 
 test("the Portfolio page preserves its table shell with component-level loading", () => {
   assert.doesNotMatch(portfolioPage, /portfolio-data-notice/);
@@ -52,9 +53,11 @@ test("Portfolio holding rows use the Screener row rhythm and hover treatment", (
 });
 
 test("both tables align their numbers the same way, with no decorative cells", () => {
-  assert.match(portfolioCss, /\.portfolio-heading--score,\n\.portfolio-heading--market-cap,\n\.portfolio-heading--final-weight \{ text-align: right; \}/);
+  // Heading alignment lives once, in tables.css, so it cannot drift from the cells.
+  assert.match(tableCss, /\.portfolio-table th\.portfolio-heading--rank,\n\.portfolio-table th\.portfolio-heading--status \{ text-align: left; \}/);
+  assert.match(tableCss, /\.portfolio-table th\.portfolio-heading--score,\n\.portfolio-table th\.portfolio-heading--market-cap,\n\.portfolio-table th\.portfolio-heading--raw-weight,\n\.portfolio-table th\.portfolio-heading--final-weight \{ text-align: right; \}/);
+  assert.doesNotMatch(portfolioCss, /portfolio-heading--/);
   assert.match(portfolioCss, /\.portfolio-number-cell \{ text-align: right; \}/);
-  assert.match(portfolioCss, /\.portfolio-table th\.portfolio-heading--rank \{ text-align: center; \}/);
   // Rank badges and score pills are gone: the two tables now share one cell style.
   assert.doesNotMatch(portfolioCss, /\.portfolio-score-cell|\.portfolio-rank-cell span|\.portfolio-weight-value-cell/);
   assert.match(portfolioPage, /<td className="portfolio-number-cell">/);
