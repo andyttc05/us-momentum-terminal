@@ -23,14 +23,17 @@ function weeklyDates(count) {
 const DATES = weeklyDates(626); // ~12 years of Fridays
 
 test("the five ranges are offered and 1Y is the default", () => {
-  assert.deepEqual(priceRanges, ["1Y", "3Y", "5Y", "10Y", "ALL"]);
+  assert.deepEqual(priceRanges, ["6M", "1Y", "3Y", "5Y", "ALL"]);
   assert.equal(DEFAULT_RANGE, "1Y");
   assert.equal(rangeDays.ALL, null);
   for (const range of priceRanges.filter((item) => item !== "ALL")) {
     assert.ok(rangeDays[range] > 0, range);
   }
-  // The sub-year windows are gone, not merely hidden.
-  for (const gone of ["1M", "3M", "6M"]) {
+  // The half-year window replaced the ten-year one, which the weekly sample
+  // never actually filled for most names.
+  assert.equal(rangeDays["10Y"], undefined);
+  assert.ok(rangeDays["6M"] < rangeDays["1Y"]);
+  for (const gone of ["1M", "3M", "10Y"]) {
     assert.equal(rangeDays[gone], undefined);
   }
 });
@@ -38,20 +41,20 @@ test("the five ranges are offered and 1Y is the default", () => {
 test("each range starts at the first observation inside its calendar window", () => {
   const oneYear = rangeStartIndex(DATES, "1Y");
   const threeYears = rangeStartIndex(DATES, "3Y");
-  const tenYears = rangeStartIndex(DATES, "10Y");
-  // 52 weeks per year, so 1Y lands on the 53rd-from-last observation.
+  const sixMonths = rangeStartIndex(DATES, "6M");
+  // 52 weeks per year, so 1Y lands on the 53rd-from-last observation and the
+  // half-year window on roughly half of that.
   assert.equal(DATES.length - oneYear, 53);
   assert.ok(DATES.length - threeYears > 155 && DATES.length - threeYears < 160);
-  assert.ok(DATES.length - tenYears > 520 && DATES.length - tenYears < 526);
+  assert.ok(DATES.length - sixMonths > 25 && DATES.length - sixMonths < 29);
+  assert.ok(sixMonths > oneYear);
   assert.ok(threeYears < oneYear);
-  assert.ok(tenYears < threeYears);
   // ALL keeps every observation.
   assert.equal(rangeStartIndex(DATES, "ALL"), 0);
 });
 
 test("a window the series cannot reach falls back to the first real observation", () => {
   const short = DATES.slice(-60); // barely a year
-  assert.equal(rangeStartIndex(short, "10Y"), 0);
   assert.equal(rangeStartIndex(short, "5Y"), 0);
   assert.ok(rangeStartIndex(short.slice(-20), "1Y") >= 0);
   // Nothing is invented: the caller simply draws from index 0.
@@ -79,9 +82,10 @@ test("axis labels follow the window: months, quarters, then years", () => {
   // January is labelled with the year, which is what anchors a 12-month axis.
   assert.ok(monthTicks.every((tick) => /^(\d{4}|[A-Z][a-z]{2})$/.test(tick.label)));
 
-  const decade = DATES.slice(rangeStartIndex(DATES, "10Y"));
-  const yearTicks = timeTicks(decade, "10Y");
-  assert.ok(yearTicks.length >= 9 && yearTicks.length <= 12, String(yearTicks.length));
+  const decade = DATES.slice(rangeStartIndex(DATES, "ALL"));
+  const yearTicks = timeTicks(decade, "ALL");
+  // Twelve years of Fridays touch thirteen calendar labels at the edges.
+  assert.ok(yearTicks.length >= 9 && yearTicks.length <= 13, String(yearTicks.length));
   assert.ok(yearTicks.every((tick) => /^\d{4}$/.test(tick.label)));
 
   const threeYears = DATES.slice(rangeStartIndex(DATES, "3Y"));

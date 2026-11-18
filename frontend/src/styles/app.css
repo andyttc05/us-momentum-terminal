@@ -66,8 +66,10 @@
 .performance-legend__item--strategy { --legend-color: #FFC83D; }
 .performance-legend__item--spy { --legend-color: #69A5F5; }
 .performance-legend__item--spmo { --legend-color: #AA8BF2; }
-.period-control { display: inline-flex; flex: 0 0 auto; gap: 3px; padding: 4px; border: 1px solid var(--color-line); border-radius: var(--radius-pill); background: var(--color-surface-soft); }
-.period-control button { min-width: 43px; min-height: 34px; padding: 0 11px; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--color-text-secondary); cursor: pointer; font-size: var(--font-size-xs); font-weight: var(--font-weight-bold); transition: color 180ms ease, background-color 180ms ease; }
+/* Equal segments: a one-column grid of 1fr tracks makes every option exactly as
+   wide as the longest label, so no segment looks like the odd one out. */
+.period-control { display: inline-grid; flex: 0 0 auto; grid-auto-flow: column; grid-auto-columns: minmax(43px, 1fr); gap: 3px; padding: 4px; border: 1px solid var(--color-line); border-radius: var(--radius-pill); background: var(--color-surface-soft); }
+.period-control button { min-width: 0; min-height: 34px; padding: 0 11px; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--color-text-secondary); cursor: pointer; font-size: var(--font-size-xs); font-weight: var(--font-weight-bold); transition: color 180ms ease, background-color 180ms ease; }
 .period-control button:hover:not([aria-pressed="true"]) { background: #F3EFE9; color: var(--color-ink); }
 .period-control button[aria-pressed="true"] { background: var(--color-yellow); color: var(--color-ink); }
 /* The chart fills the card and re-lays itself out at 1:1 CSS pixels. */
@@ -115,7 +117,7 @@
   align-items: center;
 }
 .momentum-row { display: contents; }
-.momentum-row__rank { display: grid; width: 28px; height: 28px; place-items: center; justify-self: center; border-radius: 50%; background: var(--color-yellow-soft); color: var(--color-ink); font-size: var(--font-size-sm); font-weight: var(--font-weight-black); }
+.momentum-row__rank { display: grid; width: 28px; height: 28px; place-items: center; justify-self: center; border: 1px solid var(--color-line); border-radius: 50%; background: var(--color-surface); color: var(--color-ink); font-size: var(--font-size-sm); font-weight: var(--font-weight-black); }
 .momentum-row__ticker { font-size: var(--font-size-sm); font-weight: var(--font-weight-black); letter-spacing: -0.01em; }
 .momentum-row__ticker--link {
   padding: 0;

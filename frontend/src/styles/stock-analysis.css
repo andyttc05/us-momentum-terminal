@@ -71,11 +71,13 @@
 .stock-market-cap__value { font-size: 1.02rem; font-weight: var(--font-weight-black); font-variant-numeric: tabular-nums; white-space: nowrap; }
 /* Ranking tier colours: the badge reflects the stock's percentile inside the
    eligible universe (top quintile green, middle 60% yellow, bottom quintile red). */
-.stock-rank-pill { display: inline-flex; min-height: 42px; flex: 0 0 auto; align-items: center; gap: 9px; padding: 0 16px; border-radius: var(--radius-pill); background: #EFECE7; color: var(--color-text-secondary); font-size: 0.96rem; white-space: nowrap; }
-.stock-rank-pill--top { background: #DDF3E5; color: #16864A; }
-.stock-rank-pill--mid { background: #FFE59A; color: #735500; }
-.stock-rank-pill--low { background: #FCE4E6; color: #D64545; }
-.stock-rank-pill--unknown { background: #EFECE7; color: var(--color-text-secondary); }
+/* One white pill for every tier: the rank colours the ink, not the surface, so
+   the summary row stays a row of white cards and nothing shouts. */
+.stock-rank-pill { display: inline-flex; min-height: 42px; flex: 0 0 auto; align-items: center; gap: 9px; padding: 0 16px; border: 1px solid var(--color-line); border-radius: var(--radius-pill); background: var(--color-surface); color: var(--color-text-secondary); font-size: 0.96rem; white-space: nowrap; }
+.stock-rank-pill--top { color: #16864A; }
+.stock-rank-pill--mid { color: #735500; }
+.stock-rank-pill--low { color: #D64545; }
+.stock-rank-pill--unknown { color: var(--color-text-secondary); }
 .stock-rank-pill svg { color: currentColor; }
 .stock-rank-pill--top svg { color: #F5C400; }
 .stock-rank-pill strong { font-weight: var(--font-weight-black); }
@@ -84,8 +86,10 @@
 /* Eight ranges plus a scale switch: the row wraps rather than shrinking the
    pills into unreadable targets, and never scrolls horizontally. */
 .stock-price-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
-.stock-price-toolbar { display: inline-flex; width: max-content; max-width: 100%; min-height: 42px; align-items: center; gap: 2px; padding: 4px; border: 1px solid transparent; border-radius: var(--radius-pill); background: var(--color-surface-soft); }
-.stock-price-toolbar button { min-width: 44px; min-height: 34px; padding: 0 11px; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--color-ink); cursor: pointer; font-size: 0.9rem; font-weight: var(--font-weight-black); transition: background-color 180ms ease, color 180ms ease; }
+/* Same equal-segment rule as .period-control: every range is as wide as the
+   widest one, so the group reads as one control instead of five pills. */
+.stock-price-toolbar { display: inline-grid; width: max-content; max-width: 100%; min-height: 42px; grid-auto-flow: column; grid-auto-columns: minmax(44px, 1fr); align-items: center; gap: 2px; padding: 4px; border: 1px solid transparent; border-radius: var(--radius-pill); background: var(--color-surface-soft); }
+.stock-price-toolbar button { min-width: 0; min-height: 34px; padding: 0 11px; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--color-ink); cursor: pointer; font-size: 0.9rem; font-weight: var(--font-weight-black); transition: background-color 180ms ease, color 180ms ease; }
 .stock-price-toolbar button:hover:not([aria-pressed="true"]) { background: var(--color-nav-hover); }
 .stock-price-toolbar button[aria-pressed="true"] { background: var(--color-yellow); }
 .stock-price-scale-toggle { display: inline-flex; min-height: 38px; align-items: center; gap: 9px; padding: 0 13px; border: 1px solid var(--color-line); border-radius: var(--radius-pill); background: var(--color-surface-soft); color: var(--color-ink); cursor: pointer; font-size: 0.84rem; font-weight: var(--font-weight-black); transition: background-color 180ms ease, border-color 180ms ease; }

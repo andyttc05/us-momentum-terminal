@@ -9,17 +9,17 @@
 
 export const DEFAULT_RANGE = "1Y";
 
-export const priceRanges = ["1Y", "3Y", "5Y", "10Y", "ALL"];
+export const priceRanges = ["6M", "1Y", "3Y", "5Y", "ALL"];
 // Calendar-day lookbacks. "ALL" has no cutoff: it shows every weekly sample the
 // source actually published, which is the honest definition of "maximum
-// available history". The sub-year windows were dropped once the change over
-// the selected window became the chart's own headline: three overlapping short
-// ranges said less than one number did.
+// available history". The ten-year window is gone — the weekly sample does not
+// start that far back for most names, so it mostly repeated "ALL"; a half-year
+// window answers the question the long end never did.
 export const rangeDays = {
+  "6M": 183,
   "1Y": 366,
   "3Y": 1096,
   "5Y": 1827,
-  "10Y": 3653,
   ALL: null,
 };
 
@@ -60,7 +60,7 @@ export function timeTicks(dates, range) {
   // One label per month on a one-year window, two per year on five years, one
   // per year beyond that: the gridline count stays roughly constant instead of
   // packing forty labels into the same width.
-  const mode = range === "1Y" ? "month" : range === "3Y" ? "quarter" : range === "5Y" ? "half" : "year";
+  const mode = range === "6M" || range === "1Y" ? "month" : range === "3Y" ? "quarter" : range === "5Y" ? "half" : "year";
   const ticks = [];
   let lastKey = "";
   dates.forEach((iso, index) => {
