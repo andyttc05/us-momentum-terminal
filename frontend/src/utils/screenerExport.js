@@ -39,8 +39,12 @@ function resultRows(stocks) {
   ]);
 }
 
-export function screenerFilename(universe, extension) {
-  return `US_Momentum_Screener_${universe === "top20" ? "Top20" : "Top100"}.${extension}`;
+/** Scope labels, shared by the file name and the screening-settings sheet. */
+const SCOPE_LABELS = Object.freeze({ all: "All Stocks", top100: "Top 100", top20: "Top 20" });
+
+export function screenerFilename(scope, extension) {
+  const suffix = scope === "all" ? "AllStocks" : scope === "top20" ? "Top20" : "Top100";
+  return `US_Momentum_Screener_${suffix}.${extension}`;
 }
 
 export function buildScreenerExportData({
@@ -54,7 +58,7 @@ export function buildScreenerExportData({
   if (!Array.isArray(stocks)) throw new Error("The Screener result set is unavailable.");
   const rows = resultRows(stocks);
   const settings = [
-    ["Universe Selection", universeLabel(universe)],
+    ["Universe Selection", SCOPE_LABELS[universe] ?? universeLabel(universe)],
     ["Matching Records", rows.length],
     ...filterRows(filters, search),
     ["Data As Of", meta?.as_of ?? null],

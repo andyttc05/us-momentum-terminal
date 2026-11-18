@@ -94,7 +94,9 @@ const DEFAULT_CONFIG = {
   startDate: "",
   endDate: "",
   initialCapital: "10000",
-  cashflowEnabled: true,
+  // The first run is a pure lump sum: external cashflows stay off until the
+  // reader opens Advanced Settings and asks for them.
+  cashflowEnabled: false,
   contributionAmount: "1000",
   contributionFrequency: "monthly",
   cashflowDirection: "inflow",

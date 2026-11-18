@@ -176,19 +176,22 @@ test("Overview, Screener and Portfolio read the one active dataset", () => {
   assert.match(app, /<UniverseProvider>[\s\S]*<MarketProvider>/);
   assert.match(app, /<RouterProvider>[\s\S]*<UniverseProvider>/);
 
-  for (const page of [screener, portfolio, overview]) {
+  for (const page of [portfolio, overview]) {
     assert.match(page, /datasetForUniverse\(data, activeUniverse\)/);
     assert.doesNotMatch(page, /stocks\.slice\(/);
   }
+  assert.doesNotMatch(screener, /stocks\.slice\(/);
   assert.match(backtesting, /const \{ universe, selectUniverse, activeUniverse, activateUniverse \} = useUniverse\(\)/);
-  assert.match(screener, /const \{ activeUniverse, activateUniverse \} = useUniverse\(\)/);
   assert.match(portfolio, /const \{ activeUniverse \} = useUniverse\(\)/);
   assert.match(overview, /const \{ activeUniverse \} = useUniverse\(\)/);
 
   // A completed run promotes its own universe to the active dataset.
   assert.match(backtesting, /activateUniverse\(normalizedDraft\.portfolio\)/);
-  // The Screener switch changes the dataset, so it moves the whole app.
-  assert.match(screener, /activateUniverse\(nextMode\)/);
+  // The Screener is a research table with its own scope (All / Top 100): it
+  // ranks names, it does not decide which book the rest of the app reads.
+  assert.doesNotMatch(screener, /useUniverse|activateUniverse/);
+  assert.match(screener, /const \[scope, setScope\] = useState\("top100"\)/);
+  assert.match(screener, /datasetForUniverse\(data, "top100"\)/);
   // A pending universe stays in the draft until the run is submitted.
   assert.match(backtesting, /portfolio: universe,/);
   assert.doesNotMatch(backtesting, /backtest-results-outdated/);

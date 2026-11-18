@@ -182,6 +182,7 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
   const [holdingsSort, setHoldingsSort] = useState({ key: "finalWeight", direction: "desc" });
   const [liveSort, setLiveSort] = useState({ key: "rank", direction: "asc" });
   const [page, setPage] = useState(1);
+  const [livePage, setLivePage] = useState(1);
   const [toast, setToast] = useState("");
   const [isExporting, setIsExporting] = useState(false);
   const [activeView, setActiveView] = useState("holdings");
@@ -268,6 +269,14 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
   const firstResult = visibleHoldings.length ? firstIndex + 1 : 0;
   const lastResult = Math.min(firstIndex + rowsPerPage, sortedHoldings.length);
 
+  // Live Momentum pages exactly like Holdings: same page size, same footer.
+  const liveTotalPages = Math.max(1, Math.ceil(sortedLiveRows.length / rowsPerPage));
+  const liveCurrentPage = Math.min(livePage, liveTotalPages);
+  const liveFirstIndex = (liveCurrentPage - 1) * rowsPerPage;
+  const visibleLiveRows = sortedLiveRows.slice(liveFirstIndex, liveFirstIndex + rowsPerPage);
+  const liveFirstResult = visibleLiveRows.length ? liveFirstIndex + 1 : 0;
+  const liveLastResult = Math.min(liveFirstIndex + rowsPerPage, sortedLiveRows.length);
+
   const constraintEvaluation = useMemo(
     () => evaluatePortfolioConstraints(portfolioHoldings, targetHoldings),
     [portfolioHoldings, targetHoldings],
@@ -290,7 +299,7 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
     setter((current) => current.key === key
       ? { key, direction: current.direction === "asc" ? "desc" : "asc" }
       : { key, direction: "asc" });
-    onReset?.();
+    onReset();
   }
 
   function showToast(message, kind = "updated", duration = 2600) {
@@ -458,13 +467,22 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
                 tabIndex={0}
               >
                 <table className="portfolio-table portfolio-live-table">
+                  <colgroup>
+                    <col className="portfolio-col-rank" />
+                    <col className="portfolio-col-live-ticker" />
+                    <col className="portfolio-col-live-sector" />
+                    <col className="portfolio-col-live-score" />
+                    <col className="portfolio-col-live-momentum" />
+                    <col className="portfolio-col-live-market-cap" />
+                    <col className="portfolio-col-live-status" />
+                  </colgroup>
                   <ColumnHeadings
                     columns={liveColumns}
                     sort={liveSort}
-                    onSort={(key) => toggleSort(setLiveSort, key)}
+                    onSort={(key) => toggleSort(setLiveSort, key, () => setLivePage(1))}
                   />
                   <tbody>
-                    {sortedLiveRows.length ? sortedLiveRows.map((row) => (
+                    {visibleLiveRows.length ? visibleLiveRows.map((row) => (
                       <tr
                         key={row.ticker}
                         className="stock-row"
@@ -583,15 +601,27 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
               </div>
             </div>
           )}
-          {activeView === "holdings" && <Pagination
-            page={currentPage}
-            totalPages={totalPages}
-            rangeStart={firstResult}
-            rangeEnd={lastResult}
-            total={sortedHoldings.length}
-            onPageChange={setPage}
-            label="Holdings table pagination"
-          />}
+          {activeView === "holdings" ? (
+            <Pagination
+              page={currentPage}
+              totalPages={totalPages}
+              rangeStart={firstResult}
+              rangeEnd={lastResult}
+              total={sortedHoldings.length}
+              onPageChange={setPage}
+              label="Holdings table pagination"
+            />
+          ) : (
+            <Pagination
+              page={liveCurrentPage}
+              totalPages={liveTotalPages}
+              rangeStart={liveFirstResult}
+              rangeEnd={liveLastResult}
+              total={sortedLiveRows.length}
+              onPageChange={setLivePage}
+              label="Live momentum table pagination"
+            />
+          )}
         </DashboardCard>
       </div>
       {toast && <Toast kind={toast.kind} message={toast.message} className="page-toast" durationMs={toast.duration} />}

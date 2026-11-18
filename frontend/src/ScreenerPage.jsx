@@ -17,7 +17,6 @@ import { Sparkline } from "./components/Sparkline.jsx";
 import { Toast } from "./components/Toast.jsx";
 import { UpdateBar } from "./components/UpdateBar.jsx";
 import { useMarket } from "./api/MarketProvider.jsx";
-import { useUniverse } from "./api/UniverseProvider.jsx";
 import { downloadCsvFile } from "./utils/csv.js";
 import { getSectionState } from "./utils/dataState.js";
 import { downloadWorkbookFile } from "./utils/exportFiles.js";
@@ -70,14 +69,15 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
   const [isExporting, setIsExporting] = useState(false);
   const filterControlRef = useRef(null);
   const { data, refresh, status, error, refreshing } = useMarket();
-  const { activeUniverse, activateUniverse } = useUniverse();
-  const universe = activeUniverse;
-
-  // The rows are the active dataset's selection — exactly the names the model
-  // portfolio holds, so the record count, the pagination and the exports all
-  // agree with Overview and Portfolio.
-  const dataset = datasetForUniverse(data, activeUniverse);
-  const stocks = dataset?.stocks ?? [];
+  // The Screener is a research table, so its scope is local: "All" ranks every
+  // eligible name, "Top 100" ranks the model book. Neither changes the portfolio
+  // universe the Overview and Portfolio pages read.
+  const [scope, setScope] = useState("top100");
+  const dataset = datasetForUniverse(data, "top100");
+  const stocks = useMemo(() => {
+    if (scope === "all") return data?.stocks ?? [];
+    return dataset?.stocks ?? data?.stocks ?? [];
+  }, [scope, data, dataset]);
   const sectors = useMemo(() => [...new Set(stocks.map((stock) => stock.sector))].sort(), [stocks]);
   const snapshot = dataset?.overview?.snapshot;
   const tableState = getSectionState({
@@ -90,7 +90,7 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
 
   useEffect(() => {
     setPage(1);
-  }, [activeUniverse]);
+  }, [scope]);
 
   useEffect(() => {
     if (!filtersOpen) return undefined;
@@ -163,9 +163,9 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
     setPage(1);
   }
 
-  function selectMode(nextMode) {
-    if (nextMode === activeUniverse) return;
-    activateUniverse(nextMode);
+  function selectScope(nextScope) {
+    if (nextScope === scope) return;
+    setScope(nextScope);
     setPage(1);
   }
 
@@ -200,13 +200,13 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
     try {
       const exportData = buildScreenerExportData({
         stocks: filteredStocks,
-        universe,
+        universe: scope,
         filters,
         search,
         meta: data?.meta ?? null,
         exportedAt: new Date().toISOString(),
       });
-      const filename = screenerFilename(universe, format);
+      const filename = screenerFilename(scope, format);
       if (format === "csv") {
         downloadCsvFile(filename, exportData.csv);
       } else {
@@ -237,9 +237,9 @@ export function ScreenerPage({ isActive = true, onSelectStock }) {
         />
 
         <section className="screener-toolbar" aria-label="Screener controls">
-          <div className="screener-scope" role="group" aria-label="Dataset universe">
-            <button type="button" aria-pressed={universe === "top100"} className={universe === "top100" ? "is-selected" : ""} onClick={() => selectMode("top100")}>Top 100</button>
-            <button type="button" aria-pressed={universe === "top20"} className={universe === "top20" ? "is-selected" : ""} onClick={() => selectMode("top20")}>Top 20</button>
+          <div className="screener-scope" role="group" aria-label="Screener scope">
+            <button type="button" aria-pressed={scope === "all"} className={scope === "all" ? "is-selected" : ""} onClick={() => selectScope("all")}>All</button>
+            <button type="button" aria-pressed={scope === "top100"} className={scope === "top100" ? "is-selected" : ""} onClick={() => selectScope("top100")}>Top 100</button>
           </div>
 
           <label className="screener-search">

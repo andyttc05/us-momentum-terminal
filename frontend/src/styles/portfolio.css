@@ -281,7 +281,15 @@
 .portfolio-col-score { width: 13%; }
 .portfolio-col-market-cap { width: 24%; }
 .portfolio-col-final-weight { width: 20%; }
-.portfolio-live-table { min-width: 960px; table-layout: auto; }
+/* Seven tracks, same rhythm as the six above: the free-text Sector column takes
+   the slack instead of the status column, so nothing reads as empty space. */
+.portfolio-live-table { min-width: 960px; }
+.portfolio-col-live-ticker { width: 11%; }
+.portfolio-col-live-sector { width: 23%; }
+.portfolio-col-live-score { width: 10%; }
+.portfolio-col-live-momentum { width: 12%; }
+.portfolio-col-live-market-cap { width: 14%; }
+.portfolio-col-live-status { width: 24%; }
 .portfolio-table thead tr { min-height: var(--table-head-height); border-bottom: 1px solid var(--color-line); }
 .portfolio-table th {
   min-width: 0;

@@ -223,6 +223,8 @@
 .data-status-dialog__footer .app-button {
   flex: 0 0 auto;
   min-height: 44px;
+  /* The action keeps the right edge whether or not an error line precedes it. */
+  margin-left: auto;
 }
 
 /* The only motion in the shared chrome is the close button's colour change;
