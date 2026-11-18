@@ -82,6 +82,16 @@ class Settings:
     quote_fetch_workers: int = _int("DATA_QUOTE_WORKERS", 4)
     retry_attempts: int = _int("DATA_RETRY_ATTEMPTS", 2)
     retry_base_seconds: float = float(os.environ.get("DATA_RETRY_BASE_SECONDS", "0.75"))
+    # Yahoo is an unofficial endpoint. Small, serialized batches are markedly
+    # more reliable than one 40-symbol threaded request, and leave room for
+    # the per-symbol recovery pass when Yahoo omits a ticker from a response.
+    yahoo_batch_size: int = _int("DATA_YAHOO_BATCH_SIZE", 8)
+    yahoo_retry_attempts: int = _int("DATA_YAHOO_RETRY_ATTEMPTS", 3)
+    yahoo_retry_base_seconds: float = _float("DATA_YAHOO_RETRY_BASE_SECONDS", 1.25)
+    # The curated universe requires 210 observations before a name is eligible.
+    # A non-empty but materially truncated batch response is a provider failure,
+    # not a valid ticker, and must enter individual recovery.
+    yahoo_min_bars: int = _int("DATA_YAHOO_MIN_BARS", 210)
     warm_error_cooldown: int = _int("DATA_WARM_ERROR_COOLDOWN", 30)
     warm_timeout: int = _int("DATA_WARM_TIMEOUT", 180)
     # How long one batch of provider calls may run before it is abandoned. A

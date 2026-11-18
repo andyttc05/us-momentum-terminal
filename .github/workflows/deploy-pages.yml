@@ -11,6 +11,11 @@ on:
     # snapshot follows the market instead of waiting for the close.
     - cron: "7 14-21 * * 1-5"
   workflow_dispatch:
+    inputs:
+      refresh_reason:
+        description: "Optional audit label for a visitor-requested refresh"
+        required: false
+        default: "manual"
 
 # Allow the deployment job to publish to Pages and mint its own OIDC token.
 permissions:
@@ -52,6 +57,11 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r data-service/requirements.txt
 
+      - name: Run backend tests
+        env:
+          PYTHONPATH: data-service
+        run: python -m unittest discover -s data-service/tests -p "test_*.py"
+
       - name: Install dependencies
         run: npm --prefix frontend ci
 
@@ -90,6 +100,8 @@ jobs:
         env:
           VITE_BASE_PATH: /us-momentum-terminal/
           VITE_DATA_MODE: static
+          VITE_REFRESH_BROKER_URL: ${{ vars.VITE_REFRESH_BROKER_URL }}
+          VITE_TURNSTILE_SITE_KEY: ${{ vars.VITE_TURNSTILE_SITE_KEY }}
 
       - name: Run frontend tests
         run: npm --prefix frontend run test:unit

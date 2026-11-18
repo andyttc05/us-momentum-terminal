@@ -1,5 +1,8 @@
+import { validPublication } from "./publicationStatus.js";
+
 const PUBLICATION_KEY = "umt:publication:v1";
 const DETAIL_PREFIX = "umt:stock:";
+const REFRESH_ATTEMPT_KEY = "umt:refresh-attempt:v1";
 
 function storage() {
   try {
@@ -29,12 +32,12 @@ function writeRecord(key, value) {
 export function readCachedPublication() {
   const record = readRecord(PUBLICATION_KEY);
   const data = record?.data;
-  if (!record?.savedAt || !Array.isArray(data?.stocks) || !data?.meta) return null;
+  if (!record?.savedAt || !validPublication(data)) return null;
   return record;
 }
 
 export function writeCachedPublication(data) {
-  if (!Array.isArray(data?.stocks) || !data?.meta) return;
+  if (!validPublication(data)) return;
   writeRecord(PUBLICATION_KEY, { savedAt: new Date().toISOString(), data });
 }
 
@@ -50,4 +53,14 @@ export function writeCachedStock(ticker, data) {
     savedAt: new Date().toISOString(),
     data,
   });
+}
+
+export function readRefreshAttempt() {
+  const record = readRecord(REFRESH_ATTEMPT_KEY);
+  return record && typeof record === "object" && record.requestedAt ? record : null;
+}
+
+export function writeRefreshAttempt(attempt) {
+  if (!attempt?.requestedAt) return;
+  writeRecord(REFRESH_ATTEMPT_KEY, attempt);
 }

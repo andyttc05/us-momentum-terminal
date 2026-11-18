@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { api, DATA_MODE } from "./client.js";
+import { api, ApiError, DATA_MODE } from "./client.js";
 import { hasMarketData } from "../utils/dataStatus.js";
 import {
   isRebalanceFrequency,
@@ -9,17 +9,27 @@ import {
   readCachedStock,
   writeCachedPublication,
   writeCachedStock,
+  readRefreshAttempt,
+  writeRefreshAttempt,
 } from "./dataCache.js";
+import {
+  publicationMatchesManifest,
+  validManifest,
+} from "./publicationStatus.js";
+import { waitForPublishedRefresh } from "./refreshPolling.js";
 
 const MarketContext = createContext(null);
 const STATIC_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
 const LOCAL_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 const STATIC_MODE = DATA_MODE === "static";
+const REFRESH_POLL_INTERVAL_MS = 15 * 1000;
+const REFRESH_POLL_TIMEOUT_MS = 12 * 60 * 1000;
 
 
 function cachedPublicationState() {
   const cached = readCachedPublication();
   if (!cached) return null;
+  const publishedCacheState = cached.data.meta.cache_state;
   return {
     ...cached,
     data: {
@@ -27,6 +37,7 @@ function cachedPublicationState() {
       meta: {
         ...cached.data.meta,
         client_cache: true,
+        published_cache_state: publishedCacheState,
         cache_state: "cached",
       },
     },
@@ -40,10 +51,13 @@ export function MarketProvider({ children }) {
   const [status, setStatus] = useState(initialCache.current ? "ready" : "loading");
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(Boolean(initialCache.current));
+  const [checkingForUpdates, setCheckingForUpdates] = useState(false);
   const [lastLoadedAt, setLastLoadedAt] = useState(null);
   const [dataNotice, setDataNotice] = useState(null);
   const [dataOrigin, setDataOrigin] = useState(initialCache.current ? "browser-cache" : "network");
   const [browserCachedAt, setBrowserCachedAt] = useState(initialCache.current?.savedAt ?? null);
+  const initialRefreshAttempt = useRef(readRefreshAttempt());
+  const [refreshAttempt, setRefreshAttempt] = useState(initialRefreshAttempt.current);
   // A user-selected strategy frequency is app-wide configuration, not a page
   // local draft. Portfolio reads it immediately while the Backtesting selector
   // and completed runs remain the only controls that write it.
@@ -51,6 +65,9 @@ export function MarketProvider({ children }) {
   const mounted = useRef(true);
   const noticePending = useRef(true);
   const lastNoticeSignature = useRef("");
+  const checkOperation = useRef(null);
+  const refreshOperation = useRef(null);
+  const refreshResumeAttempted = useRef(false);
 
   useEffect(() => {
     mounted.current = true;
@@ -110,6 +127,46 @@ export function MarketProvider({ children }) {
     return { meta, usable, hasStocks, backgroundRefresh };
   }, []);
 
+  const markPublicationVerified = useCallback(() => {
+    if (!dataRef.current?.meta?.client_cache) return;
+    const publishedCacheState = dataRef.current.meta.published_cache_state;
+    const verified = {
+      ...dataRef.current,
+      meta: {
+        ...dataRef.current.meta,
+        client_cache: false,
+        published_cache_state: undefined,
+        cache_state: publishedCacheState || "fresh",
+      },
+    };
+    dataRef.current = verified;
+    setData(verified);
+    setDataOrigin("published");
+  }, []);
+
+  /* Manifest-first static loading keeps an already-rendered browser snapshot
+     on screen and usually transfers only a few KB. A full publication is read
+     only when its version, collection timestamp, or market date changed. */
+  const checkPublishedSnapshot = useCallback(async () => {
+    const manifest = await api.manifest({ force: true });
+    if (!validManifest(manifest)) {
+      throw new ApiError("The published data manifest is invalid.", { code: "invalid_manifest" });
+    }
+    if (dataRef.current && publicationMatchesManifest(dataRef.current, manifest)) {
+      markPublicationVerified();
+      setLastLoadedAt(new Date());
+      return { changed: false, payload: dataRef.current, manifest };
+    }
+    const payload = await api.snapshot({ force: true });
+    if (!publicationMatchesManifest(payload, manifest)) {
+      throw new ApiError("The published data does not match its manifest yet. Please try again shortly.", {
+        code: "publication_mismatch",
+      });
+    }
+    const applied = applyPayload(payload, "published");
+    return { changed: !applied.skipped, payload, manifest, ...applied };
+  }, [applyPayload, markPublicationVerified]);
+
   const load = useCallback(async ({ isRefresh = false, trackCompletion = false, force = false } = {}) => {
     if (isRefresh) setRefreshing(true);
     if (trackCompletion) {
@@ -118,9 +175,12 @@ export function MarketProvider({ children }) {
     }
     let backgroundRefresh = false;
     try {
-      const payload = await api.snapshot({ force });
+      const staticResult = STATIC_MODE ? await checkPublishedSnapshot() : null;
+      const payload = staticResult?.payload ?? await api.snapshot({ force });
       if (!mounted.current) return false;
-      const applied = applyPayload(payload, STATIC_MODE ? "published" : "live");
+      const applied = STATIC_MODE
+        ? (staticResult?.changed ? staticResult : { meta: payload?.meta ?? {}, usable: hasMarketData(payload), backgroundRefresh: false })
+        : applyPayload(payload, "live");
       const { meta, usable, backgroundRefresh: warming } = applied;
       if (applied.skipped) {
         setRefreshing(false);
@@ -132,9 +192,10 @@ export function MarketProvider({ children }) {
         noticePending.current = true;
       }
       if (!backgroundRefresh) {
-        if (usable) {
+        const shouldPublishNotice = !STATIC_MODE || !staticResult || staticResult.changed;
+        if (usable && shouldPublishNotice) {
           publishFinalNotice(meta);
-        } else {
+        } else if (!usable) {
           noticePending.current = false;
           lastNoticeSignature.current = "empty";
           setDataNotice(null);
@@ -165,7 +226,7 @@ export function MarketProvider({ children }) {
     } finally {
       if (mounted.current && !backgroundRefresh) setRefreshing(false);
     }
-  }, [applyPayload, publishFinalNotice]);
+  }, [applyPayload, checkPublishedSnapshot, publishFinalNotice]);
 
   useEffect(() => {
     load({ isRefresh: Boolean(initialCache.current) });
@@ -175,28 +236,167 @@ export function MarketProvider({ children }) {
   }, [load]);
 
   useEffect(() => {
+    const pending = initialRefreshAttempt.current;
+    if (
+      !STATIC_MODE
+      || refreshResumeAttempted.current
+      || !pending
+      || !["updating", "queued"].includes(pending.state)
+    ) return undefined;
+    refreshResumeAttempted.current = true;
+    let cancelled = false;
+    let settled = false;
+    const requested = Date.parse(pending.requestedAt);
+    const remaining = Number.isFinite(requested)
+      ? REFRESH_POLL_TIMEOUT_MS - Math.max(0, Date.now() - requested)
+      : 0;
+
+    if (remaining <= 0) {
+      const failed = {
+        ...pending,
+        state: "failed",
+        completedAt: new Date().toISOString(),
+        result: "The refresh did not finish before it timed out.",
+        code: "refresh_timeout",
+      };
+      settled = true;
+      setRefreshAttempt(failed);
+      writeRefreshAttempt(failed);
+      return undefined;
+    }
+
+    if (mounted.current) setRefreshing(true);
+    waitForPublishedRefresh({
+      timeoutMs: remaining,
+      intervalMs: REFRESH_POLL_INTERVAL_MS,
+      check: async () => mounted.current ? checkPublishedSnapshot() : { changed: true, cancelled: true },
+    }).then((result) => {
+      if (cancelled || result.cancelled) return;
+      const completed = {
+        ...pending,
+        state: "updated",
+        completedAt: new Date().toISOString(),
+        result: "Published update available",
+        generatedAt: result.payload?.meta?.generated_at,
+      };
+      settled = true;
+      setRefreshAttempt(completed);
+      writeRefreshAttempt(completed);
+      publishFinalNotice(result.payload?.meta);
+    }).catch((requestError) => {
+      if (cancelled) return;
+      const failed = {
+        ...pending,
+        state: "failed",
+        completedAt: new Date().toISOString(),
+        result: requestError.message,
+        code: requestError.code ?? "refresh_failed",
+      };
+      settled = true;
+      setRefreshAttempt(failed);
+      writeRefreshAttempt(failed);
+      setError({ message: requestError.message, code: failed.code });
+      setDataNotice({ id: "error", key: `refresh:${Date.now()}` });
+    }).finally(() => {
+      if (!cancelled && mounted.current) setRefreshing(false);
+    });
+
+    return () => {
+      cancelled = true;
+      if (!settled) refreshResumeAttempted.current = false;
+    };
+  }, [checkPublishedSnapshot, publishFinalNotice]);
+
+  useEffect(() => {
     if ((!refreshing && status !== "loading") || STATIC_MODE) return undefined;
     const timer = window.setInterval(() => load(), 4000);
     return () => window.clearInterval(timer);
   }, [load, refreshing, status]);
 
-  const refresh = useCallback(async () => {
-    setRefreshing(true);
-    noticePending.current = true;
-    lastNoticeSignature.current = "";
-    if (STATIC_MODE) {
-      return load({ isRefresh: true, trackCompletion: true, force: true });
-    }
+  const checkForUpdates = useCallback(async () => {
+    if (checkOperation.current || refreshOperation.current) return false;
+    const operation = {};
+    checkOperation.current = operation;
+    setCheckingForUpdates(true);
     try {
+      setRefreshing(true);
+      noticePending.current = true;
+      lastNoticeSignature.current = "";
+      if (STATIC_MODE) {
+        return await load({ isRefresh: true, trackCompletion: true, force: true });
+      }
       await api.refresh();
+      return await load({ trackCompletion: true });
     } catch (requestError) {
       setError({ message: requestError.message, code: requestError.code ?? "request_failed" });
       publishFinalNotice(null, requestError);
-      setRefreshing(false);
       return false;
+    } finally {
+      if (checkOperation.current === operation) checkOperation.current = null;
+      if (mounted.current) {
+        setCheckingForUpdates(false);
+        setRefreshing(false);
+      }
     }
-    return load({ trackCompletion: true });
-  }, [applyPayload, load, publishFinalNotice]);
+  }, [load, publishFinalNotice]);
+
+  const refreshMarketData = useCallback(async ({
+    challengeToken = null,
+    requestError = null,
+  } = {}) => {
+    if (refreshOperation.current || checkOperation.current) return false;
+    if (!STATIC_MODE) return checkForUpdates();
+    const operation = {};
+    refreshOperation.current = operation;
+    setRefreshing(true);
+    const requestedAt = new Date().toISOString();
+    const requested = { state: "updating", requestedAt, result: "Refresh requested" };
+    setRefreshAttempt(requested);
+    writeRefreshAttempt(requested);
+    try {
+      if (requestError) throw requestError;
+      const response = await api.requestMarketRefresh(challengeToken);
+      if (!response?.accepted) {
+        throw new ApiError("The refresh service did not queue an update.", { code: "refresh_rejected" });
+      }
+      const accepted = {
+        ...requested,
+        state: response.alreadyRunning ? "updating" : "queued",
+        result: response.alreadyRunning ? "An update is already running" : "Refresh queued",
+      };
+      setRefreshAttempt(accepted);
+      writeRefreshAttempt(accepted);
+
+      const result = await waitForPublishedRefresh({
+        timeoutMs: REFRESH_POLL_TIMEOUT_MS,
+        intervalMs: REFRESH_POLL_INTERVAL_MS,
+        check: async () => mounted.current ? checkPublishedSnapshot() : { changed: true, cancelled: true },
+      });
+      if (result.cancelled) return false;
+      const completed = {
+        state: "updated", requestedAt, completedAt: new Date().toISOString(),
+        result: "Published update available", generatedAt: result.payload?.meta?.generated_at,
+      };
+      setRefreshAttempt(completed);
+      writeRefreshAttempt(completed);
+      setRefreshing(false);
+      publishFinalNotice(result.payload?.meta);
+      return true;
+    } catch (requestError) {
+      const failed = {
+        state: "failed", requestedAt, completedAt: new Date().toISOString(),
+        result: requestError.message, code: requestError.code ?? "refresh_failed",
+      };
+      setRefreshAttempt(failed);
+      writeRefreshAttempt(failed);
+      setError({ message: requestError.message, code: failed.code });
+      setDataNotice({ id: "error", key: `refresh:${Date.now()}` });
+      return false;
+    } finally {
+      if (refreshOperation.current === operation) refreshOperation.current = null;
+      if (mounted.current) setRefreshing(false);
+    }
+  }, [checkForUpdates, checkPublishedSnapshot, publishFinalNotice]);
 
   const selectProvider = useCallback(async (providerId) => {
     if (STATIC_MODE) return { ok: false, message: "Provider selection is available in the local service." };
@@ -260,8 +460,15 @@ export function MarketProvider({ children }) {
       dataMode: DATA_MODE,
       dataOrigin,
       browserCachedAt,
+      checkingForUpdates,
+      refreshAttempt,
       staticMode: STATIC_MODE,
-      refresh,
+      // Existing page-level refresh controls are deliberately only manifest
+      // checks; the explicit dialog action below is the privileged operation.
+      refresh: checkForUpdates,
+      checkForUpdates,
+      refreshMarketData,
+      refreshBrokerEnabled: api.refreshBrokerEnabled,
       runBacktest,
       selectProvider,
       strategyRebalanceFrequency,
@@ -270,13 +477,16 @@ export function MarketProvider({ children }) {
     }),
     [
       browserCachedAt,
+      checkingForUpdates,
       data,
       dataNotice,
       dataOrigin,
       error,
       lastLoadedAt,
       load,
-      refresh,
+      checkForUpdates,
+      refreshAttempt,
+      refreshMarketData,
       refreshing,
       runBacktest,
       selectProvider,

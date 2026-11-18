@@ -82,8 +82,11 @@ test("production refreshes the latest published snapshot without a live-service 
   assert.doesNotMatch(workflow + client + provider, /onrender\.com|VITE_API_BASE_URL|VITE_BACKTEST_API_BASE_URL/);
   assert.match(client, /import\("\.\/devClient\.js"\)/);
   assert.match(provider, /if \(STATIC_MODE\)[\s\S]*throw new Error\("Custom-date browser calculations are not available yet; no server request was made\."\)/);
-  assert.match(client, /staticRequest\("publication\.json", \{ noCache: force \}\)/);
-  assert.match(provider, /load\(\{ isRefresh: true, trackCompletion: true, force: true \}\)/);
+  assert.match(client, /staticRequest\("manifest\.json", \{ revalidate: force \}\)/);
+  assert.match(client, /cache: revalidate \? "no-cache" : "default"/);
+  assert.match(provider, /checkPublishedSnapshot/);
+  assert.match(provider, /publicationMatchesManifest/);
+  assert.match(client, /requestMarketRefresh/);
   assert.doesNotMatch(provider, /liveHealth|liveSnapshot|liveRefresh|LIVE_PROBE_INTERVAL/);
 });
 

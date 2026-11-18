@@ -1,0 +1,22 @@
+name = "umt-refresh-broker"
+main = "index.js"
+compatibility_date = "2026-11-18"
+
+[durable_objects]
+bindings = [{ name = "REFRESH_COORDINATOR", class_name = "RefreshCoordinator" }]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RefreshCoordinator"]
+
+[vars]
+GITHUB_REPOSITORY = "andyttc05/us-momentum-terminal"
+GITHUB_REF = "main"
+GITHUB_WORKFLOW_FILE = "deploy-pages.yml"
+REFRESH_ALLOWED_ORIGINS = "https://andyttc05.github.io"
+REFRESH_ALLOWED_HOSTS = "andyttc05.github.io"
+TURNSTILE_ACTION = "refresh"
+# PUBLIC_MANIFEST_URL = "https://andyttc05.github.io/us-momentum-terminal/data/manifest.json"
+# Set these with `wrangler secret put`, never in this file:
+# GITHUB_REFRESH_TOKEN (fine-grained: Actions read/write, repository scoped)
+# TURNSTILE_SECRET_KEY
