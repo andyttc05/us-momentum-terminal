@@ -623,6 +623,23 @@ const RATE_WINDOW_MS = 15 * 60 * 1000;
 const RATE_MAX_SUBMISSIONS = 5;
 const HOURLY_MAX_DISPATCHES = 20;
 const MAX_TRACKED_IPS = 400;
+// Stages the runner reports from real execution points. There is no synthetic
+// progress: the page only ever shows one of these.
+export const RUNNER_STAGES = ["preparing", "calculating", "delivering"];
+const STAGE_MESSAGES = {
+  preparing: "Preparing historical market data.",
+  calculating: "Running the historical simulation.",
+  delivering: "Validating and returning results.",
+};
+// Timing markers the runner measures itself, in epoch milliseconds.
+const TIMING_FIELDS = [
+  "runnerStartedAt",
+  "configFetchedAt",
+  "engineStartedAt",
+  "engineFinishedAt",
+  "callbackStartedAt",
+  "callbackFinishedAt",
+];
 const MAX_CAPITAL = 1_000_000_000;
 const MAX_CASHFLOW_AMOUNT = 1_000_000_000;
 const MAX_SPAN_DAYS = 40 * 366;
@@ -748,8 +765,17 @@ export function validateBacktestConfig(payload) {
   };
 }
 
-function resultProblem(result) {
-  if (!result || typeof result !== "object" || Array.isArray(result)) {
+function sanitizedTimings(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const kept = {};
+  for (const field of TIMING_FIELDS) {
+    const number = Number(value[field]);
+    if (Number.isFinite(number) && number > 0) kept[field] = Math.round(number);
+  }
+  return Object.keys(kept).length ? kept : null;
+}
+
+function resultProblem(result) {  if (!result || typeof result !== "object" || Array.isArray(result)) {
     return "result must be an object";
   }
   if (result.available !== true) {
@@ -924,6 +950,9 @@ export class BacktestJob {
       requestId: job.requestId,
       accessToken: job.accessToken,
       status: job.status,
+      // Server-side acceptance time, so a run can be timed end to end without
+      // trusting the browser clock.
+      acceptedAt: new Date(job.createdAt).toISOString(),
     }, 202);
   }
 
@@ -1017,6 +1046,7 @@ export class BacktestJob {
       requestId: job.requestId,
       status: job.status,
       message: job.message,
+      stage: job.stage || null,
       createdAt: new Date(job.createdAt).toISOString(),
       startedAt: job.startedAt ? new Date(job.startedAt).toISOString() : null,
       completedAt: job.completedAt ? new Date(job.completedAt).toISOString() : null,
@@ -1024,6 +1054,7 @@ export class BacktestJob {
       error: job.error,
       code: job.errorCode,
       runId: job.runId ? String(job.runId) : null,
+      timings: job.timings || null,
     };
     if (job.status !== "completed") {
       return new Response(JSON.stringify({ ...head, result: null }), {
@@ -1064,12 +1095,16 @@ export class BacktestJob {
     const now = Date.now();
     if (payload.status === "running") {
       job.status = "running";
-      job.message = "The backtest is running.";
+      // Only stages the runner can actually observe are accepted, so the page
+      // never shows an invented progress percentage.
+      const stage = RUNNER_STAGES.includes(payload.stage) ? payload.stage : job.stage || "preparing";
+      job.stage = stage;
+      job.message = STAGE_MESSAGES[stage];
       job.startedAt = job.startedAt || now;
       job.updatedAt = now;
       if (payload.runId) job.runId = String(payload.runId).slice(0, 32);
       await this.state.storage.put("job", job);
-      return json({ ok: true, status: job.status });
+      return json({ ok: true, status: job.status, stage });
     }
 
     if (payload.status !== "completed" && payload.status !== "failed") {
@@ -1085,6 +1120,9 @@ export class BacktestJob {
       job.errorCode = code;
       job.completedAt = now;
       job.updatedAt = now;
+      job.stage = null;
+      const timings = sanitizedTimings(payload.timings);
+      if (timings) job.timings = timings;
       if (payload.runId) job.runId = String(payload.runId).slice(0, 32);
       await this.state.storage.put("job", job);
       return json({ ok: true, status: job.status });
@@ -1114,6 +1152,9 @@ export class BacktestJob {
     job.completedAt = now;
     job.startedAt = job.startedAt || now;
     job.updatedAt = now;
+    job.stage = null;
+    const timings = sanitizedTimings(payload.timings);
+    if (timings) job.timings = timings;
     if (payload.runId) job.runId = String(payload.runId).slice(0, 32);
     await this.state.storage.put("job", job);
     return json({ ok: true, status: job.status, bytes: encoded.length });
@@ -1263,7 +1304,11 @@ async function handleBacktestSubmit(request, env, origin) {
     requestId: response.requestId,
     accessToken: response.accessToken,
     status: response.status || "queued",
-    pollIntervalMs: 4000,
+    acceptedAt: response.acceptedAt || null,
+    // Two seconds: the runner finishes within ~10-30 s once it starts, and a
+    // job costs roughly 20-60 polls at this rate. Well inside the 100,000
+    // requests/day free allowance, and dispatch is rate limited separately.
+    pollIntervalMs: 2000,
   }, 202, origin);
 }
 

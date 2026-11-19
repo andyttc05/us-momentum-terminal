@@ -115,6 +115,24 @@ def run(config: dict) -> dict:
     return result
 
 
+def _now_ms() -> int:
+    return int(time.time() * 1000)
+
+
+def report_stage(base: str, token: str, request_id: str, stage: str) -> None:
+    """Publish an observed stage. Progress must never fail the calculation."""
+    if not (base and token and request_id):
+        return
+    try:
+        post_callback(
+            base,
+            token,
+            {"requestId": request_id, "status": "running", "stage": stage},
+        )
+    except Exception as error:  # noqa: BLE001 - progress only
+        print(f"could not report the {stage} stage: {_redact(error)}", flush=True)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run one on-demand backtest.")
     parser.add_argument("--config-file", help="read the job config from a local JSON file")
@@ -129,6 +147,7 @@ def main(argv: list[str] | None = None) -> int:
     request_id = os.environ.get("BACKTEST_REQUEST_ID", "").strip()
     base = ""
     token = ""
+    timings: dict[str, int] = {"runnerStartedAt": _now_ms()}
 
     if args.notify_failure:
         base = _api_base()
@@ -153,14 +172,13 @@ def main(argv: list[str] | None = None) -> int:
             print(f"could not load the job configuration: {_redact(error)}", flush=True)
             _upload_failure(base, token, request_id, _redact(error), "config_unavailable")
             return 1
-        # The runner is alive and working: move the job out of "queued" so the
-        # page can show real progress instead of an indefinite queue.
-        try:
-            post_callback(base, token, {"requestId": request_id, "status": "running"})
-        except Exception as error:  # noqa: BLE001 - progress only
-            print(f"could not report progress: {_redact(error)}", flush=True)
+        timings["configFetchedAt"] = _now_ms()
+        # The runner is alive: move the job out of "queued" and name the stage
+        # that is actually about to run, never a synthetic percentage.
+        report_stage(base, token, request_id, "preparing")
 
-    started = time.time()
+    timings["engineStartedAt"] = _now_ms()
+    report_stage(base, token, request_id, "calculating")
     try:
         result = run(config or {})
     except ConfigError as error:
@@ -176,26 +194,42 @@ def main(argv: list[str] | None = None) -> int:
             _upload_failure(base, token, request_id, message, "engine_failed")
         return 1
 
+    timings["engineFinishedAt"] = _now_ms()
+    elapsed = timings["engineFinishedAt"] - timings["engineStartedAt"]
     encoded = json.dumps(result)
     print(
-        f"completed in {time.time() - started:.1f}s, {len(encoded) / 1024:.0f} KiB result",
+        f"completed in {elapsed / 1000:.1f}s, {len(encoded) / 1024:.0f} KiB result",
         flush=True,
     )
 
     if args.output:
         Path(args.output).write_text(encoded)
+        print(json.dumps({"timings": timings}), flush=True)
         return 0
 
+    report_stage(base, token, request_id, "delivering")
+    timings["callbackStartedAt"] = _now_ms()
     try:
         post_callback(
             base,
             token,
-            {"requestId": request_id, "status": "completed", "result": result},
+            {
+                "requestId": request_id,
+                "status": "completed",
+                "result": result,
+                "timings": timings,
+                "runId": os.environ.get("GITHUB_RUN_ID", ""),
+            },
         )
     except Exception as error:  # noqa: BLE001
         print(f"could not deliver the result: {_redact(error)}", flush=True)
         return 1
-    print("result delivered", flush=True)
+    timings["callbackFinishedAt"] = _now_ms()
+    print(
+        f"result delivered in {timings['callbackFinishedAt'] - timings['callbackStartedAt']} ms",
+        flush=True,
+    )
+    print(json.dumps({"timings": timings}), flush=True)
     return 0
 
 

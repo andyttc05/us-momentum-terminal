@@ -75,12 +75,15 @@ test("export and failure messages use the shared concise wording", () => {
 });
 
 test("important errors stay until dismissed and keep the Retry action", () => {
-  assert.match(backtesting, /durationMs: undefined/);
+  // A persistent notification is spelled `null`. `undefined` fell through to
+  // the 3200 ms default, which hid the error — and its Retry — after three
+  // seconds, before the reader could act on it.
+  assert.doesNotMatch(backtesting, /durationMs: undefined/);
   assert.match(backtesting, /notification-toast__action/);
   assert.match(backtesting, /retry === "backtest" \? runBacktest : refreshPreview/);
   assert.match(
     backtesting,
-    /showNotification\("Missing price history", "error", undefined, "missing-data", true\)/,
+    /showNotification\("Missing price history", "error", null, "missing-data", true\)/,
   );
 });
 

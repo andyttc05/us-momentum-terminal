@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { BacktestJobError, createBacktestJobClient } from "../src/api/backtestJob.js";
+import { BacktestJobError, createBacktestJobClient, stageMessage } from "../src/api/backtestJob.js";
 
 const CONFIG = {
   portfolio: "top100",
@@ -27,6 +27,7 @@ function jsonResponse(body, status = 200) {
  */
 function harness({ submit, states = [], clock = { value: 0 } }) {
   const calls = [];
+  const sleeps = [];
   const fetchImpl = async (url, init = {}) => {
     calls.push({ url, method: init.method || "GET", headers: init.headers, body: init.body });
     if (url.endsWith("/api/backtest")) {
@@ -44,10 +45,10 @@ function harness({ submit, states = [], clock = { value: 0 } }) {
   const client = createBacktestJobClient({
     baseUrl: "https://broker.test",
     fetchImpl,
-    sleep: async () => {},
+    sleep: async (milliseconds) => { sleeps.push(milliseconds); },
     now: () => clock.value,
   });
-  return { client, calls, clock };
+  return { client, calls, sleeps, clock };
 }
 
 test("a published-only deployment reports the client as disabled", () => {
@@ -89,8 +90,7 @@ test("queued and running states are reported before the result arrives", async (
   assert.equal(result.available, true);
 });
 
-test("the status poll authenticates with the access token", async () => {
-  const { client, calls } = harness({ states: [{ status: "completed", result: { available: true } }] });
+test("the status poll authenticates with the access token", async () => {  const { client, calls } = harness({ states: [{ status: "completed", result: { available: true } }] });
   await client.run(CONFIG, { challengeToken: "x" });
   const poll = calls[1];
   assert.match(poll.url, /requestId=req-1/);
@@ -222,6 +222,92 @@ test("status reports are suppressed once the run is superseded", async () => {
       onStatus: (state) => seen.push(state.status),
     }),
     (error) => error.code === "backtest_cancelled",
+  );
+  assert.deepEqual(seen, ["queued"]);
+});
+
+test("polling waits two seconds by default and honours a server override", async () => {
+  const { client: defaultClient, sleeps } = harness({
+    states: [
+      { status: "running" },
+      { status: "completed", result: { available: true } },
+    ],
+  });
+  await defaultClient.run(CONFIG, { challengeToken: "x" });
+  assert.deepEqual(sleeps, [2000, 2000]);
+
+  const fastSleeps = [];
+  const overridden = createBacktestJobClient({
+    baseUrl: "https://broker.test",
+    fetchImpl: async (url) => (url.endsWith("/api/backtest")
+      ? jsonResponse({ requestId: "r", accessToken: "t", status: "queued", pollIntervalMs: 5000 }, 202)
+      : jsonResponse({ status: "completed", result: { available: true } })),
+    sleep: async (milliseconds) => { fastSleeps.push(milliseconds); },
+  });
+  await overridden.run(CONFIG, { challengeToken: "x" });
+  assert.deepEqual(fastSleeps, [5000]);
+});
+
+test("each confirmed stage produces its own copy", () => {
+  assert.equal(stageMessage({ status: "queued" }), "Waiting for a backtest runner…");
+  assert.equal(
+    stageMessage({ status: "running", stage: "preparing" }),
+    "Preparing historical market data…",
+  );
+  assert.equal(
+    stageMessage({ status: "running", stage: "calculating" }),
+    "Running the historical simulation…",
+  );
+  assert.equal(
+    stageMessage({ status: "running", stage: "delivering" }),
+    "Validating and returning results…",
+  );
+  // An unknown or missing stage must not invent one; the runner reporting
+  // "running" at all means it has started preparing.
+  assert.equal(stageMessage({ status: "running" }), "Preparing historical market data…");
+  assert.equal(stageMessage({ status: "running", stage: "teleporting" }), "Preparing historical market data…");
+  assert.equal(stageMessage({ status: "completed" }), "Backtest completed");
+});
+
+test("queued then running then completed is reported in real order", async () => {
+  const seen = [];
+  const { client } = harness({
+    states: [
+      { status: "running", stage: "preparing", startedAt: "2026-11-19T05:00:01Z" },
+      { status: "running", stage: "calculating", startedAt: "2026-11-19T05:00:01Z" },
+      { status: "running", stage: "delivering", startedAt: "2026-11-19T05:00:01Z" },
+      {
+        status: "completed",
+        result: { available: true },
+        startedAt: "2026-11-19T05:00:01Z",
+        completedAt: "2026-11-19T05:00:12Z",
+        timings: { engineStartedAt: 1, engineFinishedAt: 2 },
+      },
+    ],
+  });
+  await client.run(CONFIG, {
+    challengeToken: "x",
+    onStatus: (state) => seen.push(`${state.status}:${state.stage ?? "-"}:${state.message}`),
+  });
+
+  assert.deepEqual(seen.map((entry) => entry.split(":")[0]), ["queued", "running", "running", "running", "completed"]);
+  assert.deepEqual(seen, [
+    "queued:-:Waiting for a backtest runner…",
+    "running:preparing:Preparing historical market data…",
+    "running:calculating:Running the historical simulation…",
+    "running:delivering:Validating and returning results…",
+    "completed:-:Backtest completed",
+  ]);
+});
+
+test("a failed job never reports a completion stage", async () => {
+  const seen = [];
+  const { client } = harness({
+    states: [{ status: "failed", error: "Insufficient history.", code: "engine_failed" }],
+  });
+  await assert.rejects(
+    () => client.run(CONFIG, { challengeToken: "x", onStatus: (state) => seen.push(state.status) }),
+    (error) => error.code === "engine_failed",
   );
   assert.deepEqual(seen, ["queued"]);
 });

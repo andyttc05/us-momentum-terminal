@@ -21,6 +21,29 @@ export class BacktestJobError extends Error {
   }
 }
 
+const TERMINAL = new Set(["completed", "failed"]);
+
+/**
+ * Copy for each state the runner can actually confirm.
+ *
+ * A stage is only shown when the runner reported it, so the page never
+ * describes work that is not happening; there is no percentage or ETA because
+ * neither can be observed from here.
+ */
+export const STAGE_COPY = {
+  queued: "Waiting for a backtest runner…",
+  preparing: "Preparing historical market data…",
+  calculating: "Running the historical simulation…",
+  delivering: "Validating and returning results…",
+};
+
+export function stageMessage({ status, stage } = {}) {
+  if (status === "completed") return "Backtest completed";
+  if (status === "failed") return "The backtest could not be completed.";
+  if (status === "running") return STAGE_COPY[stage] || STAGE_COPY.preparing;
+  return STAGE_COPY.queued;
+}
+
 function defaultSleep(milliseconds) {
   return new Promise((resolve) => {
     setTimeout(resolve, milliseconds);
@@ -32,7 +55,9 @@ export function createBacktestJobClient({
   fetchImpl = (...args) => fetch(...args),
   sleep = defaultSleep,
   now = () => Date.now(),
-  pollIntervalMs = 4000,
+  // 2 s: a queued/running job changes state within a few seconds of the runner
+  // reaching a checkpoint, and a job costs ~20-60 polls at this rate.
+  pollIntervalMs = 2000,
   timeoutMs = 10 * 60 * 1000,
   maxConsecutiveErrors = 3,
 } = {}) {
@@ -90,6 +115,7 @@ export function createBacktestJobClient({
       requestId: body.requestId,
       accessToken: body.accessToken,
       status: body.status || "queued",
+      acceptedAt: typeof body.acceptedAt === "string" ? body.acceptedAt : null,
       pollIntervalMs: Number(body.pollIntervalMs) || pollIntervalMs,
     };
   }
@@ -145,8 +171,10 @@ export function createBacktestJobClient({
     };
     report({
       status: job.status,
+      stage: null,
       requestId: job.requestId,
-      message: "Queued for the backtest runner…",
+      createdAt: job.acceptedAt || null,
+      message: stageMessage({ status: job.status }),
     });
 
     let interval = job.pollIntervalMs;
@@ -177,7 +205,15 @@ export function createBacktestJobClient({
         if (!active()) {
           throw new BacktestJobError("The backtest was superseded.", { code: "backtest_cancelled" });
         }
-        report({ status: "completed", requestId: job.requestId, message: "Backtest completed" });
+        report({
+          status: "completed",
+          stage: null,
+          requestId: job.requestId,
+          startedAt: state.startedAt || null,
+          completedAt: state.completedAt || null,
+          timings: state.timings || null,
+          message: stageMessage({ status: "completed" }),
+        });
         return state.result;
       }
       if (state.status === "failed") {
@@ -188,10 +224,11 @@ export function createBacktestJobClient({
       }
       report({
         status: state.status,
+        stage: state.stage || null,
         requestId: job.requestId,
-        message: state.status === "running"
-          ? "Running the historical simulation…"
-          : "Queued for the backtest runner…",
+        createdAt: state.createdAt || job.acceptedAt || null,
+        startedAt: state.startedAt || null,
+        message: stageMessage(state),
       });
     }
 

@@ -625,3 +625,93 @@ test("existing refresh routes still answer after the backtest additions", async 
   assert.equal(response.status, 503);
   assert.equal((await response.json()).message, "Refresh service is not configured.");
 });
+
+test("the submission advertises a two-second poll interval", async (t) => {
+  const h = harness();
+  t.after(h.restore);
+  const { body } = await submitAndRead(h.env);
+  assert.equal(body.pollIntervalMs, 2000);
+  assert.match(body.acceptedAt, /^\d{4}-\d{2}-\d{2}T/);
+});
+
+test("only runner-observed stages are exposed, in order", async (t) => {
+  const h = harness();
+  t.after(h.restore);
+  const { body } = await submitAndRead(h.env);
+
+  const read = async () => (await worker.fetch(
+    new Request(`https://broker.test/api/backtest/status?requestId=${body.requestId}`, {
+      headers: { Origin: ORIGIN, "x-umt-backtest-token": body.accessToken },
+    }),
+    h.env,
+  )).json();
+
+  assert.equal((await read()).stage, null);
+
+  const stages = [];
+  for (const stage of ["preparing", "calculating", "delivering"]) {
+    const response = await worker.fetch(
+      new Request("https://broker.test/api/backtest/callback", {
+        method: "POST",
+        headers: { authorization: `Bearer ${CALLBACK_TOKEN}`, "content-type": "application/json" },
+        body: JSON.stringify({ requestId: body.requestId, status: "running", stage }),
+      }),
+      h.env,
+    );
+    assert.equal(response.status, 200);
+    const state = await read();
+    stages.push(state.stage);
+    assert.equal(state.status, "running");
+  }
+  assert.deepEqual(stages, ["preparing", "calculating", "delivering"]);
+
+  // An invented stage must not be shown to the reader.
+  await worker.fetch(
+    new Request("https://broker.test/api/backtest/callback", {
+      method: "POST",
+      headers: { authorization: `Bearer ${CALLBACK_TOKEN}`, "content-type": "application/json" },
+      body: JSON.stringify({ requestId: body.requestId, status: "running", stage: "halfway" }),
+    }),
+    h.env,
+  );
+  assert.equal((await read()).stage, "delivering");
+});
+
+test("timing markers are stored with the result and sanitised", async (t) => {
+  const h = harness();
+  t.after(h.restore);
+  const { body } = await submitAndRead(h.env);
+  const timings = {
+    runnerStartedAt: 1_700_000_000_000,
+    engineStartedAt: 1_700_000_001_000,
+    engineFinishedAt: 1_700_000_009_000,
+    callbackStartedAt: 1_700_000_009_100,
+    callbackFinishedAt: "not-a-number",
+    injected: 42,
+  };
+  await worker.fetch(
+    new Request("https://broker.test/api/backtest/callback", {
+      method: "POST",
+      headers: { authorization: `Bearer ${CALLBACK_TOKEN}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        requestId: body.requestId,
+        status: "completed",
+        result: resultBlock(),
+        timings,
+      }),
+    }),
+    h.env,
+  );
+
+  const state = await (await worker.fetch(
+    new Request(`https://broker.test/api/backtest/status?requestId=${body.requestId}`, {
+      headers: { Origin: ORIGIN, "x-umt-backtest-token": body.accessToken },
+    }),
+    h.env,
+  )).json();
+
+  assert.equal(state.timings.engineFinishedAt - state.timings.engineStartedAt, 8000);
+  assert.equal(state.timings.callbackFinishedAt, undefined);
+  assert.equal(state.timings.injected, undefined);
+  assert.equal(state.stage, null, "a finished job has no active stage");
+});

@@ -73,6 +73,14 @@ import {
   rebalanceSummaryLabel,
 } from "./utils/rebalanceFrequency.js";
 import { UNIVERSE_OPTIONS } from "./utils/universeState.js";
+import {
+  buildCompletedNotification,
+  buildFailureNotification,
+  buildRunNotification,
+  dismissalDelay,
+  notificationText,
+  patchRunMessage,
+} from "./utils/runNotification.js";
 
 const RANGES = ["1Y", "3Y", "5Y", "All"];
 // Two ways to read the same simulation: the balance the account holds, or the
@@ -1162,7 +1170,11 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
   const [isExporting, setIsExporting] = useState(false);
   const [notification, setNotification] = useState(null);
   const [validationTouched, setValidationTouched] = useState(false);
+  // Elapsed time for an active on-demand run: measured from the click, ticking
+  // once a second, and reset as soon as the run ends.
+  const [elapsedMs, setElapsedMs] = useState(0);
   const notificationTimer = useRef(null);
+  const runStartedAt = useRef(0);
   const runSequence = useRef(0);
 
   const draftBlock = data?.backtest?.[universe] ?? null;
@@ -1204,8 +1216,22 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
 
   useEffect(() => () => {
     window.clearTimeout(notificationTimer.current);
+    // Bumping the sequence makes an in-flight run unable to publish a status or
+    // a result, so unmounting cannot leave a stale progress card behind.
     runSequence.current += 1;
   }, []);
+
+  useEffect(() => {
+    if (!isRunning) {
+      setElapsedMs(0);
+      return undefined;
+    }
+    setElapsedMs(runStartedAt.current ? Date.now() - runStartedAt.current : 0);
+    const timer = window.setInterval(() => {
+      setElapsedMs(runStartedAt.current ? Date.now() - runStartedAt.current : 0);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [isRunning]);
 
   function updateDraft(patch) {
     setDraft((current) => ({ ...current, ...patch }));
@@ -1221,19 +1247,50 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
     selectUniverse(value);
   }
 
-  function showNotification(message, kind = "updated", durationMs = 3200, id = message, retry = false) {
-    window.clearTimeout(notificationTimer.current);
-    setNotification({
+  /**
+   * Show a page-level notification.
+   *
+   * ``durationMs: null`` means "persistent": no timer is armed and the card
+   * stays until something replaces it. ``undefined`` must never be used for
+   * that, because the default parameter would silently apply 3200 ms — which is
+   * exactly why a four-second polling loop used to lose its own progress card.
+   */
+  function showNotification(message, kind = "updated", durationMs = 3200, id = message, retry = false, options = {}) {
+    const persistent = durationMs === null;
+    const dismissible = options.dismissible ?? persistent;
+    applyNotification({
       id,
       message,
       kind,
       durationMs,
       retry,
-      onDismiss: durationMs == null ? () => setNotification(null) : undefined,
+      dismissible,
+      showElapsed: options.showElapsed === true,
     });
-    if (Number.isFinite(durationMs)) {
-      notificationTimer.current = window.setTimeout(() => setNotification(null), durationMs);
+  }
+
+  /** Show a prepared notification from the run model, with the same timer rule. */
+  function applyNotification(entry) {
+    window.clearTimeout(notificationTimer.current);
+    setNotification({
+      ...entry,
+      onDismiss: entry.dismissible ? () => setNotification(null) : undefined,
+    });
+    const delay = dismissalDelay(entry);
+    if (delay !== null) {
+      notificationTimer.current = window.setTimeout(() => setNotification(null), delay);
     }
+  }
+
+  /**
+   * Update the active run's card in place.
+   *
+   * The message is only replaced when the runner actually reports a new stage,
+   * so the card keeps its identity (and its entering animation) between polls
+   * instead of restarting every two seconds.
+   */
+  function updateRunNotification(message) {
+    setNotification((current) => patchRunMessage(current, message));
   }
 
   const amountErrors = useMemo(() => {
@@ -1286,7 +1343,8 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
       message: availability.title,
       detail: availability.detail,
       kind: "error",
-      durationMs: undefined,
+      durationMs: null,
+      dismissible: true,
       onDismiss: () => setNotification((current) => (current?.id === "unavailable-mode" ? null : current)),
     });
   }, [availability.available, availability.detail, availability.title, draftBlock, sourceState]);
@@ -1306,7 +1364,8 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
         id: "validation",
         message,
         kind: "error",
-        durationMs: undefined,
+        durationMs: null,
+        dismissible: true,
         onDismiss: () => setNotification((active) => (active?.id === "validation" ? null : active)),
       }));
     } else {
@@ -1438,7 +1497,7 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
       setNotification((current) => (current?.id === "missing-data" ? null : current));
       return;
     }
-    showNotification("Missing price history", "error", undefined, "missing-data", true);
+    showNotification("Missing price history", "error", null, "missing-data", true);
   }, [data, resultBlock?.available, sourceState, submittedConfig]);
 
   async function runBacktest() {
@@ -1453,7 +1512,7 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
       showNotification(
         "Custom-date backtests are not configured for this deployment.",
         "error",
-        undefined,
+        null,
         "backtest-unavailable-service",
         false,
       );
@@ -1461,8 +1520,11 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
     }
     const sequence = runSequence.current + 1;
     runSequence.current = sequence;
+    runStartedAt.current = Date.now();
     setIsRunning(true);
-    showNotification("Running selected rebalance schedule…", "loading", undefined, "backtest-running");
+    // Persistent: a published schedule resolves immediately, but an on-demand
+    // run takes tens of seconds and its card must never time out underneath it.
+    applyNotification(buildRunNotification("Running selected rebalance schedule…"));
     try {
       const block = await executeBacktest({
         portfolio: normalizedDraft.portfolio,
@@ -1475,25 +1537,20 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
         cashflow_frequency: normalizedDraft.contributionFrequency,
         cashflow_direction: normalizedDraft.cashflowDirection,
       }, {
-        // Queued/running states are reported by the on-demand runner; a
+        // Queued/running stages are reported by the on-demand runner; a
         // published schedule resolves without emitting any.
         onStatus: (update) => {
           if (runSequence.current !== sequence) return;
-          if (update?.status === "completed") return;
-          if (update?.message) {
-            showNotification(update.message, "loading", undefined, "backtest-running");
-          }
+          if (update?.status === "completed" || !update?.message) return;
+          updateRunNotification(update.message);
         },
       });
       if (runSequence.current !== sequence) return;
       if (!block?.available) {
-        showNotification(
+        applyNotification(buildFailureNotification(
           block?.reason || "The backtest could not construct a valid portfolio.",
-          "error",
-          undefined,
-          "backtest-unavailable",
-          "backtest",
-        );
+          { id: "backtest-unavailable", retry: "backtest" },
+        ));
         return;
       }
       const key = backtestRunKey(normalizedDraft);
@@ -1501,18 +1558,17 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
       setSubmittedConfig(normalizedDraft);
       // A completed run defines the dataset every other page displays.
       activateUniverse(normalizedDraft.portfolio);
-      showNotification("Backtest completed", "updated", 3200, "backtest-complete");
+      applyNotification(buildCompletedNotification());
     } catch (requestError) {
       if (runSequence.current !== sequence) return;
-      showNotification(
+      applyNotification(buildFailureNotification(
         requestError?.message || "The backtest service could not complete the run.",
-        "error",
-        undefined,
-        "backtest-request-error",
-        "backtest",
-      );
+      ));
     } finally {
-      if (runSequence.current === sequence) setIsRunning(false);
+      if (runSequence.current === sequence) {
+        setIsRunning(false);
+        runStartedAt.current = 0;
+      }
     }
   }
 
@@ -1823,7 +1879,8 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
               showNotification(
                 message,
                 kind,
-                durationMs ?? (kind === "error" ? undefined : 3200),
+                // An error must stay readable; a confirmation may fade.
+                durationMs ?? (kind === "error" ? null : 3200),
                 id,
               );
             }}
@@ -1833,7 +1890,7 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
       {notification && (
         <Toast
           kind={notification.kind}
-          message={notification.message}
+          message={notificationText(notification, { elapsedMs, running: isRunning })}
           className="page-toast"
           durationMs={notification.durationMs}
           onDismiss={notification.onDismiss}

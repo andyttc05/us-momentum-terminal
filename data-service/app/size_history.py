@@ -27,6 +27,7 @@ name with a later 4:1 split would be sized at a quarter of its true weight.
 from __future__ import annotations
 
 import bisect
+import time
 from datetime import date, datetime
 from typing import Callable, Iterable
 
@@ -42,6 +43,14 @@ SHARE_HISTORY_START = "2014-01-01"
 # Cached series are reused until their newest observation is older than this, so
 # a long-running installation still picks up later share counts.
 SHARE_REFRESH_DAYS = 90
+
+# A provider that has just returned a series cannot be asked for a newer one
+# profitably a moment later. Renamed tickers (FB, UTX, PX) have no disclosures
+# after the rename, so their series stays "stale" against every later signal
+# date forever — and a naively freshness-only check re-downloaded them on every
+# single backtest, costing several seconds of network time per run and adding a
+# provider dependency to work that is otherwise cache-only.
+SHARE_RECHECK_DAYS = 7
 
 # A share count is a slow-moving quantity, but provider series contain holes.
 # The most recent disclosure at or before the signal date is the count that was
@@ -99,9 +108,29 @@ def fetch_share_history(symbol: str, end: str) -> list[tuple[str, int]]:
     cache.write(
         SHARE_NAMESPACE,
         symbol,
-        {"symbol": symbol, "source": SHARE_SOURCE, "points": points},
+        {
+            "symbol": symbol,
+            "source": SHARE_SOURCE,
+            "points": points,
+            # Only a successful fetch is stamped: a provider failure must stay
+            # retryable on the next run instead of being remembered for a week.
+            "checked_at": time.time(),
+        },
     )
     return _parse(points)
+
+
+def _recently_checked(symbol: str) -> bool:
+    """True when this symbol was fetched successfully within the recheck window.
+
+    The stored points are used either way; this only avoids asking the provider
+    again for a series it just told us has no newer disclosure.
+    """
+    payload = cache.read_stale(SHARE_NAMESPACE, symbol) or {}
+    checked = payload.get("checked_at")
+    if not isinstance(checked, (int, float)) or isinstance(checked, bool):
+        return False
+    return (time.time() - float(checked)) <= SHARE_RECHECK_DAYS * 86_400
 
 
 def _is_fresh(points: list[tuple[str, int]], end: str) -> bool:
@@ -119,6 +148,10 @@ def _ensure_one(symbol: str, end: str) -> tuple[bool, bool]:
     """Resolve one symbol. Returns ``(resolved, fetched)``."""
     history = load_share_history(symbol)
     if _is_fresh(history, end):
+        return True, False
+    if history and _recently_checked(symbol):
+        # Re-downloading a series the provider just returned cannot make it
+        # newer; the points we hold are still the ones that were knowable.
         return True, False
     if fetch_share_history(symbol, end):
         return True, True

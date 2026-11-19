@@ -218,7 +218,12 @@ class RunnerTests(unittest.TestCase):
         urls = [url for url, _ in posted]
         payloads = [payload for _, payload in posted]
         self.assertTrue(all(url.endswith("/api/backtest/callback") for url in urls))
-        self.assertEqual([payload["status"] for payload in payloads], ["running", "failed"])
+        # The two observable stages are reported before the failure; the
+        # "delivering" stage only exists when a result was produced.
+        self.assertEqual(
+            [(payload["status"], payload.get("stage")) for payload in payloads],
+            [("running", "preparing"), ("running", "calculating"), ("failed", None)],
+        )
         self.assertEqual(payloads[-1]["requestId"], "req-1")
         self.assertEqual(payloads[-1]["code"], "engine_failed")
         self.assertNotIn("token-value-not-to-be-printed", output)
@@ -248,9 +253,23 @@ class RunnerTests(unittest.TestCase):
             code, _ = self._run([])
 
         self.assertEqual(code, 0)
-        self.assertEqual([payload["status"] for payload in posted], ["running", "completed"])
+        self.assertEqual(
+            [(payload["status"], payload.get("stage")) for payload in posted],
+            [
+                ("running", "preparing"),
+                ("running", "calculating"),
+                ("running", "delivering"),
+                ("completed", None),
+            ],
+        )
         self.assertEqual(posted[-1]["requestId"], "req-2")
         self.assertEqual(posted[-1]["result"], result)
+        # Timing markers travel with the result so the whole run can be
+        # reconstructed without guessing where the time went.
+        timings = posted[-1]["timings"]
+        self.assertLessEqual(timings["runnerStartedAt"], timings["engineStartedAt"])
+        self.assertLessEqual(timings["engineStartedAt"], timings["engineFinishedAt"])
+        self.assertLessEqual(timings["engineFinishedAt"], timings["callbackStartedAt"])
 
     def test_a_workflow_level_failure_can_still_release_the_job(self):
         posted = []

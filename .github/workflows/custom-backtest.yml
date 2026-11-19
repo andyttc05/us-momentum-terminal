@@ -40,15 +40,30 @@ jobs:
           cache: pip
           cache-dependency-path: data-service/requirements.txt
 
-      - name: Install Python dependencies
-        run: pip install -r data-service/requirements.txt
-
-      # Same namespace, path and key shape as the publication workflow, so a
-      # backtest restores whatever historical data was collected most recently
-      # instead of downloading it again. The key is unique per run because
-      # GitHub Actions cache entries are immutable.
-      - name: Restore market-data cache
+      # `pip install` of pandas/numpy/exchange-calendars takes ~8 s on every run
+      # even with warm wheels, because the packages still have to be unpacked.
+      # Caching the installed tree makes a repeat run a file copy instead. The
+      # key is the requirements hash, so a version change forces a clean install
+      # - pinned versions are never swapped for something else.
+      - name: Restore installed Python packages
+        id: python-packages
         uses: actions/cache@v4
+        with:
+          path: ~/.umt-packages
+          key: pydeps-${{ runner.os }}-py311-${{ hashFiles('data-service/requirements.txt') }}
+
+      - name: Install Python dependencies
+        if: steps.python-packages.outputs.cache-hit != 'true'
+        run: pip install --target "$HOME/.umt-packages" -r data-service/requirements.txt
+
+      - name: Expose the cached packages
+        run: echo "PYTHONPATH=$HOME/.umt-packages" >> "$GITHUB_ENV"
+
+      # Restore only. The publication workflow saves this exact cache on every
+      # scheduled run, so re-saving 189 MB here would just churn the 10 GB
+      # repository budget and evict the entries other runs depend on.
+      - name: Restore market-data cache
+        uses: actions/cache/restore@v4
         with:
           path: data-service/cache
           key: market-data-${{ runner.os }}-${{ github.run_id }}
