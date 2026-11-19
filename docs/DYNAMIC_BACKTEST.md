@@ -64,8 +64,10 @@ it; nothing is estimated.
 | running | `delivering` | Finishing up |
 | completed | – | Backtest complete |
 
-Labels are two words or fewer; the elapsed time is appended (`Queued · 0:25`)
-and the full wording lives in the error cases, where it carries information.
+Labels are two words or fewer. The elapsed time is a separate right-aligned slot
+(`Queued … 0:25`), not part of the sentence: the card keeps its minimum width,
+the label grows leftwards, and the clock stays where it is across stage changes.
+Full sentences are kept for errors, where the wording carries information.
 
 `preparing` is genuinely short with a warm cache (the engine starts within about
 half a second of the configuration arriving), so in practice a run shows the

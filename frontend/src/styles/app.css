@@ -244,6 +244,26 @@
   flex: 1 1 auto;
   overflow-wrap: anywhere;
 }
+/* Run progress: the label on the left, the elapsed time pinned to the right
+   edge of the card. The card keeps its minimum width, so changing "Queued" to
+   "Running simulation" grows the label leftwards and the timer never moves. */
+.notification-toast__run {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+.notification-toast__run-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.notification-toast__timer {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: rgb(255 255 255 / 58%);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.01em;
+}
 .notification-toast__action {
   display: inline-flex;
   min-height: 32px;

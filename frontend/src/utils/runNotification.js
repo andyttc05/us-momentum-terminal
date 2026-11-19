@@ -69,11 +69,21 @@ export function dismissalDelay(notification) {
   return Number.isFinite(notification.durationMs) ? notification.durationMs : null;
 }
 
-/** The text a card shows, including elapsed time only while a run is active. */
-export function notificationText(notification, { elapsedMs, running }) {
-  if (!notification) return "";
-  if (!notification.showElapsed || !running) return notification.message;
-  return `${notification.message} · ${formatElapsed(elapsedMs)}`;
+/** The text a card shows. The elapsed time is a separate, right-aligned slot. */
+export function notificationText(notification) {
+  return notification?.message ?? "";
+}
+
+/**
+ * Elapsed time for an active run, or `null` when the card has no timer.
+ *
+ * It is rendered as its own element pinned to the right edge of the card, so
+ * switching the label from "Queued" to "Running simulation" never moves it: the
+ * card keeps its minimum width and only the left-hand text changes.
+ */
+export function notificationTimer(notification, { elapsedMs, running }) {
+  if (!notification?.showElapsed || !running) return null;
+  return formatElapsed(elapsedMs);
 }
 
 export function formatElapsed(milliseconds) {

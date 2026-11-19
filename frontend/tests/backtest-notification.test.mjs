@@ -11,6 +11,7 @@ import {
   dismissalDelay,
   formatElapsed,
   notificationText,
+  notificationTimer,
   patchRunMessage,
 } from "../src/utils/runNotification.js";
 
@@ -93,18 +94,29 @@ test("a superseded job cannot overwrite the current card", () => {
   assert.equal(patchRunMessage(null, "anything"), null);
 });
 
-test("elapsed time is only appended to an active run card", () => {
+test("the timer is a separate slot, never part of the label", () => {
   const running = buildRunNotification("Running simulation");
-  assert.equal(
-    notificationText(running, { elapsedMs: 7000, running: true }),
-    "Running simulation · 0:07",
-  );
-  assert.equal(
-    notificationText(running, { elapsedMs: 7000, running: false }),
-    "Running simulation",
-  );
+  // The label carries no separator and no digits: the time is its own element,
+  // pinned right, so a stage change cannot shift it.
+  assert.equal(notificationText(running), "Running simulation");
+  assert.doesNotMatch(notificationText(running), /·|\d/);
+  assert.equal(notificationTimer(running, { elapsedMs: 7000, running: true }), "0:07");
+  // A finished run has no timer at all.
+  assert.equal(notificationTimer(running, { elapsedMs: 7000, running: false }), null);
   const completed = buildCompletedNotification();
-  assert.equal(notificationText(completed, { elapsedMs: 70_000, running: true }), "Backtest complete");
+  assert.equal(notificationTimer(completed, { elapsedMs: 70_000, running: true }), null);
+  assert.equal(notificationText(completed), "Backtest complete");
+});
+
+test("the label width changes but the timer slot does not", () => {
+  // Every label is shorter than the card's 270px minimum, so the card keeps its
+  // width and the right-aligned timer stays put across these transitions.
+  const labels = ["Running backtest…", "Queued", "Preparing data", "Running simulation", "Finishing up"];
+  for (const label of labels) {
+    const notification = buildRunNotification(label);
+    assert.ok(label.length <= 18, `${label} must fit the reserved width`);
+    assert.equal(notificationTimer(notification, { elapsedMs: 61_000, running: true }), "1:01");
+  }
 });
 
 test("elapsed formatting stays minute-based past a minute", () => {
@@ -121,7 +133,9 @@ test("the page uses the persistent model for an active run", () => {
   assert.match(page, /applyNotification\(buildCompletedNotification\(/);
   assert.match(page, /applyNotification\(buildFailureNotification\(/);
   assert.match(page, /patchRunMessage\(current, message\)/);
-  assert.match(page, /notificationText\(notification, \{ elapsedMs, running: isRunning \}\)/);
+  assert.match(page, /const runTimer = notificationTimer\(notification, \{ elapsedMs, running: isRunning \}\)/);
+  assert.match(page, /className="notification-toast__run"/);
+  assert.match(page, /className="notification-toast__timer">\{runTimer\}/);
   // The regression that caused the bug: `undefined` used to mean "persistent"
   // but fell through to the 3200 ms default.
   assert.doesNotMatch(page, /showNotification\([^)]*"loading",\s*undefined/);

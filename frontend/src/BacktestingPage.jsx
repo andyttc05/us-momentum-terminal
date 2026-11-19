@@ -80,6 +80,7 @@ import {
   buildRunNotification,
   dismissalDelay,
   notificationText,
+  notificationTimer,
   patchRunMessage,
 } from "./utils/runNotification.js";
 
@@ -1597,6 +1598,10 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
     }
   }
 
+  // Computed once: the timer is its own right-aligned slot, so a stage change
+  // replaces only the label beside it.
+  const runTimer = notificationTimer(notification, { elapsedMs, running: isRunning });
+
   return (
     <main className="app-main" hidden={hidden}>
       <div className="page backtest-page" id="backtesting">
@@ -1873,7 +1878,12 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
       {notification && (
         <Toast
           kind={notification.kind}
-          message={notificationText(notification, { elapsedMs, running: isRunning })}
+          message={runTimer ? (
+            <span className="notification-toast__run">
+              <span className="notification-toast__run-label">{notificationText(notification)}</span>
+              <span className="notification-toast__timer">{runTimer}</span>
+            </span>
+          ) : notificationText(notification)}
           className="page-toast"
           durationMs={notification.durationMs}
           onDismiss={notification.onDismiss}
