@@ -1,22 +1,46 @@
+# Deployment reference for the Cloudflare Worker API gateway.
+#
+# Copy to `wrangler.toml` beside `index.js` (that file is git-ignored) and
+# deploy with `wrangler deploy`. Every value here is public configuration; the
+# secrets are set separately and never appear in this file:
+#
+#   wrangler secret put GITHUB_REFRESH_TOKEN       # fine-grained, Actions read/write, this repo only
+#   wrangler secret put BACKTEST_CALLBACK_TOKEN    # shared with the GitHub Actions runner
+#   wrangler secret put TURNSTILE_SECRET_KEY       # Turnstile widget secret
 name = "umt-refresh-broker"
 main = "index.js"
 compatibility_date = "2026-11-18"
 
 [durable_objects]
-bindings = [{ name = "REFRESH_COORDINATOR", class_name = "RefreshCoordinator" }]
+bindings = [
+  { name = "REFRESH_COORDINATOR", class_name = "RefreshCoordinator" },
+  { name = "BACKTEST_JOB", class_name = "BacktestJob" },
+  { name = "BACKTEST_LIMITER", class_name = "BacktestRateLimiter" },
+]
 
+# SQLite-backed classes only: the Workers Free plan cannot create a
+# key-value-backed Durable Object namespace. Read the migration tags from the
+# Cloudflare dashboard before adding a new one; an applied tag cannot be reused.
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["RefreshCoordinator"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["BacktestJob", "BacktestRateLimiter"]
 
 [vars]
 GITHUB_REPOSITORY = "andyttc05/us-momentum-terminal"
 GITHUB_REF = "main"
 GITHUB_WORKFLOW_FILE = "deploy-pages.yml"
+GITHUB_BACKTEST_WORKFLOW_FILE = "custom-backtest.yml"
 REFRESH_ALLOWED_ORIGINS = "https://andyttc05.github.io"
 REFRESH_ALLOWED_HOSTS = "andyttc05.github.io"
 TURNSTILE_ACTION = "refresh"
+TURNSTILE_BACKTEST_ACTION = "backtest"
 # PUBLIC_MANIFEST_URL = "https://andyttc05.github.io/us-momentum-terminal/data/manifest.json"
-# Set these with `wrangler secret put`, never in this file:
-# GITHUB_REFRESH_TOKEN (fine-grained: Actions read/write, repository scoped)
-# TURNSTILE_SECRET_KEY
+#
+# Free-plan quota notes (see docs/DYNAMIC_BACKTEST.md):
+#   Workers requests     100,000/day
+#   Durable Object reqs  100,000/day, 13,000 GB-s/day, 5 GB storage total
+#   SQL row size         8 MB (results are stored in 200,000-character chunks)

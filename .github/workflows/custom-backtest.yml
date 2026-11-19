@@ -1,0 +1,75 @@
+name: Custom backtest
+
+# One visitor-requested custom-date backtest. The job configuration never
+# travels through workflow inputs: the runner fetches it from the Cloudflare
+# Worker over an authenticated channel, and posts the result back the same way.
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: "Broker correlation id for one submitted backtest"
+        required: true
+        type: string
+
+# A public repository has no Actions minute quota, and one request must never
+# run twice: the group is the request id, so a duplicate dispatch is serialized
+# (and the second run finds the job already finished).
+concurrency:
+  group: custom-backtest-${{ github.event.inputs.request_id }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      BACKTEST_REQUEST_ID: ${{ github.event.inputs.request_id }}
+      BACKTEST_API_URL: ${{ vars.BACKTEST_API_URL || 'https://umt-refresh-broker.andyttc2463.workers.dev' }}
+      BACKTEST_CALLBACK_TOKEN: ${{ secrets.BACKTEST_CALLBACK_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: data-service/requirements.txt
+
+      - name: Install Python dependencies
+        run: pip install -r data-service/requirements.txt
+
+      # Same namespace, path and key shape as the publication workflow, so a
+      # backtest restores whatever historical data was collected most recently
+      # instead of downloading it again. The key is unique per run because
+      # GitHub Actions cache entries are immutable.
+      - name: Restore market-data cache
+        uses: actions/cache@v4
+        with:
+          path: data-service/cache
+          key: market-data-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            market-data-${{ runner.os }}-
+
+      - name: Verify restored market-data cache
+        run: |
+          mkdir -p data-service/cache
+          printf 'Restored Python cache: %s files, %s\n' \
+            "$(find data-service/cache -type f | wc -l)" \
+            "$(du -sh data-service/cache | cut -f1)"
+
+      - name: Run the requested backtest
+        run: python data-service/scripts/custom_backtest.py
+
+      # Anything that fails before the runner could report (dependency install,
+      # cache restore, a cancelled run) still has to release the job, otherwise
+      # the page polls until the 45-minute broker timeout.
+      - name: Report an unreported failure
+        if: failure() || cancelled()
+        run: |
+          python data-service/scripts/custom_backtest.py \
+            --notify-failure "The backtest runner stopped before the calculation finished."

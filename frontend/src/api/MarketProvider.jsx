@@ -18,7 +18,7 @@ import {
 } from "./publicationStatus.js";
 import { waitForPublishedRefresh } from "./refreshPolling.js";
 import { automaticRefreshClaimed, runAutomaticRefresh } from "./autoRefresh.js";
-import { getRefreshChallenge } from "./refreshChallenge.js";
+import { getBacktestChallenge, getRefreshChallenge } from "./refreshChallenge.js";
 
 const MarketContext = createContext(null);
 const STATIC_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
@@ -71,6 +71,9 @@ export function MarketProvider({ children }) {
   const checkOperation = useRef(null);
   const refreshOperation = useRef(null);
   const refreshResumeAttempted = useRef(false);
+  // Only the newest on-demand job may publish a result; a superseded job's
+  // late response is dropped instead of overwriting the current dashboard.
+  const backtestSequence = useRef(0);
 
   useEffect(() => {
     mounted.current = true;
@@ -494,30 +497,57 @@ export function MarketProvider({ children }) {
     return true;
   }, []);
 
-  const runBacktest = useCallback(async (config) => {
+  const runBacktest = useCallback(async (config, options = {}) => {
     const frequency = config.rebalance_frequency || "semiannual";
     setStrategyRebalanceFrequency(frequency);
     const publication = dataRef.current;
     const snapshotBlock = publication?.backtest?.[config.portfolio];
-    if (STATIC_MODE) {
-      const usesPublishedRange = Boolean(
-        snapshotBlock?.available
-        && config.start === snapshotBlock.start
-        && config.end === snapshotBlock.end,
-      );
-      if (usesPublishedRange && frequency === "semiannual") {
-        return snapshotBlock;
-      }
-      if (usesPublishedRange) {
+    if (!STATIC_MODE) return api.backtest(config);
+
+    const usesPublishedRange = Boolean(
+      snapshotBlock?.available
+      && config.start === snapshotBlock.start
+      && config.end === snapshotBlock.end,
+    );
+    // 1. Exact published window on the default schedule: already in the JSON.
+    if (usesPublishedRange && frequency === "semiannual") return snapshotBlock;
+    // 2. Exact published window on another precomputed schedule.
+    if (usesPublishedRange) {
+      try {
         const block = await api.backtestSchedule(config.portfolio, frequency);
-        if (!block?.available) {
-          throw new Error(`The published ${frequency} ${config.portfolio} backtest is unavailable.`);
-        }
-        return block;
+        if (block?.available) return block;
+      } catch {
+        // A missing precomputed schedule falls through to a real calculation
+        // instead of telling the reader the combination is impossible.
       }
-      throw new Error("Custom-date browser calculations are not available yet; no server request was made.");
     }
-    return api.backtest(config);
+    // 3. Custom range, or 4. missing precomputed schedule: run it for real.
+    const job = backtestSequence.current + 1;
+    backtestSequence.current = job;
+    const active = () => mounted.current && backtestSequence.current === job && !options.signal?.aborted;
+    const challengeToken = await getBacktestChallenge();
+    return api.backtestJob(
+      {
+        portfolio: config.portfolio,
+        start: config.start,
+        end: config.end,
+        rebalance_frequency: frequency,
+        initial_capital: config.initial_capital,
+        cashflow_enabled: config.cashflow_enabled,
+        cashflow_amount: config.cashflow_amount,
+        cashflow_frequency: config.cashflow_frequency,
+        cashflow_direction: config.cashflow_direction,
+      },
+      {
+        challengeToken,
+        signal: options.signal,
+        isActive: active,
+        onStatus: (state) => {
+          if (!active()) return;
+          if (typeof options.onStatus === "function") options.onStatus(state);
+        },
+      },
+    );
   }, [setStrategyRebalanceFrequency]);
 
   const value = useMemo(
@@ -541,6 +571,9 @@ export function MarketProvider({ children }) {
       checkForUpdates,
       refreshMarketData,
       refreshBrokerEnabled: api.refreshBrokerEnabled,
+      // Custom-date runs need the broker; the page uses this to explain the
+      // limitation instead of failing after the reader presses Run.
+      backtestJobEnabled: api.backtestJobEnabled,
       runBacktest,
       selectProvider,
       strategyRebalanceFrequency,

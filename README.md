@@ -108,6 +108,16 @@ portfolio rules, accounting conventions, and research limitations are documented
 [DATA_PIPELINE.md](docs/DATA_PIPELINE.md), and setup instructions are in
 [DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
+## Custom date ranges
+
+Published backtests cover the current snapshot window on four rebalancing
+schedules. A custom date range is calculated on demand: the browser submits the
+configuration to a Cloudflare Worker, which dispatches one GitHub Actions run,
+and the finished result is returned to that browser alone. Nothing is
+always-on and nothing is estimated in the browser. The architecture, storage
+model and free-tier budget are documented in
+[DYNAMIC_BACKTEST.md](docs/DYNAMIC_BACKTEST.md).
+
 ## Disclaimer
 
 US Momentum Terminal is for education and research only. It does not provide financial advice or

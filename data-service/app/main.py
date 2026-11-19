@@ -6,13 +6,12 @@ Run from the repository root with ``npm run data:serve``.
 from __future__ import annotations
 
 import json
-import math
 import sys
 import threading
 import traceback
 import time
 from copy import deepcopy
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import Body, FastAPI, HTTPException, Query
@@ -23,10 +22,10 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app import cache  # noqa: E402
+from app.backtest import REBALANCE_LABELS  # noqa: E402
+from app.backtest_job import ConfigError, normalize_config  # noqa: E402
 from app.clock import market_state  # noqa: E402
 from app.config import DOCS_DIR, SEED_PATH, settings  # noqa: E402
-from app.backtest import REBALANCE_FREQUENCIES, REBALANCE_LABELS  # noqa: E402
-from app.cashflow import normalize_frequency as normalize_cashflow_frequency  # noqa: E402
 from app.providers.registry import registry  # noqa: E402
 from app.snapshot import (  # noqa: E402
     PUBLICATION_VERSION,
@@ -294,68 +293,19 @@ def bars(ticker: str, days: int = Query(default=750, ge=30, le=3000)) -> JSONRes
 
 @app.post("/api/backtest")
 def backtest(payload: dict = Body(default={})) -> JSONResponse:
-    """Run a date-bounded backtest with the selected rebalance schedule."""
-    portfolio = str(payload.get("portfolio", "top100")).strip().lower()
-    frequency = str(payload.get("rebalance_frequency", "semiannual")).strip().lower()
-    start_text = str(payload.get("start", "")).strip()
-    end_text = str(payload.get("end", "")).strip()
+    """Run a date-bounded backtest with the selected rebalance schedule.
+
+    Validation lives in ``app.backtest_job`` so the local service and the
+    on-demand Cloudflare job path accept exactly the same configurations.
+    """
     try:
-        initial_capital = float(payload.get("initial_capital", 10_000.0))
-        cashflow_amount = float(payload.get("cashflow_amount", 0.0))
-    except (TypeError, ValueError) as exc:
-        raise HTTPException(
-            status_code=400,
-            detail="initial_capital and cashflow_amount must be numeric",
-        ) from exc
-    cashflow_enabled = payload.get("cashflow_enabled", False)
-    if not isinstance(cashflow_enabled, bool):
-        raise HTTPException(status_code=400, detail="cashflow_enabled must be a boolean")
-    cashflow_direction = str(payload.get("cashflow_direction", "inflow")).strip().lower()
-    try:
-        cashflow_frequency = normalize_cashflow_frequency(
-            str(payload.get("cashflow_frequency", "monthly"))
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    if portfolio not in {"top100", "top20"}:
-        raise HTTPException(status_code=400, detail="portfolio must be top100 or top20")
-    if frequency not in REBALANCE_FREQUENCIES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"rebalance_frequency must be one of: {', '.join(REBALANCE_FREQUENCIES)}",
-        )
-    try:
-        start = date.fromisoformat(start_text)
-        end = date.fromisoformat(end_text)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail="start and end must use YYYY-MM-DD") from exc
-    if start >= end:
-        raise HTTPException(status_code=400, detail="end must be after start")
-    if not math.isfinite(initial_capital) or initial_capital <= 0:
-        raise HTTPException(status_code=400, detail="initial_capital must be greater than zero")
-    if cashflow_direction not in {"inflow", "outflow"}:
-        raise HTTPException(status_code=400, detail="cashflow_direction must be inflow or outflow")
-    if not math.isfinite(cashflow_amount) or cashflow_amount < 0:
-        raise HTTPException(status_code=400, detail="cashflow_amount must be finite and non-negative")
-    if cashflow_enabled and cashflow_amount <= 0:
-        raise HTTPException(
-            status_code=400,
-            detail="cashflow_amount must be greater than zero when cashflows are enabled",
-        )
+        config = normalize_config(payload)
+    except ConfigError as exc:
+        raise HTTPException(status_code=400, detail=exc.message) from exc
 
     with _BACKTEST_LOCK:
-        result = run_historical_backtest(
-            portfolio=portfolio,
-            rebalance_frequency=frequency,
-            start=start.isoformat(),
-            end=end.isoformat(),
-            initial_capital=initial_capital,
-            cashflow_enabled=cashflow_enabled,
-            cashflow_amount=cashflow_amount,
-            cashflow_frequency=cashflow_frequency,
-            cashflow_direction=cashflow_direction,
-        )
-    result["rebalanceLabel"] = REBALANCE_LABELS[frequency]
+        result = run_historical_backtest(**config)
+    result["rebalanceLabel"] = REBALANCE_LABELS[config["rebalance_frequency"]]
     response = JSONResponse(result)
     response.headers["Cache-Control"] = "no-store"
     return response
