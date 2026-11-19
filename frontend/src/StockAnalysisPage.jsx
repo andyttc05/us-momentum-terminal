@@ -3,6 +3,7 @@ import { ArrowLeft, ChartBar, Crown, Scales, Sigma, Stack } from "@phosphor-icon
 import { AppButton } from "./components/AppButton.jsx";
 import { ChartState, Skeleton } from "./components/DataState.jsx";
 import { DashboardCard } from "./components/DashboardCard.jsx";
+import { LogScaleToggle } from "./components/LogScaleToggle.jsx";
 import { Mascot, MascotDuo } from "./components/Mascot.jsx";
 import { useChartPointer } from "./components/useChartPointer.js";
 import { useChartTooltipSize } from "./components/useChartTooltipSize.js";
@@ -626,7 +627,7 @@ export function StockAnalysisPage({ ticker = "NVDA", onBack, backLabel = "Screen
               </span>
             </div>
             <div className="stock-summary-block">
-              <Crown size={24} weight="regular" aria-hidden="true" className="stock-summary-block__rank-icon" />
+              <Crown size={24} weight="regular" aria-hidden="true" />
               <span className="stock-summary-block__copy">
                 <span className="stock-summary-block__label">Rank</span>
                 <strong
@@ -644,7 +645,7 @@ export function StockAnalysisPage({ ticker = "NVDA", onBack, backLabel = "Screen
           <section className="dashboard-card stock-price-card" aria-label={`${ticker} historical price chart`}>
             <div className="stock-price-controls">
               <div className="stock-price-controls__row">
-                <div className="stock-price-toolbar" role="group" aria-label="Stock price history range">
+                <div className="period-control stock-range-control" role="group" aria-label="Stock price history range">
                   {priceRanges.map((item) => <button key={item} type="button" aria-pressed={range === item} onClick={() => setRange(item)}>{item}</button>)}
                 </div>
                 {rangeSummary && (
@@ -656,16 +657,11 @@ export function StockAnalysisPage({ ticker = "NVDA", onBack, backLabel = "Screen
                   </strong>
                 )}
               </div>
-              <button
-                type="button"
-                className="stock-price-scale-toggle"
-                aria-pressed={logScale}
-                aria-label="Logarithmic price scale"
-                onClick={() => setLogScale((current) => !current)}
-              >
-                <span>Log Scale</span>
-                <span className="stock-switch" aria-hidden="true"><i /></span>
-              </button>
+              <LogScaleToggle
+                checked={logScale}
+                onChange={setLogScale}
+                ariaLabel="Logarithmic price scale"
+              />
             </div>
             <div className="stock-price-chart-wrap">
               {priceState === "ready"

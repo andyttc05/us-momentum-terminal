@@ -216,13 +216,13 @@ export function Toggle({ checked, onChange, label }) {
   return (
     <button
       type="button"
-      className="toggle-control backtest-switch-button"
+      className="toggle-control"
       role="switch"
       aria-label={label}
       aria-checked={checked}
       onClick={() => onChange(!checked)}
     >
-      <span className="toggle-control__track backtest-switch" aria-hidden="true"><i /></span>
+      <span className="toggle-control__track" aria-hidden="true"><i /></span>
     </button>
   );
 }

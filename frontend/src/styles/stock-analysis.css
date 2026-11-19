@@ -72,15 +72,13 @@
 .stock-summary-block + .stock-summary-block { flex: 1 1 0; min-width: max-content; padding-left: clamp(10px, 1.5vw, 22px); border-left: 1px solid var(--color-line); }
 .stock-summary-block--price { gap: clamp(8px, 1vw, 14px); }
 .stock-summary-block > svg { flex: 0 0 auto; color: var(--color-ink); }
-/* The rank keeps the same icon+label+value rhythm as market cap, but the crown
-   carries the app's gold so the two blocks stay distinguishable at a glance. */
-.stock-summary-block > .stock-summary-block__rank-icon { color: var(--color-yellow-line); }
+/* Both blocks take the ink icon: market cap and rank are one reading row, so
+   neither icon carries a colour of its own. */
 .stock-summary-block__copy { display: grid; min-width: 0; gap: 2px; line-height: 1.2; }
 .stock-summary-block__label { color: var(--color-text-secondary); font-size: var(--font-size-meta); font-weight: var(--font-weight-bold); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
 .stock-summary-block__value { font-size: 1.02rem; font-weight: var(--font-weight-black); font-variant-numeric: tabular-nums; white-space: nowrap; }
 /* Ranking tier colours: the value carries the percentile inside the eligible
-   universe (top quintile green, middle 60% gold, bottom quintile red). The
-   crown is the block's icon, so it stays gold and does not double the signal. */
+   universe (top quintile green, middle 60% gold, bottom quintile red). */
 .stock-summary-block__value--top { color: #16864A; }
 .stock-summary-block__value--mid { color: #735500; }
 .stock-summary-block__value--low { color: #D64545; }
@@ -89,21 +87,11 @@
 
 .stock-price-card { display: flex; min-height: 0; flex-direction: column; padding: 14px 14px 10px; }
 /* Eight ranges plus a scale switch: the row wraps rather than shrinking the
-   pills into unreadable targets, and never scrolls horizontally. */
+   pills into unreadable targets, and never scrolls horizontally. The range
+   group itself is the shared `.period-control`; only its width behaviour is
+   set here, so the pills keep the app's one segmented-control design. */
 .stock-price-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
-/* Same equal-segment rule as .period-control: every range is as wide as the
-   widest one, so the group reads as one control instead of five pills. */
-.stock-price-toolbar { display: inline-grid; width: max-content; max-width: 100%; min-height: 42px; grid-auto-flow: column; grid-auto-columns: minmax(44px, 1fr); align-items: center; gap: 2px; padding: 4px; border: 1px solid transparent; border-radius: var(--radius-pill); background: var(--color-surface-soft); }
-.stock-price-toolbar button { min-width: 0; min-height: 34px; padding: 0 11px; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--color-ink); cursor: pointer; font-size: 0.9rem; font-weight: var(--font-weight-black); transition: background-color 180ms ease, color 180ms ease; }
-.stock-price-toolbar button:hover:not([aria-pressed="true"]) { background: var(--color-nav-hover); }
-.stock-price-toolbar button[aria-pressed="true"] { background: var(--color-yellow); }
-.stock-price-scale-toggle { display: inline-flex; min-height: 38px; align-items: center; gap: 9px; padding: 0 13px; border: 1px solid var(--color-line); border-radius: var(--radius-pill); background: var(--color-surface-soft); color: var(--color-ink); cursor: pointer; font-size: 0.84rem; font-weight: var(--font-weight-black); transition: background-color 180ms ease, border-color 180ms ease; }
-.stock-price-scale-toggle:hover:not([aria-pressed="true"]) { background: var(--color-nav-hover); }
-.stock-price-scale-toggle[aria-pressed="true"] { border-color: transparent; background: var(--color-yellow); }
-.stock-switch { display: inline-flex; width: 30px; height: 18px; padding: 2px; border-radius: var(--radius-pill); background: #E4DED5; transition: background-color 180ms ease; }
-.stock-switch i { width: 14px; height: 14px; border-radius: 50%; background: #FFFFFF; box-shadow: 0 1px 2px rgb(0 0 0 / 18%); transition: transform 180ms ease; }
-.stock-price-scale-toggle[aria-pressed="true"] .stock-switch { background: #14110D; }
-.stock-price-scale-toggle[aria-pressed="true"] .stock-switch i { transform: translateX(12px); }
+.stock-range-control { width: max-content; max-width: 100%; }
 /* The selected window's own headline, in the same row as the range pills: one
    number, no label, no rule under it. */
 .stock-price-controls__row { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 14px; }
@@ -301,9 +289,6 @@
   .stock-summary-block { gap: 9px; }
   .stock-summary-block + .stock-summary-block { padding-left: 12px; }
   .stock-price-card { padding: 9px 11px 7px; }
-  .stock-price-toolbar { min-height: 36px; }
-  .stock-price-toolbar button { min-width: 42px; min-height: 29px; padding-inline: 9px; font-size: 0.8rem; }
-  .stock-price-scale-toggle { min-height: 34px; padding-inline: 11px; font-size: 0.79rem; }
   .stock-price-controls__row { gap: 10px; }
   .stock-price-range-change { font-size: 1.12rem; }
   .stock-returns-card { padding-block: 6px; }
@@ -364,7 +349,8 @@
 
   .stock-price-card { padding: 12px 12px 8px; }
   .stock-price-controls { justify-content: flex-start; }
-  .stock-price-toolbar { width: 100%; flex-wrap: wrap; }
-  .stock-price-toolbar button { min-width: 0; flex: 1 0 auto; padding: 0 8px; font-size: 0.84rem; }
+  /* Five ranges fill the phone row exactly; the shared segmented control keeps
+     its own pill design instead of shrinking into unreadable targets. */
+  .stock-range-control { width: 100%; grid-template-columns: repeat(5, minmax(0, 1fr)); }
   .stock-price-range-change { font-size: 1.2rem; }
 }

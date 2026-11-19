@@ -271,6 +271,39 @@ button:focus-visible, a:focus-visible { outline: none; box-shadow: var(--focus-r
 .toggle-control[aria-checked="true"] .toggle-control__track { background: #EDB900; }
 .toggle-control[aria-checked="true"] .toggle-control__track i { transform: translateX(14px); }
 
+/* Log-scale switch — the same track, wrapped in a labelled pill.
+   One definition serves the stock price chart and the backtest equity curve;
+   pages may match it to a denser pill row (min-height only), never restyle it.
+   The resting surface is transparent and only the track changes colour,
+   matching `.toggle-control` above. The height matches `.period-control`
+   (4px padding + 34px buttons + 2px border), because the two sit side by side. */
+.log-scale-toggle {
+  display: inline-flex;
+  flex: 0 0 auto;
+  min-height: 44px;
+  align-items: center;
+  gap: 9px;
+  padding: 0 13px 0 14px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-ink);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: var(--font-weight-bold);
+  white-space: nowrap;
+  transition: background-color 180ms ease, border-color 180ms ease;
+}
+.log-scale-toggle:hover:not([aria-checked="true"]):not([disabled]) { background: var(--color-nav-hover); }
+.log-scale-toggle[aria-checked="true"] { background: transparent; }
+.log-scale-toggle[disabled] { opacity: 0.45; cursor: not-allowed; }
+.log-scale-toggle:focus-visible {
+  outline: 2px solid var(--color-field-border-active);
+  outline-offset: 2px;
+}
+.log-scale-toggle[aria-checked="true"] .toggle-control__track { background: #EDB900; }
+.log-scale-toggle[aria-checked="true"] .toggle-control__track i { transform: translateX(14px); }
+
 .info-tooltip {
   position: relative;
   display: inline-flex;

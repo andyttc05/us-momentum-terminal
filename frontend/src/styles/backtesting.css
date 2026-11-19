@@ -15,7 +15,8 @@
      touching the 15px gap between the sections themselves. */
   margin-bottom: max(0px, calc(var(--page-header-gap) - var(--backtest-section-gap)));
 }
-.app-shell:has(.backtest-page) .backtest-page .page-header__title { font-size: 2.15rem; }
+/* The header copy runs at the shared scale: the title is the same 45px as
+   Overview, Screener and Portfolio. Only the section rhythm below it is denser. */
 
 /* Configuration ----------------------------------------------------------- */
 
@@ -634,63 +635,12 @@
   padding-inline: 13px;
   font-size: 0.78rem;
 }
-.backtest-log-toggle[disabled] {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-/* Same pill and the same switch as every other toggle in the app: nothing is
-   filled at rest, the surface answers only a hover, and the state lives in the
-   track. */
-.backtest-log-toggle {
-  display: inline-flex;
-  min-height: 39px;
-  align-items: center;
-  gap: 9px;
-  padding: 0 13px 0 14px;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-pill);
-  background: transparent;
-  color: var(--color-ink);
-  cursor: pointer;
-  font-size: 0.78rem;
-  font-weight: 800;
-  white-space: nowrap;
-  transition: background-color 180ms ease, border-color 180ms ease;
-}
-.backtest-log-toggle:hover:not([aria-checked="true"]):not([disabled]) {
-  background: var(--color-nav-hover);
-}
-.backtest-log-toggle[aria-checked="true"] {
-  border-color: var(--color-line);
-  background: transparent;
-}
-.backtest-log-toggle .backtest-switch {
-  display: inline-flex;
-  width: 34px;
-  height: 20px;
-  padding: 2px;
-  border-radius: var(--radius-pill);
-  background: #DDD9D3;
-  transition: background-color 180ms ease;
-}
-.backtest-log-toggle .backtest-switch i {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #FFFFFF;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 18%);
-  transition: transform 180ms ease;
-}
-.backtest-log-toggle[aria-checked="true"] .backtest-switch { background: #EDB900; }
-.backtest-log-toggle[aria-checked="true"] .backtest-switch i { transform: translateX(14px); }
-.backtest-log-toggle:focus-visible {
-  border-color: var(--color-field-border-active);
-  outline: 2px solid var(--color-field-border-active);
-  outline-offset: 2px;
-  box-shadow: none;
-}
 .backtest-range-control { padding: 3px; }
 .backtest-range-control button { min-width: 41px; min-height: 31px; padding-inline: 10px; font-size: 0.78rem; }
+/* This page runs the shared pill row at 39px (3px padding + 31px buttons), so
+   the shared log-scale switch matches that height here — height only, never a
+   second design. */
+.backtest-page .log-scale-toggle { min-height: 39px; }
 
 /* Drawdown ---------------------------------------------------------------- */
 
@@ -982,8 +932,9 @@
   .backtest-advanced__reveal,
   .backtest-advanced__caret,
   .backtest-cashflow-fields,
-  .backtest-switch,
-  .backtest-switch i,
+  .log-scale-toggle,
+  .log-scale-toggle .toggle-control__track,
+  .log-scale-toggle .toggle-control__track i,
   .backtest-results { transition: none; }
 }
 
@@ -1719,7 +1670,6 @@
   .backtest-chart-controls { justify-content: flex-start; gap: 8px; }
   .backtest-view-control,
   .backtest-range-control { flex-wrap: wrap; }
-  .backtest-log-toggle { min-height: 34px; }
 
   .backtest-analytics-grid { grid-template-columns: minmax(0, 1fr); }
   /* Two figure columns need ~270px for a label and a nowrap value; at this

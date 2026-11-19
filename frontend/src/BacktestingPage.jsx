@@ -16,6 +16,7 @@ import { ChartState, DataState, Skeleton, TableSkeletonRows, TableStateRow } fro
 import { DashboardCard } from "./components/DashboardCard.jsx";
 import { ExportMenu } from "./components/ExportMenu.jsx";
 import { KpiCard } from "./components/KpiCard.jsx";
+import { LogScaleToggle } from "./components/LogScaleToggle.jsx";
 import { MascotDuo } from "./components/Mascot.jsx";
 import { PageHeader } from "./components/PageHeader.jsx";
 import { PortfolioEvolution } from "./components/PortfolioEvolution.jsx";
@@ -291,24 +292,6 @@ function CumulativeTooltip({ dates, index, width, seriesValues }) {
     </div>
   );
 }
-function LogScaleToggle({ checked, onChange, disabled = false, reason }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      className="backtest-log-toggle"
-      disabled={disabled}
-      aria-disabled={disabled || undefined}
-      title={disabled ? reason : undefined}
-      onClick={() => onChange(!checked)}
-    >
-      <span>Log Scale</span>
-      <span className="backtest-switch" aria-hidden="true"><i /></span>
-    </button>
-  );
-}
-
 function CumulativeChart({ dates, range, view, logScale, seriesValues, onLogUnavailable }) {
   const [boxRef, box] = useElementSize();
   const [selectedIndex, setSelectedIndex] = useState(null);

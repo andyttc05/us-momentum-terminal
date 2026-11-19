@@ -25,10 +25,7 @@ test("market cap and rank share one icon + label + value rhythm", () => {
 
   // Both blocks start with an icon at the same size, then the copy column.
   assert.match(summary, /<Stack size=\{24\} weight="regular" aria-hidden="true" \/>/);
-  assert.match(
-    summary,
-    /<Crown size=\{24\} weight="regular" aria-hidden="true" className="stock-summary-block__rank-icon" \/>/,
-  );
+  assert.match(summary, /<Crown size=\{24\} weight="regular" aria-hidden="true" \/>/);
 
   // Rank used to be the only block without an icon, which made it read as an
   // afterthought beside market cap.
@@ -37,11 +34,10 @@ test("market cap and rank share one icon + label + value rhythm", () => {
   }
 });
 
-test("the rank crown keeps the app's gold while the value keeps its tier colour", () => {
-  assert.match(
-    styles,
-    /\.stock-summary-block > \.stock-summary-block__rank-icon \{ color: var\(--color-yellow-line\); \}/,
-  );
+test("market cap and rank icons share the same ink colour", () => {
+  // No per-icon colour class: the row reads as one unit, so the crown is ink
+  // like the stack beside it instead of carrying its own gold.
+  assert.doesNotMatch(styles, /stock-summary-block__rank-icon/);
   const summary = summarySection();
   assert.match(summary, /stock-summary-block__value--\$\{rankTier\}/);
 });
