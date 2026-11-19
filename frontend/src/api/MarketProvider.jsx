@@ -125,8 +125,9 @@ export function MarketProvider({ children }) {
       setError(null);
       if (hasStocks) {
         const savedAt = new Date().toISOString();
-        writeCachedPublication(payload);
-        setBrowserCachedAt(savedAt);
+        // A snapshot too large for the origin's storage quota is not cached at
+        // all, so the dialog must not claim it was.
+        setBrowserCachedAt(writeCachedPublication(payload) ? savedAt : null);
       }
     }
     setLastLoadedAt(new Date());

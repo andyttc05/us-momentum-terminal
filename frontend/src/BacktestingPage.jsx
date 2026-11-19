@@ -1524,7 +1524,7 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
     setIsRunning(true);
     // Persistent: a published schedule resolves immediately, but an on-demand
     // run takes tens of seconds and its card must never time out underneath it.
-    applyNotification(buildRunNotification("Running selected rebalance schedule…"));
+    applyNotification(buildRunNotification("Running backtest…"));
     try {
       const block = await executeBacktest({
         portfolio: normalizedDraft.portfolio,

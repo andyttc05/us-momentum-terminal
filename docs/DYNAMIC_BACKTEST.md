@@ -58,11 +58,14 @@ it; nothing is estimated.
 
 | Job state | Stage | Card text |
 | --- | --- | --- |
-| queued | – | Waiting for a backtest runner… |
-| running | `preparing` | Preparing historical market data… |
-| running | `calculating` | Running the historical simulation… |
-| running | `delivering` | Validating and returning results… |
-| completed | – | Backtest completed |
+| queued | – | Queued |
+| running | `preparing` | Preparing data |
+| running | `calculating` | Running simulation |
+| running | `delivering` | Finishing up |
+| completed | – | Backtest complete |
+
+Labels are two words or fewer; the elapsed time is appended (`Queued · 0:25`)
+and the full wording lives in the error cases, where it carries information.
 
 `preparing` is genuinely short with a warm cache (the engine starts within about
 half a second of the configuration arriving), so in practice a run shows the

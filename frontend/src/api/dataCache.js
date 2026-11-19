@@ -24,10 +24,32 @@ function readRecord(key) {
 function writeRecord(key, value) {
   try {
     storage()?.setItem(key, JSON.stringify(value));
+    return true;
   } catch {
     // Browsers can deny storage in private modes or when the quota is full.
+    return false;
   }
 }
+
+function removeRecord(key) {
+  try {
+    storage()?.removeItem(key);
+  } catch {
+    // Nothing to do: storage is unavailable either way.
+  }
+}
+
+/**
+ * Largest publication that may be cached.
+ *
+ * A browser origin gets roughly 5 MB of localStorage, and the record wrapper
+ * and JSON escaping add to the payload. Above this the write throws
+ * QuotaExceededError and — silently — leaves whatever older snapshot was
+ * already stored, so the page kept painting a months-old date on every visit.
+ * Refusing oversized snapshots explicitly, and dropping the unreplaceable old
+ * copy, is what stops that.
+ */
+const MAX_PUBLICATION_CHARS = 3_500_000;
 
 export function readCachedPublication() {
   const record = readRecord(PUBLICATION_KEY);
@@ -36,9 +58,32 @@ export function readCachedPublication() {
   return record;
 }
 
+/**
+ * Cache the last valid snapshot for the next first paint.
+ *
+ * Returns whether the snapshot actually fits. A snapshot that does not fit is
+ * not a silent no-op: any older copy is removed, because a copy that can never
+ * be replaced would otherwise be shown as if it were current forever.
+ */
 export function writeCachedPublication(data) {
-  if (!validPublication(data)) return;
-  writeRecord(PUBLICATION_KEY, { savedAt: new Date().toISOString(), data });
+  if (!validPublication(data)) return false;
+  let serialized;
+  try {
+    serialized = JSON.stringify({ savedAt: new Date().toISOString(), data });
+  } catch {
+    return false;
+  }
+  if (serialized.length > MAX_PUBLICATION_CHARS) {
+    removeRecord(PUBLICATION_KEY);
+    return false;
+  }
+  try {
+    storage()?.setItem(PUBLICATION_KEY, serialized);
+    return true;
+  } catch {
+    removeRecord(PUBLICATION_KEY);
+    return false;
+  }
 }
 
 export function readCachedStock(ticker) {

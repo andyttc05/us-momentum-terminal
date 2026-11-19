@@ -37,6 +37,7 @@ import {
   validatePortfolioForExport,
 } from "./utils/portfolioExport.js";
 import { getPortfolioState } from "./utils/portfolioState.js";
+import { selectLiveBook, simulateLiveWeights } from "./utils/liveWeights.js";
 import { shouldOpenRow, shouldRouteTickerClick, stockLinkLabel } from "./utils/rowNavigation.js";
 import {
   datasetForUniverse,
@@ -66,7 +67,9 @@ const liveColumns = [
   ["score", "Score", "Momentum Score", "score"],
   ["momentum", "12–1", "12–1 Momentum", "score"],
   ["floatMarketCap", "Float Cap", "Float-Adjusted Market Cap", "market-cap"],
-  ["weight", "Weight", "Target Weight", "final-weight"],
+  // This table describes a book rebuilt from today's signal, so its weight is
+  // simulated from that signal — not the size frozen at the last rebalance.
+  ["weight", "Weight", "Simulated Target Weight — score × √(float cap ÷ median float cap), 9% name / 35% sector caps", "final-weight"],
   ["status", "Status", "Portfolio Status", "status"],
 ];
 
@@ -181,7 +184,8 @@ function useTableScrollHint(ref, dependencies) {
 
 export function PortfolioPage({ onSelectStock, hidden = false }) {
   const [holdingsSort, setHoldingsSort] = useState({ key: "finalWeight", direction: "desc" });
-  const [liveSort, setLiveSort] = useState({ key: "rank", direction: "asc" });
+  // The live table opens on the largest simulated size, like Holdings does.
+  const [liveSort, setLiveSort] = useState({ key: "weight", direction: "desc" });
   const [page, setPage] = useState(1);
   const [livePage, setLivePage] = useState(1);
   const [toast, setToast] = useState("");
@@ -234,6 +238,7 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
 
   useEffect(() => {
     setPage(1);
+    setLivePage(1);
   }, [universe]);
 
   const sortedHoldings = useMemo(
@@ -241,13 +246,24 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
     [portfolioHoldings, holdingsSort],
   );
 
-  // Live signals cover the book the page is showing — 100 names for Top 100,
-  // 20 for Top 20 — and each row carries the weight the book assigns it.
+  // Live signals cover the whole ranked universe; today's book is the top
+  // `targetHoldings` names that can actually be sized. Its weights are
+  // simulated from this signal, because the published weights belong to the
+  // last rebalance and would describe a different, older book.
+  const liveBook = useMemo(
+    () => selectLiveBook(liveSignals, targetHoldings),
+    [liveSignals, targetHoldings],
+  );
+  const liveWeighting = useMemo(
+    () => (liveBook.length === targetHoldings ? simulateLiveWeights(liveBook) : null),
+    [liveBook, targetHoldings],
+  );
+
   const liveRows = useMemo(() => {
-    const weights = new Map(portfolioHoldings.map((holding) => [holding.ticker, holding.finalWeight]));
-    return liveSignals.slice(0, targetHoldings).map((row, index) => {
-      const weight = weights.get(row.ticker);
-      const held = weight !== undefined;
+    const heldTickers = new Set(portfolioHoldings.map((holding) => holding.ticker));
+    return liveBook.map((row, index) => {
+      const weight = liveWeighting?.weights.get(row.ticker);
+      const held = heldTickers.has(row.ticker);
       const potential = row.activePortfolioStatus === "potential_new_entry";
       return {
         rank: row.rank ?? index + 1,
@@ -261,7 +277,7 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
         held,
       };
     });
-  }, [liveSignals, portfolioHoldings, targetHoldings]);
+  }, [liveBook, liveWeighting, portfolioHoldings]);
 
   const sortedLiveRows = useMemo(
     () => [...liveRows].sort(compareBy(liveSort.key, liveSort.direction)),
@@ -298,6 +314,10 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
     holdingsSort.direction,
     activeView,
     sortedHoldings.length,
+    liveCurrentPage,
+    liveSort.key,
+    liveSort.direction,
+    sortedLiveRows.length,
   ]);
 
   /** Same toggle for both tables: same column flips, a new column starts ascending. */

@@ -71,6 +71,12 @@ export function UpdateBar({ ariaLabel = "Check for updates", onRefresh, busy = f
      and read as days old. The as-of date still travels in the tooltip and in the
      data dialog, where it is labelled. */
   const shownDate = hasData ? meta?.generated_at || "" : "";
+  /* The cached snapshot is painted immediately, but its date is not yet the
+     published one: confirming it takes one small manifest request, and when the
+     snapshot really is behind, the date would visibly jump a moment later. Until
+     it is confirmed the slot holds a placeholder instead of a date that is
+     about to change. A failed check leaves the cached date visible. */
+  const datePending = Boolean(hasData && dataOrigin === "browser-cache" && (refreshing || checkingForUpdates));
   const asOfLabel = meta?.as_of && meta.as_of !== shownDate ? formatDateLabel(meta.as_of) : "";
 
   const timeliness = meta ? TIMELINESS_LABEL[meta.timeliness] ?? meta.timeliness : null;
@@ -101,7 +107,11 @@ export function UpdateBar({ ariaLabel = "Check for updates", onRefresh, busy = f
         >
           <span className="update-bar__dot" aria-hidden="true" />
           <span className="update-bar__label">{FETCH_LABEL[fetchState]}</span>
-          <time className="update-bar__date" dateTime={shownDate}>{formatDateLabel(shownDate)}</time>
+          {datePending ? (
+            <span className="skeleton update-bar__date-pending" aria-hidden="true" />
+          ) : (
+            <time className="update-bar__date" dateTime={shownDate}>{formatDateLabel(shownDate)}</time>
+          )}
         </button>
         <span className="update-bar__divider" aria-hidden="true" />
         <AppButton

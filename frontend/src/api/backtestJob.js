@@ -28,17 +28,18 @@ const TERMINAL = new Set(["completed", "failed"]);
  *
  * A stage is only shown when the runner reported it, so the page never
  * describes work that is not happening; there is no percentage or ETA because
- * neither can be observed from here.
+ * neither can be observed from here. Labels stay two words or fewer: the card
+ * sits in a corner of a dense dashboard and should read at a glance.
  */
 export const STAGE_COPY = {
-  queued: "Waiting for a backtest runner…",
-  preparing: "Preparing historical market data…",
-  calculating: "Running the historical simulation…",
-  delivering: "Validating and returning results…",
+  queued: "Queued",
+  preparing: "Preparing data",
+  calculating: "Running simulation",
+  delivering: "Finishing up",
 };
 
 export function stageMessage({ status, stage } = {}) {
-  if (status === "completed") return "Backtest completed";
+  if (status === "completed") return "Backtest complete";
   if (status === "failed") return "The backtest could not be completed.";
   if (status === "running") return STAGE_COPY[stage] || STAGE_COPY.preparing;
   return STAGE_COPY.queued;

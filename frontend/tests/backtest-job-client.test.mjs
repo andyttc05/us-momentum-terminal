@@ -249,24 +249,24 @@ test("polling waits two seconds by default and honours a server override", async
 });
 
 test("each confirmed stage produces its own copy", () => {
-  assert.equal(stageMessage({ status: "queued" }), "Waiting for a backtest runner…");
+  assert.equal(stageMessage({ status: "queued" }), "Queued");
   assert.equal(
     stageMessage({ status: "running", stage: "preparing" }),
-    "Preparing historical market data…",
+    "Preparing data",
   );
   assert.equal(
     stageMessage({ status: "running", stage: "calculating" }),
-    "Running the historical simulation…",
+    "Running simulation",
   );
   assert.equal(
     stageMessage({ status: "running", stage: "delivering" }),
-    "Validating and returning results…",
+    "Finishing up",
   );
   // An unknown or missing stage must not invent one; the runner reporting
   // "running" at all means it has started preparing.
-  assert.equal(stageMessage({ status: "running" }), "Preparing historical market data…");
-  assert.equal(stageMessage({ status: "running", stage: "teleporting" }), "Preparing historical market data…");
-  assert.equal(stageMessage({ status: "completed" }), "Backtest completed");
+  assert.equal(stageMessage({ status: "running" }), "Preparing data");
+  assert.equal(stageMessage({ status: "running", stage: "teleporting" }), "Preparing data");
+  assert.equal(stageMessage({ status: "completed" }), "Backtest complete");
 });
 
 test("queued then running then completed is reported in real order", async () => {
@@ -292,11 +292,11 @@ test("queued then running then completed is reported in real order", async () =>
 
   assert.deepEqual(seen.map((entry) => entry.split(":")[0]), ["queued", "running", "running", "running", "completed"]);
   assert.deepEqual(seen, [
-    "queued:-:Waiting for a backtest runner…",
-    "running:preparing:Preparing historical market data…",
-    "running:calculating:Running the historical simulation…",
-    "running:delivering:Validating and returning results…",
-    "completed:-:Backtest completed",
+    "queued:-:Queued",
+    "running:preparing:Preparing data",
+    "running:calculating:Running simulation",
+    "running:delivering:Finishing up",
+    "completed:-:Backtest complete",
   ]);
 });
 

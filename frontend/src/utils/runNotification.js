@@ -25,7 +25,7 @@ export function buildRunNotification(message) {
 }
 
 /** The run finished: a normal, auto-dismissing confirmation. */
-export function buildCompletedNotification(message = "Backtest completed", durationMs = 3200) {
+export function buildCompletedNotification(message = "Backtest complete", durationMs = 3200) {
   return {
     id: COMPLETED_NOTIFICATION_ID,
     message,
