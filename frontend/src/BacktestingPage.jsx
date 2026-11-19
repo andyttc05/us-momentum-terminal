@@ -1148,6 +1148,7 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
     runBacktest: executeBacktest,
     setStrategyRebalanceFrequency,
     backtestJobEnabled,
+    dataMode,
   } = useMarket();
   const { universe, selectUniverse, activeUniverse, activateUniverse } = useUniverse();
   const [draft, setDraft] = useState(DEFAULT_CONFIG);
@@ -1443,11 +1444,12 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
   async function runBacktest() {
     if (!canRun || isRunning) return;
     // A custom window (or a schedule with no precomputed series) has to be
-    // calculated by the runner, which only exists when the broker is deployed.
+    // calculated by the runner, which only exists in the published build. The
+    // local FastAPI service calculates any window itself, so it is exempt.
     const needsRunner = normalizedDraft.rebalanceFrequency !== DEFAULT_REBALANCE_FREQUENCY
       || normalizedDraft.startDate !== draftBlock?.start
       || normalizedDraft.endDate !== draftBlock?.end;
-    if (needsRunner && backtestJobEnabled === false) {
+    if (needsRunner && dataMode === "static" && backtestJobEnabled === false) {
       showNotification(
         "Custom-date backtests are not configured for this deployment.",
         "error",
