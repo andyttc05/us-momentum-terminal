@@ -51,6 +51,41 @@ queued ──running──► completed
 - Results are retained for 24 hours and then deleted by a Durable Object alarm.
   The status endpoint answers `410` once a result has expired.
 
+## Progress the page can actually show
+
+The runner reports a stage at each real checkpoint and the Durable Object stores
+it; nothing is estimated.
+
+| Job state | Stage | Card text |
+| --- | --- | --- |
+| queued | – | Waiting for a backtest runner… |
+| running | `preparing` | Preparing historical market data… |
+| running | `calculating` | Running the historical simulation… |
+| running | `delivering` | Validating and returning results… |
+| completed | – | Backtest completed |
+
+`preparing` is genuinely short with a warm cache (the engine starts within about
+half a second of the configuration arriving), so in practice a run shows the
+queue text and then the simulation text. A stage the runner never reports is
+never displayed.
+
+The card itself is persistent for the whole run: `durationMs: null` means no
+timer is armed, and it has no close button, so it cannot vanish between polls.
+Elapsed time is appended locally and stops when the job ends.
+
+## Polling
+
+Every **2 seconds**, which is the fastest cadence that still leaves a wide
+margin on the free plan: a run costs roughly 20–60 polls, so even 20 jobs an
+hour (the admission cap) stay around 1,200 Worker requests per hour against a
+100,000/day allowance. The interval comes from the submission response, so it
+can be retuned without shipping new frontend code.
+
+Polling stops immediately on `completed`, on `failed`, on a superseded run, and
+on the ten-minute client deadline. Three consecutive transport errors end the
+poll with a retryable message; a single dropped request is survived silently, so
+a transient network blip cannot make the progress card disappear.
+
 ## Storage
 
 One Durable Object per job, created from its request id. Jobs live in a
@@ -92,12 +127,12 @@ Measured against the Workers Free plan, which this deployment runs on:
 | Resource | Free allowance | This workload |
 | --- | --- | --- |
 | Workers requests | 100,000/day | A few hundred at most; each page poll is one request. |
-| Durable Object requests | 100,000/day | ~2 per submission plus 1 per poll. |
+| Durable Object requests | 100,000/day | ~3 per submission plus 1 per poll (one poll every 2 s). |
 | Durable Object duration | 13,000 GB-s/day | Millisecond handlers, no hibernation needed. |
 | Durable Object storage | 5 GB total, 1 GB per object | ~2 MB per job, deleted after 24 hours. |
 | SQL row size | 8 MB | 200,000-character chunks. |
 | GitHub Actions minutes | Unlimited for public repositories | One runner per request, 30-minute cap. |
-| Actions cache | 10 GB per repository | Shares the `market-data-<os>-` namespace with the publication workflow. |
+| Actions cache | 10 GB per repository | 24 MB per market-data entry (read-only from here) plus one 66 MB package entry keyed by the requirements hash. |
 
 Durable Objects with a SQLite backend are the only kind the Free plan can
 create, which is why both new classes are declared with
@@ -114,6 +149,59 @@ stops before it could do that itself.
 `concurrency.group` is the request id, so a duplicate dispatch is serialized
 rather than calculated twice. The run does not touch the publication workflow:
 no snapshot is rebuilt and no Pages artifact is uploaded.
+
+Two cache decisions keep the runner cheap:
+
+- **Installed packages are cached**, keyed by the requirements hash. A cold run
+  spends ~11 s installing pandas/numpy; a warm one restores the tree in ~2 s and
+  skips the install entirely. Pinned versions cannot drift, because the key
+  changes with the file.
+- **The market-data cache is restored but never re-saved.** The publication
+  workflow saves the same 189 MB directory on every scheduled run; re-saving it
+  from a backtest would churn the 10 GB repository budget and evict the entries
+  that workflow depends on.
+
+## Measured stages
+
+One warm run, `top20`/`quarterly`, from a real browser on the published site.
+Every figure is a timestamp recorded by the browser, the Worker or the runner —
+none is estimated.
+
+| Stage | Before | After |
+| --- | --- | --- |
+| Submit → Worker acceptance | ~1.1 s | ~1.3 s |
+| Acceptance → runner starts (dispatch + queue + checkout + packages + cache) | 26.6 s | 12.5 s |
+| Runner start → configuration fetched | 0.6 s | 0.7 s |
+| Configuration → engine start | 0.5 s | 0.5 s |
+| Python calculation | 7.8 s | 6.3 s |
+| Engine end → result callback | 0.3 s | 0.2 s |
+| Callback → browser renders it | 4.7 s | 1.3 s |
+| **Total, click to dashboard** | **41.7 s** | **22.3 s** |
+
+Same-window engine measurement on one machine (`top100`/`semiannual`,
+2020-01-02 → 2024-12-31): **9.0 s → 4.4 s**. The saving is entirely in the
+sizing pre-pass; the simulation itself is unchanged.
+
+What the profiling ruled out:
+
+- **Restoring the 189 MB market-data cache takes ~1–2 s.** It is not the
+  bottleneck, and its 715 files are exactly the price and share history the
+  engine reads, so nothing is pruned.
+- **Most of the wall time is GitHub's queue and job start-up**, not this
+  repository's code. The runner is also ~40 % slower than a developer machine at
+  the same calculation, which is a property of the shared free runners.
+- **The one real duplicate was a network call**: `ensure_share_history`
+  re-downloaded the renamed tickers (FB, UTX) on every run, because their series
+  can never become "fresh" again. Their share counts are still used exactly as
+  before; a successful fetch is now stamped and not repeated for seven days, and
+  a failed fetch stays retryable. The runner logs the outcome:
+
+  ```json
+  {"shareHistory": {"requested": 108, "resolved": 108, "fetched": 0, "missing": 0, "ms": 46}}
+  ```
+
+  `fetched: 0` is the healthy case. A non-zero value means the run paid for a
+  provider round trip.
 
 ## Local checks
 
