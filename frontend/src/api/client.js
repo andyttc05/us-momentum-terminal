@@ -1,3 +1,5 @@
+import { createBacktestJobClient } from "./backtestJob.js";
+
 // Production reads only same-origin GitHub Pages JSON. Local development lazily
 // loads a separate adapter that talks to the Vite-proxied FastAPI process.
 const STATIC_BASE = `${import.meta.env.BASE_URL || "/"}data`;
@@ -57,6 +59,12 @@ async function staticRequest(path, { timeout = 20_000, revalidate = false } = {}
 }
 
 const REFRESH_BROKER_URL = String(import.meta.env.VITE_REFRESH_BROKER_URL || "").replace(/\/$/, "");
+
+// The backtest broker is the same Worker by default: the refresh endpoint and
+// the on-demand backtest endpoint share one deployment and one origin allowlist.
+const backtestClient = createBacktestJobClient({
+  baseUrl: String(import.meta.env.VITE_BACKTEST_BROKER_URL || REFRESH_BROKER_URL || "").replace(/\/$/, ""),
+});
 
 async function requestRefreshBroker(challengeToken) {
   if (!REFRESH_BROKER_URL) {
@@ -153,6 +161,10 @@ export const api = {
   ),
   backtestInputs: () => dedupe("backtest-inputs", () => staticRequest("backtest-inputs.json", { timeout: 90_000 })),
   backtest: (config) => devCall("backtest", config),
+  // Custom date ranges are computed on demand by the GitHub Actions runner;
+  // published schedules never touch this path.
+  backtestJob: (config, options) => backtestClient.run(config, options),
+  backtestJobEnabled: backtestClient.enabled,
   refresh: () => DATA_MODE === "static" ? staticRequest("publication.json", { revalidate: true }) : devCall("refresh"),
   requestMarketRefresh: (challengeToken) => DATA_MODE === "static"
     ? requestRefreshBroker(challengeToken)

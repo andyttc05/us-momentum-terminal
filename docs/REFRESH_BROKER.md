@@ -2,11 +2,14 @@
 
 GitHub Pages stays the production host. It cannot safely hold a GitHub token,
 so a small Cloudflare Worker brokers the workflow request. The Worker never
-hosts application assets and never runs Python. It exposes only:
+hosts application assets and never runs Python. It exposes:
 
 - `POST /api/refresh`
 - `GET /api/status`
 - `GET /api/health`
+- `POST /api/backtest`, `GET /api/backtest/status`,
+  `GET /api/backtest/job`, `POST /api/backtest/callback`
+  (see [DYNAMIC_BACKTEST.md](DYNAMIC_BACKTEST.md))
 
 Unknown or non-API routes return a controlled JSON `404`.
 
@@ -36,9 +39,11 @@ dispatch, validation, workflow or timeout failure.
 ## Deploy
 
 1. Deploy beside `frontend/worker/index.js` with
-   `wrangler.refresh.example.toml`; retain the SQLite Durable Object binding and
-   migration, set the Pages origin/hostname exactly, and keep the Turnstile
-   action as `refresh`. The local `wrangler.toml` remains git-ignored.
+   `wrangler.refresh.example.toml` (copy it to the git-ignored `wrangler.toml`);
+   retain every SQLite Durable Object binding and migration, set the Pages
+   origin/hostname exactly, and keep the Turnstile actions as `refresh` and
+   `backtest`. Adding the backtest classes is migration `v2`; reusing an applied
+   tag fails the deploy.
 2. Configure a Turnstile widget for that Pages origin. Set the public site key
    as `VITE_TURNSTILE_SITE_KEY` during the Pages build and set its secret with
    `wrangler secret put TURNSTILE_SECRET_KEY`.
@@ -52,6 +57,10 @@ dispatch, validation, workflow or timeout failure.
    variables (not secrets) so the Pages workflow builds the opt-in UI. The
    broker URL is public; the Worker still requires the allowed Origin and a
    valid Turnstile token.
+5. For on-demand backtests, also store the same random token as the Worker
+   secret `BACKTEST_CALLBACK_TOKEN` and as the Actions repository secret of the
+   same name. The runner reads it from the environment; it is never a workflow
+   input. See [DYNAMIC_BACKTEST.md](DYNAMIC_BACKTEST.md).
 
 If the workflow runs under a custom Pages hostname, set `PUBLIC_MANIFEST_URL`
 to its full `/data/manifest.json` URL so completed refreshes can release the

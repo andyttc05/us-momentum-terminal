@@ -1147,6 +1147,7 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
     refreshing,
     runBacktest: executeBacktest,
     setStrategyRebalanceFrequency,
+    backtestJobEnabled,
   } = useMarket();
   const { universe, selectUniverse, activeUniverse, activateUniverse } = useUniverse();
   const [draft, setDraft] = useState(DEFAULT_CONFIG);
@@ -1441,6 +1442,21 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
 
   async function runBacktest() {
     if (!canRun || isRunning) return;
+    // A custom window (or a schedule with no precomputed series) has to be
+    // calculated by the runner, which only exists when the broker is deployed.
+    const needsRunner = normalizedDraft.rebalanceFrequency !== DEFAULT_REBALANCE_FREQUENCY
+      || normalizedDraft.startDate !== draftBlock?.start
+      || normalizedDraft.endDate !== draftBlock?.end;
+    if (needsRunner && backtestJobEnabled === false) {
+      showNotification(
+        "Custom-date backtests are not configured for this deployment.",
+        "error",
+        undefined,
+        "backtest-unavailable-service",
+        false,
+      );
+      return;
+    }
     const sequence = runSequence.current + 1;
     runSequence.current = sequence;
     setIsRunning(true);
@@ -1456,6 +1472,16 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
         cashflow_amount: normalizedDraft.contributionAmount,
         cashflow_frequency: normalizedDraft.contributionFrequency,
         cashflow_direction: normalizedDraft.cashflowDirection,
+      }, {
+        // Queued/running states are reported by the on-demand runner; a
+        // published schedule resolves without emitting any.
+        onStatus: (update) => {
+          if (runSequence.current !== sequence) return;
+          if (update?.status === "completed") return;
+          if (update?.message) {
+            showNotification(update.message, "loading", undefined, "backtest-running");
+          }
+        },
       });
       if (runSequence.current !== sequence) return;
       if (!block?.available) {

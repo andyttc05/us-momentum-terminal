@@ -90,7 +90,11 @@ test("production refreshes the latest published snapshot without a live-service 
   assert.match(workflow, /VITE_DATA_MODE:\s*static/);
   assert.doesNotMatch(workflow + client + provider, /onrender\.com|VITE_API_BASE_URL|VITE_BACKTEST_API_BASE_URL/);
   assert.match(client, /import\("\.\/devClient\.js"\)/);
-  assert.match(provider, /if \(STATIC_MODE\)[\s\S]*throw new Error\("Custom-date browser calculations are not available yet; no server request was made\."\)/);
+  // A custom window is never calculated in the browser: it is submitted to the
+  // broker and executed by the GitHub Actions runner.
+  assert.match(provider, /api\.backtestJob\(/);
+  assert.match(provider, /isActive: active/);
+  assert.doesNotMatch(provider, /Custom-date browser calculations are not available yet/);
   assert.match(client, /staticRequest\("manifest\.json", \{ revalidate: force \}\)/);
   assert.match(client, /cache: revalidate \? "no-cache" : "default"/);
   assert.match(provider, /checkPublishedSnapshot/);
@@ -99,10 +103,15 @@ test("production refreshes the latest published snapshot without a live-service 
   assert.doesNotMatch(provider, /liveHealth|liveSnapshot|liveRefresh|LIVE_PROBE_INTERVAL/);
 });
 
-test("production JavaScript has no Render host or API backtest endpoint", () => {
+test("production JavaScript has no Render host and no direct API backtest endpoint", () => {
   const assetsPath = path("../dist/client/assets");
   if (!existsSync(assetsPath)) return; // The CI workflow runs this after `npm run build`.
   const bundles = readdirSync(assetsPath).filter((name) => name.endsWith(".js"))
     .map((name) => readFileSync(path(`../dist/client/assets/${name}`), "utf8")).join("\n");
-  assert.doesNotMatch(bundles, /onrender\.com|\/api\/backtest|VITE_API_BASE_URL|VITE_BACKTEST_API_BASE_URL/);
+  assert.doesNotMatch(bundles, /onrender\.com|VITE_API_BASE_URL|VITE_BACKTEST_API_BASE_URL/);
+  // `/api/backtest` is the broker route, reached through the configured Worker
+  // origin. The bundle must never build that path against the Pages origin,
+  // which would silently 404 instead of dispatching a real calculation.
+  assert.doesNotMatch(bundles, /["'`]\/data\/backtest/);
+  assert.doesNotMatch(bundles, /localhost:8787/);
 });
