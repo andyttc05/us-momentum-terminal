@@ -119,6 +119,38 @@ def _now_ms() -> int:
     return int(time.time() * 1000)
 
 
+def instrument_share_history() -> None:
+    """Log what the sizing pre-pass actually did, without changing the engine.
+
+    ``run_historical_backtest`` calls ``size_history.ensure_share_history``
+    through the module attribute and ignores its summary. Wrapping that call
+    here records whether a run downloaded share counts (network) or read them
+    from cache, which is the difference between a 3 s and an 8 s calculation.
+    """
+    from app import size_history
+
+    original = size_history.ensure_share_history
+
+    def measured(*args, **kwargs):
+        started = _now_ms()
+        summary = original(*args, **kwargs)
+        print(
+            json.dumps({
+                "shareHistory": {
+                    "requested": summary.get("requested"),
+                    "resolved": summary.get("resolved"),
+                    "fetched": summary.get("fetched"),
+                    "missing": len(summary.get("missing") or []),
+                    "ms": _now_ms() - started,
+                }
+            }),
+            flush=True,
+        )
+        return summary
+
+    size_history.ensure_share_history = measured
+
+
 def report_stage(base: str, token: str, request_id: str, stage: str) -> None:
     """Publish an observed stage. Progress must never fail the calculation."""
     if not (base and token and request_id):
@@ -179,6 +211,7 @@ def main(argv: list[str] | None = None) -> int:
 
     timings["engineStartedAt"] = _now_ms()
     report_stage(base, token, request_id, "calculating")
+    instrument_share_history()
     try:
         result = run(config or {})
     except ConfigError as error:
