@@ -99,7 +99,8 @@
 .performance-chart__value-pill--strategy { fill: var(--color-yellow-soft); }
 .performance-chart__value-pill--spy { fill: var(--color-blue-soft); }
 .performance-chart__value-pill--spmo { fill: var(--color-lavender-soft); }
-.performance-chart__value-label { fill: var(--color-ink); font-family: var(--font-family); font-size: 12px; font-weight: 800; }
+/* The label face and the pill geometry are shared: see .value-pill-label in
+   components.css and utils/valuePill.js. */
 
 .top-momentum-card { --card-body-padding-start: 8px; --card-body-padding-end: 10px; }
 /* One shared grid for the whole card: every row shares the exact same column

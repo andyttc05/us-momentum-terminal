@@ -5,6 +5,13 @@ import { useChartPointer } from "./useChartPointer.js";
 import { useMediaQuery } from "./useMediaQuery.js";
 import { createDateScale, placeTicks } from "../utils/timeAxis.js";
 import {
+  VALUE_PILL,
+  leaderGapFor,
+  leaderPath,
+  pillHeightFor,
+  valuePillWidth,
+} from "../utils/valuePill.js";
+import {
   fitTooltipWidth,
   formatTooltipDate,
   nearestObservationIndex,
@@ -39,15 +46,6 @@ function linePath(points) {
   }, "");
 }
 
-// Short connector from a series endpoint to its value pill: a straight stub
-// when the pill already sits on the endpoint, a single soft curve otherwise.
-function leaderPath(startX, startY, pillX, labelY) {
-  const dy = labelY - startY;
-  if (Math.abs(dy) < 1) return `M ${startX} ${startY} L ${pillX - 1} ${startY}`;
-  const midX = startX + (pillX - 1 - startX) * 0.55;
-  return `M ${startX} ${startY} C ${midX} ${startY} ${midX} ${labelY} ${pillX - 1} ${labelY}`;
-}
-
 function axisLabel(value) {
   if (value === 0) return "0%";
   return `${value < 0 ? "−" : "+"}${Math.abs(value)}%`;
@@ -79,20 +77,25 @@ export function PerformanceChart({ period, data }) {
   const compact = width > 0 && width < 520;
   const left = compact ? 40 : 52;
   const top = compact ? 10 : 14;
-  // The plot stops before the right edge so the leader lines get a real
-  // horizontal runway before the value pills instead of a cramped 9px.
-  const plotWidth = Math.max(80, width - left - (compact ? 10 : 92));
+  // Pills are sized from the labels they hold (see utils/valuePill.js), so the
+  // plot's right gutter is exactly one leader runway plus one pill: the label
+  // never outgrows its pill and the pill never carries dead space.
+  const endLabelText = data.series.map((series) => series.end);
+  const pillWidth = valuePillWidth(endLabelText, { compact });
+  const pillHeight = pillHeightFor(compact);
+  const pillRadius = pillHeight / 2;
+  const leaderGap = leaderGapFor(compact);
+  const plotWidth = Math.max(80, width - left - (compact ? 10 : leaderGap + pillWidth + 10));
   const plotHeight = Math.max(80, height - top - (compact ? 26 : 32));
   const plotRight = left + plotWidth;
-  const labelGap = 26;
-  const labelMinY = top + 13;
-  const labelMaxY = top + plotHeight - 13;
-  const pillWidth = 82;
-  const pillHeight = 22;
-  const pillRadius = pillHeight / 2;
-  const pillX = plotRight + 12;
-  // The endpoint dot is r=4 with a 2px ring, so its outer edge sits at +5.
-  const leaderStartX = plotRight + 5;
+  // Pills are 24px tall, so a 28px centre-to-centre step leaves a 4px gap — the
+  // same breathing room the backtest equity curve uses.
+  const labelGap = 28;
+  const labelMinY = top + pillRadius + 1;
+  const labelMaxY = top + plotHeight - pillRadius - 1;
+  const pillX = plotRight + leaderGap;
+  // The endpoint dot is r=4.5 with a 2px ring, so its outer edge sits at +5.5.
+  const leaderStartX = plotRight + 5.5;
 
   // --- Horizontal scale ---------------------------------------------------- //
   // One mapping for the whole chart: series points and month labels both ask
@@ -275,13 +278,13 @@ export function PerformanceChart({ period, data }) {
         )}
         {!compact && endLabels.map(({ series, endY, labelY }) => (
           <g key={`${series.id}-label`}>
-            <circle cx={plotRight} cy={endY} r="4" className={`performance-chart__endpoint performance-chart__endpoint--${series.id}`} />
+            <circle cx={plotRight} cy={endY} r="4.5" className={`performance-chart__endpoint performance-chart__endpoint--${series.id}`} />
             <path
-              d={leaderPath(leaderStartX, endY, pillX, labelY, pillRadius)}
+              d={leaderPath(leaderStartX, endY, pillX, labelY)}
               className={`performance-chart__leader performance-chart__leader--${series.id}`}
             />
-            <rect x={pillX} y={labelY - pillRadius} width={pillWidth} height={pillHeight} rx={pillRadius} className={`performance-chart__value-pill performance-chart__value-pill--${series.id}`} />
-            <text x={pillX + pillWidth / 2} y={labelY} dominantBaseline="central" textAnchor="middle" className="performance-chart__value-label">{series.end}</text>
+            <rect x={pillX} y={labelY - pillRadius} width={pillWidth} height={pillHeight} rx={pillRadius} className={`value-pill performance-chart__value-pill--${series.id}`} />
+            <text x={pillX + pillWidth / 2} y={labelY} dominantBaseline="central" textAnchor="middle" className="value-pill-label">{series.end}</text>
           </g>
         ))}
       </svg>

@@ -304,6 +304,19 @@ button:focus-visible, a:focus-visible { outline: none; box-shadow: var(--focus-r
 .log-scale-toggle[aria-checked="true"] .toggle-control__track { background: #EDB900; }
 .log-scale-toggle[aria-checked="true"] .toggle-control__track i { transform: translateX(14px); }
 
+/* End-of-series value pill — one label face for the Overview performance chart
+   and the backtest equity curve. The pill's geometry (width, height, radius) is
+   computed per chart in utils/valuePill.js from the labels it holds, so only
+   the type and the series fills live here. */
+.value-pill-label {
+  fill: var(--color-ink);
+  font-family: var(--font-family);
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.value-pill-label--compact { font-size: 9px; }
+
 .info-tooltip {
   position: relative;
   display: inline-flex;

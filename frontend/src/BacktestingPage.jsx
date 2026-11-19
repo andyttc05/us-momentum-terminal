@@ -50,6 +50,12 @@ import {
   sliceAccountSeries,
 } from "./utils/backtestReport.js";
 import { buildDrawdownScale } from "./utils/drawdownScale.js";
+import {
+  leaderGapFor,
+  leaderPath,
+  pillHeightFor,
+  valuePillWidth,
+} from "./utils/valuePill.js";
 import { buildWealthScale, canLogScale, wealthPosition } from "./utils/wealthScale.js";
 import { resolveYearLabelPositions } from "./utils/yearAxis.js";
 import {
@@ -308,13 +314,6 @@ function CumulativeChart({ dates, range, view, logScale, seriesValues, onLogUnav
   const isPercent = view === "capital";
   const left = compact ? 42 : 54;
   const top = 30;
-  // The gutter after the plot holds the end-value pills. It is sized for the
-  // widest pill ("$312,963" is wider than "+177.0%") and never for the current
-  // view, so switching between Portfolio Value and Return on Capital draws the
-  // x axis at exactly the same length instead of shortening it by 22px.
-  const labelGutter = compact ? 96 : 148;
-  const plotWidth = Math.max(80, width - left - labelGutter);
-  const plotHeight = Math.max(80, height - top - (compact ? 30 : 34));
 
   const computedSeries = SERIES
     .map((series) => {
@@ -323,6 +322,34 @@ function CumulativeChart({ dates, range, view, logScale, seriesValues, onLogUnav
       return { ...series, values: Array.isArray(values) ? values : [] };
     })
     .filter((series) => series.values.length === dates.length);
+
+  // Pills are sized from the labels they hold (utils/valuePill.js) instead of a
+  // fixed reserve, so "$51,488" no longer sits in a pill built for "$312,963".
+  // The gutter is reserved for the wider of the two views, so switching between
+  // Portfolio Value and Return on Capital keeps the x axis at one length while
+  // each pill still hugs its own text.
+  const pillLabel = (value, percent) => (percent ? formatPercent(value) : formatTooltipMoney(value));
+  const labelsForView = (percent) => SERIES
+    .map((series) => {
+      const entry = seriesValues?.[series.id];
+      const values = percent ? entry?.capitalReturns : entry?.values;
+      return Array.isArray(values) && values.length ? pillLabel(values.at(-1), percent) : null;
+    })
+    .filter(Boolean);
+  const pillHeight = pillHeightFor(compact);
+  const pillRadius = pillHeight / 2;
+  const leaderGap = leaderGapFor(compact);
+  const pillWidth = valuePillWidth(
+    computedSeries.map((series) => pillLabel(series.values.at(-1), isPercent)),
+    { compact },
+  );
+  const reservedPillWidth = Math.max(
+    pillWidth,
+    valuePillWidth(labelsForView(!isPercent), { compact }),
+  );
+  const labelGutter = leaderGap + reservedPillWidth + (compact ? 6 : 10);
+  const plotWidth = Math.max(80, width - left - labelGutter);
+  const plotHeight = Math.max(80, height - top - (compact ? 30 : 34));
 
   useEffect(() => {
     setSelectedIndex(null);
@@ -362,24 +389,23 @@ function CumulativeChart({ dates, range, view, logScale, seriesValues, onLogUnav
     plotWidth,
     compact ? 66 : 48,
   );
-  const pillWidth = compact ? (isPercent ? 70 : 84) : (isPercent ? 91 : 112);
-  // Pills are pinned to the card's right edge instead of to the plot's end, so
-  // the narrower percentage pill and the wider dollar pill share one right
-  // margin and the plot keeps the same length in both views.
-  const pillX = width - (compact ? 6 : 10) - pillWidth;
+  // The pill starts one leader runway after the plot, the same anchor the
+  // Overview performance chart uses, so both charts read as one design.
+  const pillX = left + plotWidth + leaderGap;
   const pillCenter = pillX + pillWidth / 2;
   const endLabels = computedSeries
     .map((series) => ({ series, point: pointsFor(series.values).at(-1) }))
     .sort((a, b) => a.point.y - b.point.y);
+  const labelSpacing = compact ? 24 : 28;
   endLabels.forEach((item, index) => {
     item.labelY = Math.max(
       item.point.y,
-      index ? endLabels[index - 1].labelY + (compact ? 24 : 28) : top + 12,
+      index ? endLabels[index - 1].labelY + labelSpacing : top + pillRadius + 1,
     );
   });
   const lastLabel = endLabels.at(-1);
-  if (lastLabel?.labelY > top + plotHeight - 12) {
-    const overflow = lastLabel.labelY - (top + plotHeight - 12);
+  if (lastLabel?.labelY > top + plotHeight - pillRadius - 1) {
+    const overflow = lastLabel.labelY - (top + plotHeight - pillRadius - 1);
     endLabels.forEach((item) => { item.labelY -= overflow; });
   }
 
@@ -518,22 +544,22 @@ function CumulativeChart({ dates, range, view, logScale, seriesValues, onLogUnav
           {endLabels.map(({ series, point, labelY }) => (
             <g key={`${series.id}-end`} data-testid={`backtest-final-label-${series.id}`}>
               <circle cx={point.x} cy={point.y} r="4.5" className={`backtest-endpoint backtest-endpoint--${series.id}`} />
-              <path d={`M ${point.x + 7} ${point.y} L ${pillX} ${labelY}`} className={`backtest-leader backtest-leader--${series.id}`} />
+              <path d={leaderPath(point.x + 5.5, point.y, pillX, labelY)} className={`backtest-leader backtest-leader--${series.id}`} />
               <rect
                 x={pillX}
-                y={labelY - (compact ? 10 : 12)}
+                y={labelY - pillRadius}
                 width={pillWidth}
-                height={compact ? 20 : 24}
-                rx={compact ? 10 : 12}
-                className={`backtest-value-pill backtest-value-pill--${series.id}`}
+                height={pillHeight}
+                rx={pillRadius}
+                className={`value-pill backtest-value-pill--${series.id}`}
               />
               <text
                 x={pillCenter}
                 y={labelY}
                 dominantBaseline="central"
                 textAnchor="middle"
-                className={`backtest-value-label${compact ? " backtest-value-label--compact" : ""}`}
-              >{isPercent ? formatPercent(series.values.at(-1)) : formatTooltipMoney(series.values.at(-1))}</text>
+                className={`value-pill-label${compact ? " value-pill-label--compact" : ""}`}
+              >{pillLabel(series.values.at(-1), isPercent)}</text>
             </g>
           ))}
         </svg>
