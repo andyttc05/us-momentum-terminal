@@ -21,8 +21,6 @@ export class BacktestJobError extends Error {
   }
 }
 
-const TERMINAL = new Set(["completed", "failed"]);
-
 function defaultSleep(milliseconds) {
   return new Promise((resolve) => {
     setTimeout(resolve, milliseconds);
@@ -203,5 +201,5 @@ export function createBacktestJobClient({
     );
   }
 
-  return { enabled, run, submit, poll, terminal: TERMINAL };
+  return { enabled, run, submit, poll };
 }
