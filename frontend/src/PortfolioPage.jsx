@@ -457,6 +457,12 @@ export function PortfolioPage({ onSelectStock, hidden = false }) {
             <div className="portfolio-card-toolbar">
               <h3 className="dashboard-card__title">
                 {activeView === "holdings" ? "Active Portfolio Holdings" : "Live Momentum Signals"}
+                {activeView === "live" && (
+                  // The weight column here is rebuilt from today's signal, so say
+                  // so where the reader meets it — a tooltip alone hides this from
+                  // phones and from anyone who never hovers a heading.
+                  <span className="portfolio-simulated-note">Simulated from today's signal</span>
+                )}
               </h3>
               <div className="portfolio-card-toolbar__actions">
                 <div className="period-control" role="group" aria-label="Portfolio holdings view">

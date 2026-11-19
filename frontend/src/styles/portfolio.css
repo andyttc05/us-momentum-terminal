@@ -267,6 +267,16 @@
 }
 .portfolio-card-toolbar__actions { display: flex; min-width: 0; align-items: center; gap: 10px; margin-left: auto; }
 .portfolio-export-control { display: flex; flex: 0 0 auto; align-items: center; justify-content: flex-end; }
+/* Sits on the title's baseline, in the header's own line box, so the live view
+   explains its weight column without adding a row of chrome. */
+.portfolio-simulated-note {
+  margin-left: 10px;
+  color: var(--color-text-secondary);
+  font-size: 0.72rem;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0;
+  vertical-align: middle;
+}
 
 .portfolio-holdings-card .table-pagination { min-height: 68px; padding: 0 10px; }
 .portfolio-table-scroll { width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
