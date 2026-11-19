@@ -163,20 +163,36 @@ Two cache decisions keep the runner cheap:
 
 ## Measured stages
 
-One warm run, `top20`/`quarterly`, from a real browser on the published site.
-Every figure is a timestamp recorded by the browser, the Worker or the runner —
-none is estimated.
+Timestamps come from the browser, the Worker and the runner; nothing below is
+estimated. Two runs of the *same workflow* are compared step by step:
+
+| Workflow step | Before | After |
+| --- | --- | --- |
+| Queue wait | 2.0 s | 2.0 s |
+| Checkout | 3.0 s | 3.0 s |
+| Set up Python | 3.0 s | 1.0–7.0 s |
+| Install dependencies | 11.0 s | 2.0 s restore, install skipped |
+| Restore market-data cache | 2.0 s | 1.0 s |
+| Run the backtest (`script`) | 11.0 s | 8.0 s (4y 11m window) |
+| **Whole job** | **41.0 s** | **20.0 s** |
+
+Click to rendered dashboard, observed in a real browser on the published site:
 
 | Stage | Before | After |
 | --- | --- | --- |
-| Submit → Worker acceptance | ~1.1 s | ~1.3 s |
-| Acceptance → runner starts (dispatch + queue + checkout + packages + cache) | 26.6 s | 12.5 s |
+| Submit → Worker acceptance | 1.1 s | 1.3 s |
+| Acceptance → runner starts | 26.6 s | 12.5 s |
 | Runner start → configuration fetched | 0.6 s | 0.7 s |
 | Configuration → engine start | 0.5 s | 0.5 s |
 | Python calculation | 7.8 s | 6.3 s |
 | Engine end → result callback | 0.3 s | 0.2 s |
 | Callback → browser renders it | 4.7 s | 1.3 s |
-| **Total, click to dashboard** | **41.7 s** | **22.3 s** |
+| **Total** | **41.7 s** | **22.3 s** |
+
+The 4.7 s → 1.3 s item is the polling cadence. The comparison above uses runs
+whose windows differ slightly (3y 4m before, 4y 11m after), so the calculation
+figure is conservative; a 5y 6m window measured 10.3 s of calculation and 37.5 s
+end to end, dominated by that calculation plus GitHub's queue.
 
 Same-window engine measurement on one machine (`top100`/`semiannual`,
 2020-01-02 → 2024-12-31): **9.0 s → 4.4 s**. The saving is entirely in the
@@ -188,8 +204,8 @@ What the profiling ruled out:
   bottleneck, and its 715 files are exactly the price and share history the
   engine reads, so nothing is pruned.
 - **Most of the wall time is GitHub's queue and job start-up**, not this
-  repository's code. The runner is also ~40 % slower than a developer machine at
-  the same calculation, which is a property of the shared free runners.
+  repository's code. The runner is also slower than a developer machine at the
+  same calculation, which is a property of the shared free runners.
 - **The one real duplicate was a network call**: `ensure_share_history`
   re-downloaded the renamed tickers (FB, UTX) on every run, because their series
   can never become "fresh" again. Their share counts are still used exactly as
