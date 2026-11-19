@@ -1157,7 +1157,7 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
   // Elapsed time for an active on-demand run: measured from the click, ticking
   // once a second, and reset as soon as the run ends.
   const [elapsedMs, setElapsedMs] = useState(0);
-  const notificationTimer = useRef(null);
+  const notificationTimeoutRef = useRef(null);
   const runStartedAt = useRef(0);
   const runSequence = useRef(0);
 
@@ -1199,7 +1199,7 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
   }, [draftBlock?.available, draftBlock?.start, draftBlock?.end, activeUniverse]);
 
   useEffect(() => () => {
-    window.clearTimeout(notificationTimer.current);
+    window.clearTimeout(notificationTimeoutRef.current);
     // Bumping the sequence makes an in-flight run unable to publish a status or
     // a result, so unmounting cannot leave a stale progress card behind.
     runSequence.current += 1;
@@ -1255,14 +1255,14 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
 
   /** Show a prepared notification from the run model, with the same timer rule. */
   function applyNotification(entry) {
-    window.clearTimeout(notificationTimer.current);
+    window.clearTimeout(notificationTimeoutRef.current);
     setNotification({
       ...entry,
       onDismiss: entry.dismissible ? () => setNotification(null) : undefined,
     });
     const delay = dismissalDelay(entry);
     if (delay !== null) {
-      notificationTimer.current = window.setTimeout(() => setNotification(null), delay);
+      notificationTimeoutRef.current = window.setTimeout(() => setNotification(null), delay);
     }
   }
 
@@ -1321,7 +1321,7 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
       setNotification((current) => (current?.id === "unavailable-mode" ? null : current));
       return;
     }
-    window.clearTimeout(notificationTimer.current);
+    window.clearTimeout(notificationTimeoutRef.current);
     setNotification({
       id: "unavailable-mode",
       message: availability.title,
@@ -1343,7 +1343,7 @@ export function BacktestingPage({ hidden = false, onSelectStock }) {
           ? "Invalid contribution amount"
           : "";
     if (message) {
-      window.clearTimeout(notificationTimer.current);
+      window.clearTimeout(notificationTimeoutRef.current);
       setNotification((current) => ({
         id: "validation",
         message,
