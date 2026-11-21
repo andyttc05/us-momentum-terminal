@@ -118,7 +118,13 @@
   align-items: center;
 }
 .momentum-row { display: contents; }
-.momentum-row__rank { display: grid; width: 28px; height: 28px; place-items: center; justify-self: center; border: 1px solid var(--color-line); border-radius: 50%; background: var(--color-surface); color: var(--color-ink); font-size: var(--font-size-sm); font-weight: var(--font-weight-black); }
+.momentum-row__rank {
+  padding-left: 2px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: tabular-nums;
+}
 .momentum-row__ticker { font-size: var(--font-size-sm); font-weight: var(--font-weight-black); letter-spacing: -0.01em; }
 .momentum-row__ticker--link {
   padding: 0;
@@ -329,7 +335,6 @@
   .period-control button { min-height: 30px; min-width: 39px; }
   .top-momentum-list { grid-template-columns: 30px 50px minmax(52px, 1fr) minmax(60px, 76px) 58px; column-gap: 7px; grid-auto-rows: 32px; }
   .momentum-row .sparkline { width: min(100%, 70px); }
-  .momentum-row__rank { width: 25px; height: 25px; }
   .sparkline { width: 58px; height: 20px; }
   .momentum-row__ticker { font-size: 0.8rem; }
   .momentum-row__price, .momentum-row__score { font-size: 0.72rem; }
@@ -387,7 +392,6 @@
     grid-template-columns: 28px 46px minmax(42px, 1fr) minmax(56px, 72px) 54px;
     column-gap: 5px;
   }
-  .momentum-row__rank { width: 25px; height: 25px; }
   .momentum-row__ticker { font-size: 0.78rem; }
   .momentum-row__price, .momentum-row__score { font-size: 0.69rem; }
   .momentum-row__score { width: 54px; min-height: 25px; }

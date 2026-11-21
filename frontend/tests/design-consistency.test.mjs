@@ -84,3 +84,29 @@ test("the stock range pills are the shared segmented control", () => {
   assert.doesNotMatch(stockCss, /\.stock-price-toolbar/);
   assert.ok(stockCss.includes(".stock-range-control { width: max-content; max-width: 100%; }"));
 });
+
+test("rank columns are plain numbers, like the Portfolio table's index", () => {
+  const screener = read("../src/styles/screener.css");
+  const app = read("../src/styles/app.css");
+  // The circled chip put a second shape around every row for no extra meaning.
+  assert.doesNotMatch(screener, /\.stock-rank-cell span \{[^}]*border-radius: 50%/s);
+  assert.match(screener, /\.stock-rank-cell span \{[^}]*font-variant-numeric: tabular-nums;/s);
+  assert.match(screener, /\.stock-rank-cell \{[^}]*text-align: left;/s);
+  assert.doesNotMatch(app, /\.momentum-row__rank \{[^}]*border-radius: 50%/s);
+  assert.match(app, /\.momentum-row__rank \{[^}]*color: var\(--color-text-secondary\);/s);
+});
+
+test("the backtest config controls share one baseline and one height", () => {
+  const backtesting = read("../src/styles/backtesting.css");
+  // Date pill, universe switch and run button are all 44px tall…
+  assert.match(backtesting, /\.backtest-date-control \{[^}]*height: 44px;/s);
+  assert.match(backtesting, /\.backtest-run-button \{\s*min-height: 44px;/);
+  // …and the switch's padding + button height add up to the same 44px.
+  assert.match(backtesting, /\.backtest-segmented button \{[^}]*min-height: 34px;/s);
+  // Columns stretch to the tallest section, so headings sit on one edge and
+  // controls on the other instead of three different baselines.
+  assert.match(backtesting, /\.backtest-config \{[^}]*align-items: stretch;/s);
+  assert.match(backtesting, /\.backtest-config__universe \{ justify-content: space-between; \}/);
+  // The old 39px push that mis-aligned the run button is gone.
+  assert.doesNotMatch(backtesting, /\.backtest-run-group \{[^}]*padding-top: 39px/s);
+});

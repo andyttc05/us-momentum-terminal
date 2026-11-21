@@ -823,6 +823,9 @@ function PerformanceAndRisk({ report, reportWindow, metrics, config, state = "re
     { label: "Reinvest Dividends", value: config ? (config.reinvestDividends ? "Yes" : "No") : "—" },
     { label: "Inflation Adjusted", value: config ? (config.inflationAdjusted ? "Yes" : "No") : "—" },
     { label: "Rebalancing", value: config ? rebalanceLabel(config.rebalanceFrequency) : "—" },
+    // A cash-flow run that never ran is a setting, not a measure: keeping it in
+    // the metrics left a one-row group and a column that ended early.
+    { label: "Cash Flows", value: config?.cashflowEnabled ? "Scheduled" : "Disabled" },
   ];
 
   const groups = [
@@ -941,12 +944,18 @@ function PerformanceAndRisk({ report, reportWindow, metrics, config, state = "re
     },
   ];
 
+  // A cash-flow run that never ran leaves exactly one row ("Schedule:
+  // Disabled"), which read as a heading with nothing under it and left the
+  // right column ending early. The state now lives in the footer settings, so
+  // the group only appears when there is a flow to report.
+  const visibleGroups = groups.filter((group) => group.title !== "Cash flow" || group.rows.length > 1);
+
   // Two columns instead of four: a fourth column held a single cash-flow row
   // and left a tall empty gap, and the columns never lined up with the hero
   // above them. Strategy measures stack on the left, benchmarks on the right.
   const perfColumns = [
-    { key: "strategy", groups: groups.filter((group) => group.title !== "Benchmarks") },
-    { key: "benchmarks", groups: groups.filter((group) => group.title === "Benchmarks") },
+    { key: "strategy", groups: visibleGroups.filter((group) => group.title !== "Benchmarks") },
+    { key: "benchmarks", groups: visibleGroups.filter((group) => group.title === "Benchmarks") },
   ];
 
   return (

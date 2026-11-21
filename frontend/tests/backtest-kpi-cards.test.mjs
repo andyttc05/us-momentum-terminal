@@ -109,12 +109,16 @@ test("Performance & Risk stacks strategy groups in one column and benchmarks in 
   const summaryEnd = page.indexOf("function AdvancedSettings", summaryStart);
   const summary = page.slice(summaryStart, summaryEnd);
 
-  // Two columns of stacked groups: Return, Cash Flow and Risk on the left,
-  // Benchmarks on the right. A fourth column used to hold a single cash-flow
-  // row and left a tall empty gap beneath it.
+  // Two columns of stacked groups: Return and Risk on the left, Benchmarks on
+  // the right. A fourth column used to hold a single cash-flow row and left a
+  // tall empty gap beneath it.
   assert.match(summary, /const perfColumns = \[/);
-  assert.match(summary, /groups\.filter\(\(group\) => group\.title !== "Benchmarks"\)/);
-  assert.match(summary, /groups\.filter\(\(group\) => group\.title === "Benchmarks"\)/);
+  assert.match(summary, /visibleGroups\.filter\(\(group\) => group\.title !== "Benchmarks"\)/);
+  assert.match(summary, /visibleGroups\.filter\(\(group\) => group\.title === "Benchmarks"\)/);
+  // A disabled cash-flow run leaves one row, which rendered as a heading with
+  // nothing under it. The group is dropped and the state moves to the footer.
+  assert.match(summary, /group\.rows\.length > 1/);
+  assert.match(summary, /\{ label: "Cash Flows", value: config\?\.cashflowEnabled \? "Scheduled" : "Disabled" \}/);
   assert.match(summary, /className="backtest-perf-column"/);
   // The groups render through the two-column split, never a flat four-up list.
   assert.match(summary, /perfColumns\.map\(/);
@@ -127,12 +131,13 @@ test("Performance & Risk keeps two balanced columns and collapses to one on narr
     /\.backtest-perf-columns \{\s*display: grid;\s*grid-template-columns: minmax\(0, 1\.12fr\) minmax\(0, 1fr\);/,
   );
   assert.match(styles, /\.backtest-perf-column \{\s*display: grid;/);
-  // Tablet: the column wrappers dissolve so the four groups flow two-up and no
-  // row stretches a value to the far edge of the card.
+  // Tablet keeps the two columns. Dissolving the wrappers so the groups flowed
+  // two-up left an empty cell once the cash-flow group stopped rendering.
   assert.match(
     styles,
-    /@media \(max-width: 1100px\) \{[\s\S]*?\.backtest-perf-columns \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); gap: 16px 30px; \}[\s\S]*?\.backtest-perf-column \{ display: contents; \}/,
+    /@media \(max-width: 1100px\) \{[\s\S]*?\.backtest-perf-columns \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); gap: 0 30px; \}/,
   );
+  assert.doesNotMatch(styles, /\.backtest-perf-column \{ display: contents; \}/);
   // Phone: one column of groups.
   assert.match(
     styles,
@@ -170,5 +175,5 @@ test("the Advanced Settings band is inset from the card edge with room above it"
   assert.match(band, /min-height: 54px;/);
   // No full-bleed border on the toggle any more.
   assert.doesNotMatch(styles, /\.backtest-advanced__toggle \{[\s\S]{0,220}?border-top: 1px solid/);
-  assert.match(styles, /\.backtest-config \{[\s\S]{0,220}?padding: 17px 19px 13px;/);
+  assert.match(styles, /\.backtest-config \{[\s\S]{0,260}?padding: 16px 19px 15px;/);
 });

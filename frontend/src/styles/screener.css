@@ -133,7 +133,7 @@
 .stock-col-sector { width: 14.5%; }
 .screener-table thead tr { height: var(--table-head-height); border-bottom: 1px solid var(--color-line); }
 .screener-table th { padding: 0 8px; color: var(--color-text-secondary); font-size: var(--font-size-table-heading); font-weight: var(--font-weight-black); letter-spacing: var(--letter-spacing-table-heading); text-align: left; text-transform: uppercase; white-space: nowrap; }
-.screener-table .stock-rank-heading { padding-left: 12px; text-align: center; }
+.screener-table .stock-rank-heading { padding-left: 12px; text-align: left; }
 .stock-heading button { display: inline-flex; max-width: 100%; align-items: center; gap: 5px; padding: 5px 0; border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; letter-spacing: inherit; text-align: left; text-transform: inherit; white-space: nowrap; transition: color 150ms ease; }
 .stock-heading button:hover { color: var(--color-ink); }
 .stock-heading button svg { flex: 0 0 auto; }
@@ -145,9 +145,16 @@
 .screener-table tbody tr { height: var(--table-row-height); border-bottom: 1px solid var(--color-line); transition: background-color 140ms ease; }
 .screener-table tbody tr:hover { background: #FCFAF7; }
 .screener-table td { overflow: hidden; padding: 4px 8px; color: var(--color-ink); font-size: var(--font-size-table-cell); text-overflow: ellipsis; vertical-align: middle; white-space: nowrap; }
-.stock-rank-cell { padding-left: 6px !important; text-align: center; }
-/* Every rank chip sits on the same white surface; the number carries the value. */
-.stock-rank-cell span { display: inline-grid; width: 32px; height: 32px; place-items: center; border: 1px solid var(--color-line); border-radius: 50%; background: var(--color-surface); font-size: 1rem; font-weight: var(--font-weight-black); }
+/* The rank is a plain number, styled exactly like the Portfolio table's index:
+   secondary ink, tabular figures, left aligned on the heading's inset. A chip
+   around every row added a second shape to read for no extra meaning. */
+.stock-rank-cell { padding-left: 12px !important; text-align: left; }
+.stock-rank-cell span {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-table-cell);
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: tabular-nums;
+}
 .stock-ticker-cell { font-size: 1.15rem !important; font-weight: var(--font-weight-black); letter-spacing: -0.02em; }
 .stock-company-cell { font-weight: var(--font-weight-medium); }
 .stock-company-link {
@@ -204,12 +211,10 @@
   .stock-momentum-cell .sparkline { width: 60px; flex-basis: 60px; }
   .momentum-value, .stock-score-cell span { font-size: 0.92rem; }
   .screener-table td { padding-block: 3px; font-size: 0.95rem; }
-  .stock-rank-cell span { width: 30px; height: 30px; }
 }
 
 @media (min-height: 831px) and (min-width: 1101px) {
   .screener-table tbody tr { height: 50px; }
-  .stock-rank-cell span { width: 33px; height: 33px; }
   .screener-table-card > .table-pagination { min-height: 72px; }
 }
 

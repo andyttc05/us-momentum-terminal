@@ -165,7 +165,7 @@ export function OverviewPage({ onNavigate, onSelectStock, hidden = false }) {
                   </div>
                 )) : momentumState === "loading" ? Array.from({ length: 5 }, (_, index) => (
                   <div className="momentum-row momentum-row--skeleton" key={index} aria-hidden="true">
-                    <Skeleton className="momentum-row__rank" width="28px" height="28px" radius="50%" />
+                    <Skeleton className="momentum-row__rank" width="14px" height="12px" radius="3px" />
                     <Skeleton width="42px" height="13px" />
                     <Skeleton width="76px" height="24px" />
                     <Skeleton width="62px" height="12px" style={{ justifySelf: "end" }} />

@@ -27,22 +27,26 @@
   background: var(--color-card);
   box-shadow: var(--shadow-card);
 }
+/* One row of controls per column: headings on the top edge, fields on the
+   bottom edge, so the date pills, the universe switch and the run button share
+   a single baseline instead of three. The columns stretch to the tallest
+   section and push their control down with space-between. */
 .backtest-config {
   display: grid;
   min-width: 0;
-  grid-template-columns: minmax(330px, 1.64fr) 1px minmax(200px, 0.86fr) minmax(175px, 0.7fr);
-  align-items: start;
+  grid-template-columns: minmax(300px, 1.52fr) 1px minmax(205px, 0.78fr) minmax(168px, 0.55fr);
+  align-items: stretch;
   gap: clamp(14px, 1.6vw, 22px);
-  padding: 17px 19px 13px;
+  padding: 16px 19px 15px;
 }
 .backtest-config__period,
-.backtest-config__universe { min-width: 0; }
+.backtest-config__universe { display: flex; min-width: 0; flex-direction: column; gap: 9px; }
+.backtest-config__universe { justify-content: space-between; }
 .backtest-config__heading {
   display: flex;
-  min-height: 28px;
+  min-height: 24px;
   align-items: center;
   gap: 9px;
-  margin-bottom: 8px;
   color: var(--color-ink);
 }
 .backtest-config__heading svg { flex: 0 0 auto; }
@@ -82,7 +86,7 @@
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  height: 36px;
+  height: 44px;
   align-items: center;
   border: 1px solid var(--color-field-border);
   border-radius: var(--radius-pill);
@@ -136,8 +140,8 @@
 .backtest-date-group.is-invalid .backtest-date-control { border-color: #D8848B; }
 .backtest-config__divider {
   width: 1px;
-  height: 84px;
-  align-self: center;
+  align-self: stretch;
+  margin-block: 2px;
   background: var(--color-line);
 }
 .backtest-segmented {
@@ -152,7 +156,7 @@
 }
 .backtest-segmented button {
   min-width: 0;
-  min-height: 36px;
+  min-height: 34px;
   flex: 1 1 0;
   padding: 0 10px;
   border: 0;
@@ -170,11 +174,11 @@
 .backtest-run-group {
   display: grid;
   min-width: 0;
+  align-self: end;
   justify-items: stretch;
-  padding-top: 39px;
 }
 .backtest-run-button {
-  min-height: 38px;
+  min-height: 44px;
   gap: 12px;
   font-size: 0.92rem;
   white-space: nowrap;
@@ -856,12 +860,14 @@
   line-height: 1.3;
   text-transform: uppercase;
 }
+/* One row rhythm for both columns, so a label and its value sit on the same
+   line height whether the metric is a return or a benchmark beta. */
 .backtest-perf-row {
   display: flex;
-  align-items: baseline;
+  min-height: 34px;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 7px 0;
   border-bottom: 1px solid var(--color-line);
 }
 .backtest-perf-group .backtest-perf-row:last-child { border-bottom: 0; }
@@ -889,9 +895,9 @@
 .backtest-perf-foot {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 26px;
-  margin: 16px 0 0;
-  padding-top: 13px;
+  gap: 8px 28px;
+  margin: 20px 0 0;
+  padding-top: 15px;
   border-top: 1px solid var(--color-line);
 }
 .backtest-perf-foot__item { display: flex; align-items: baseline; gap: 7px; }
@@ -909,14 +915,14 @@
 }
 .backtest-summary-state { margin-top: 12px; }
 
-/* Tablet and phone landscape: the column wrappers dissolve, so the four groups
-   flow two-up and every label keeps a value within reach instead of stretching
-   the row across the whole card. */
+/* Tablet and phone landscape: the same two balanced columns as desktop, with
+   the hero folded to 2 × 2. Dissolving the column wrappers so the groups flowed
+   two-up left an empty cell in the middle of the card once the cash-flow group
+   stopped rendering — six rows against six rows has no hole to fill. */
 @media (max-width: 1100px) {
   .backtest-perf-hero { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 18px; }
   .backtest-perf-hero__item:nth-child(3) { padding-left: 4px; border-left: 0; }
-  .backtest-perf-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 30px; }
-  .backtest-perf-column { display: contents; }
+  .backtest-perf-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 30px; }
   .backtest-perf-row__label { flex: 1 1 auto; }
 }
 
@@ -1011,6 +1017,9 @@
   .backtest-config {
     grid-template-columns: minmax(0, 1fr) minmax(195px, 0.52fr);
   }
+  /* The period takes its own full row here; without a ceiling the two date
+     pills stretch to ~370px each and read as empty capsules. */
+  .backtest-date-fields { max-width: 520px; }
   .backtest-config__period { grid-column: 1 / -1; }
   .backtest-config__divider { display: none; }
   .backtest-config__universe { grid-column: 1; }
