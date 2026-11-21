@@ -9,6 +9,9 @@ const FETCH_LABEL = {
   loading: "Updating…",
   updating: "Updating…",
   updated: "Updated",
+  // A refresh that finished with nothing newer to publish: the snapshot on
+  // screen is already the current one, so the pill says so instead of failing.
+  current: "Up to date",
   failed: "Update failed",
   empty: "No data",
   published: "Published",
@@ -63,6 +66,7 @@ export function UpdateBar({ ariaLabel = "Check for updates", onRefresh, busy = f
   });
   if (refreshAttempt?.state === "updating" || refreshAttempt?.state === "queued") fetchState = "updating";
   if (refreshAttempt?.state === "updated") fetchState = "updated";
+  if (refreshAttempt?.state === "current") fetchState = "current";
   if (refreshAttempt?.state === "failed") fetchState = "failed";
 
   /* The pill dates the *collection*, on every page. It used to carry the market

@@ -11,6 +11,7 @@ import {
   writeCachedStock,
   readRefreshAttempt,
   writeRefreshAttempt,
+  clearRefreshAttempt,
 } from "./dataCache.js";
 import {
   publicationMatchesManifest,
@@ -189,6 +190,13 @@ export function MarketProvider({ children }) {
           code: "refresh_workflow_timed_out",
         });
       }
+      // The broker can settle a run without a newer snapshot — a weekend, a
+      // holiday, or an intraday export that keeps the previous validated book.
+      // That is "already up to date", not a reason to keep polling for a
+      // publication that will never differ.
+      if (refreshStatus.status === "succeeded") {
+        return { ...result, settled: true, unchanged: refreshStatus.unchanged === true };
+      }
     } catch (statusError) {
       // A status request is advisory. Publication polling remains authoritative
       // unless the broker explicitly reports a terminal workflow state.
@@ -285,16 +293,12 @@ export function MarketProvider({ children }) {
       : 0;
 
     if (remaining <= 0) {
-      const failed = {
-        ...pending,
-        state: "failed",
-        completedAt: new Date().toISOString(),
-        result: "The refresh did not finish before it timed out.",
-        code: "refresh_timeout",
-      };
+      // This attempt belongs to an earlier visit and has outlived its polling
+      // window. Painting the pill red for a request the reader has long
+      // forgotten is noise: the page is already showing the last valid
+      // publication, so the attempt is dropped instead of failed.
       settled = true;
-      setRefreshAttempt(failed);
-      writeRefreshAttempt(failed);
+      clearRefreshAttempt();
       return undefined;
     }
 
@@ -309,15 +313,15 @@ export function MarketProvider({ children }) {
       if (cancelled || result.cancelled) return;
       const completed = {
         ...pending,
-        state: "updated",
+        state: result.unchanged ? "current" : "updated",
         completedAt: new Date().toISOString(),
-        result: "Published update available",
+        result: result.unchanged ? "Published data is current" : "Published update available",
         generatedAt: result.payload?.meta?.generated_at,
       };
       settled = true;
       setRefreshAttempt(completed);
       writeRefreshAttempt(completed);
-      publishFinalNotice(result.payload?.meta);
+      if (result.changed) publishFinalNotice(result.payload?.meta);
     }).catch((requestError) => {
       if (cancelled) return;
       const failed = {
@@ -429,15 +433,16 @@ export function MarketProvider({ children }) {
       });
       if (result.cancelled) return false;
       const completed = {
-        state: "updated", requestedAt, completedAt: new Date().toISOString(),
+        state: result.unchanged ? "current" : "updated", requestedAt, completedAt: new Date().toISOString(),
         requestId,
-        result: "Published update available", generatedAt: result.payload?.meta?.generated_at,
+        result: result.unchanged ? "Published data is current" : "Published update available",
+        generatedAt: result.payload?.meta?.generated_at,
       };
       setRefreshAttempt(completed);
       writeRefreshAttempt(completed);
       setRefreshing(false);
-      publishFinalNotice(result.payload?.meta);
-      return true;
+      if (result.changed) publishFinalNotice(result.payload?.meta);
+      return result.changed;
     } catch (requestError) {
       const failed = {
         state: "failed", requestedAt, completedAt: new Date().toISOString(),

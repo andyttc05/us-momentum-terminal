@@ -30,7 +30,10 @@ export async function waitForPublishedRefresh({
       lastCheckError = error;
       continue;
     }
-    if (result?.changed) return result;
+    // `changed` means a new publication is live. `settled` means the broker
+    // finished the run and there is nothing newer to wait for — the caller
+    // reports "up to date" instead of a timeout.
+    if (result?.changed || result?.settled) return result;
   }
   const detail = lastCheckError?.message ? ` Last check: ${lastCheckError.message}` : "";
   const error = new Error(`The publication did not update before the refresh timed out.${detail}`);

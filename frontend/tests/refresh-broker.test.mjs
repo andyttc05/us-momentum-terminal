@@ -470,3 +470,58 @@ test("a publication that is unreachable is reported with a reason instead of suc
     harness.restore();
   }
 });
+
+test("a completed run that found no newer publication settles as up to date", async () => {
+  // Weekends, holidays and unchanged intraday sessions all end with the
+  // exporter keeping the previous validated snapshot. The visitor asked for an
+  // update and one did run; reporting "failed" for a site that is already
+  // current was the red "Update failed" pill this replaces.
+  const harness = testHarness();
+  try {
+    await refreshWorker.fetch(refreshRequest(), harness.env);
+    harness.setRun("completed", "success");
+    harness.setPublication(publicationFixture("2020-01-01T00:00:00.000Z"));
+
+    let active = harness.values.get("refresh");
+    active.lastCheckedAt = 0;
+    harness.values.set("refresh", active);
+    const pending = await (await statusRequest(harness.env, active.requestId)).json();
+    assert.equal(pending.status, "running");
+    assert.equal(pending.generatedAt, null);
+
+    active = harness.values.get("refresh");
+    active.lastCheckedAt = 0;
+    active.successObservedAt = Date.now() - 11 * 60 * 1000;
+    harness.values.set("refresh", active);
+
+    const settled = await (await statusRequest(harness.env, active.requestId)).json();
+    assert.equal(settled.status, "succeeded");
+    assert.equal(settled.unchanged, true);
+    assert.equal(settled.generatedAt, "2020-01-01T00:00:00.000Z");
+    assert.match(settled.message, /already up to date/i);
+  } finally {
+    harness.restore();
+  }
+});
+
+test("an unreadable live publication still fails instead of claiming up to date", async () => {
+  const harness = testHarness();
+  try {
+    await refreshWorker.fetch(refreshRequest(), harness.env);
+    harness.setRun("completed", "success");
+    const broken = publicationFixture("2020-01-01T00:00:00.000Z");
+    harness.setPublication({ manifest: broken.manifest, publication: { ...broken.publication, stocks: [] } });
+
+    const active = harness.values.get("refresh");
+    active.lastCheckedAt = 0;
+    active.successObservedAt = Date.now() - 11 * 60 * 1000;
+    harness.values.set("refresh", active);
+
+    const failed = await (await statusRequest(harness.env, active.requestId)).json();
+    assert.equal(failed.status, "failed");
+    assert.equal(failed.unchanged, false);
+    assert.match(failed.message, /no new valid publication/i);
+  } finally {
+    harness.restore();
+  }
+});

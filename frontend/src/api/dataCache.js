@@ -31,6 +31,15 @@ function writeRecord(key, value) {
   }
 }
 
+function clearRecord(key) {
+  try {
+    storage()?.removeItem(key);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function removeRecord(key) {
   try {
     storage()?.removeItem(key);
@@ -108,4 +117,9 @@ export function readRefreshAttempt() {
 export function writeRefreshAttempt(attempt) {
   if (!attempt?.requestedAt) return;
   writeRecord(REFRESH_ATTEMPT_KEY, attempt);
+}
+
+/** Forget an attempt that outlived its polling window instead of failing it. */
+export function clearRefreshAttempt() {
+  clearRecord(REFRESH_ATTEMPT_KEY);
 }

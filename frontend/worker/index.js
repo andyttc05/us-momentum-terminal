@@ -171,7 +171,7 @@ function validPublication(payload, manifest) {
   });
 }
 
-async function publishedPublication(env, requestedAt) {
+async function publishedPublication(env, requestedAt, { requireNewer = true } = {}) {
   const url = manifestUrl(env);
   if (!url) return { available: false, reason: "publication_not_configured" };
   const separator = url.includes("?") ? "&" : "?";
@@ -185,7 +185,7 @@ async function publishedPublication(env, requestedAt) {
     if (!validManifest(manifest)) return { available: false, reason: "invalid_manifest" };
     const generatedAt = Date.parse(manifest.generatedAt);
     const requested = typeof requestedAt === "number" ? requestedAt : Date.parse(requestedAt);
-    if (!Number.isFinite(requested) || generatedAt < requested - PUBLICATION_CLOCK_TOLERANCE_MS) {
+    if (requireNewer && (!Number.isFinite(requested) || generatedAt < requested - PUBLICATION_CLOCK_TOLERANCE_MS)) {
       return { available: false, reason: "awaiting_new_publication" };
     }
 
@@ -227,6 +227,9 @@ function publicStatus(state) {
     requestId: state.requestId || null,
     status,
     message: state.message || "Refresh status is unavailable.",
+    // A completed run that found no newer publication. The client uses this to
+    // say "up to date" instead of waiting for a snapshot that will not change.
+    unchanged: state.unchanged === true,
     requestedAt: state.requestedAt ? new Date(state.requestedAt).toISOString() : null,
     updatedAt: state.updatedAt ? new Date(state.updatedAt).toISOString() : null,
     workflowRunId: state.run?.id ?? null,
@@ -341,6 +344,26 @@ export class RefreshCoordinator {
     return active;
   }
 
+  /**
+   * Settle a refresh that ran to completion.
+   *
+   * `unchanged` marks a run that finished successfully but produced no newer
+   * publication. That is the normal outcome on a weekend, a holiday, or when an
+   * intraday export keeps the previous validated snapshot — the data on the site
+   * is already current, so it must not surface as a failed update.
+   */
+  async completeSuccess(active, publication, now, message, unchanged = false) {
+    active.status = "succeeded";
+    active.message = message;
+    active.unchanged = unchanged;
+    active.publication = publication;
+    active.completedAt = now;
+    active.cooldownUntil = now + SUCCESS_COOLDOWN_MS;
+    active.updatedAt = now;
+    await this.state.storage.put("refresh", active);
+    return active;
+  }
+
   async reconcile(active, now = Date.now()) {
     if (!active) return null;
     if (["succeeded", "failed", "timed_out"].includes(active.status)) {
@@ -432,17 +455,26 @@ export class RefreshCoordinator {
         const publication = await publishedPublication(this.env, active.requestedAt);
         active.publicationReason = publication.available ? null : publication.reason || "unavailable";
         if (publication.available) {
-          active.status = "succeeded";
-          active.message = "A new validated publication is live.";
-          active.publication = publication;
-          active.completedAt = now;
-          active.cooldownUntil = now + SUCCESS_COOLDOWN_MS;
-          active.updatedAt = now;
-          await this.state.storage.put("refresh", active);
-          return active;
+          return this.completeSuccess(active, publication, now, "A new validated publication is live.");
         }
         active.successObservedAt = active.successObservedAt || now;
         if (now - active.successObservedAt >= PUBLICATION_GRACE_MS) {
+          // The workflow finished, but nothing newer is published. Before
+          // calling that a failure, check whether a valid snapshot is already
+          // live: on a weekend or after an unchanged intraday session the
+          // exporter keeps the previous snapshot on purpose, and the site is
+          // simply up to date. Only a genuinely unreadable publication stays a
+          // failure.
+          const current = await publishedPublication(this.env, active.requestedAt, { requireNewer: false });
+          if (current.available) {
+            return this.completeSuccess(
+              active,
+              current,
+              now,
+              "No newer market data was published; the live snapshot is already up to date.",
+              true,
+            );
+          }
           return this.completeFailure(
             active,
             "failed",

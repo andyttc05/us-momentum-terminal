@@ -248,3 +248,22 @@ test("refresh broker rejects requests outside the configured Pages origin", asyn
     message: "Refresh request rejected.",
   });
 });
+
+test("a refresh that settled without a newer publication ends as up to date", async () => {
+  // The broker reports success but nothing changed (weekend, holiday, or an
+  // unchanged intraday export). Polling must stop there instead of running to
+  // the timeout and painting the pill red.
+  let checks = 0;
+  const result = await waitForPublishedRefresh({
+    timeoutMs: 50,
+    intervalMs: 1,
+    sleep: async () => {},
+    check: async () => {
+      checks += 1;
+      return { changed: false, settled: true, unchanged: true };
+    },
+  });
+  assert.equal(result.settled, true);
+  assert.equal(result.unchanged, true);
+  assert.equal(checks, 1);
+});
