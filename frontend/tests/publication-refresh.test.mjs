@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import {
   isNewerPublication,
   isPublicationStale,
@@ -266,4 +267,17 @@ test("a refresh that settled without a newer publication ends as up to date", as
   assert.equal(result.settled, true);
   assert.equal(result.unchanged, true);
   assert.equal(checks, 1);
+});
+
+test("a background refresh never paints the header red", async () => {
+  const source = readFileSync(
+    fileURLToPath(new URL("../src/api/MarketProvider.jsx", import.meta.url)),
+    "utf8",
+  );
+  // The automatic attempt is flagged, uses a shorter window, and clears itself
+  // on failure instead of writing a red "Update failed" pill.
+  assert.match(source, /refresh: \(options = \{\}\) => refreshMarketData\(\{ \.\.\.options, background: true \}\)/);
+  assert.match(source, /const BACKGROUND_POLL_TIMEOUT_MS = 6 \* 60 \* 1000;/);
+  assert.match(source, /timeoutMs: background \? BACKGROUND_POLL_TIMEOUT_MS : REFRESH_POLL_TIMEOUT_MS/);
+  assert.match(source, /if \(background\) \{\s*clearRefreshAttempt\(\);/);
 });

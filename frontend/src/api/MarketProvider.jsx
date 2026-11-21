@@ -28,6 +28,10 @@ const STATIC_MODE = DATA_MODE === "static";
 const REFRESH_POLL_INTERVAL_MS = 15 * 1000;
 // This covers dispatch queueing plus the workflow's 45-minute runner limit.
 const REFRESH_POLL_TIMEOUT_MS = 50 * 60 * 1000;
+// A refresh nobody asked for should not hold the header in "Updating…" for the
+// whole manual window: one workflow run plus its validation, then it stands
+// down quietly.
+const BACKGROUND_POLL_TIMEOUT_MS = 6 * 60 * 1000;
 
 
 function cachedPublicationState() {
@@ -382,6 +386,7 @@ export function MarketProvider({ children }) {
   const refreshMarketData = useCallback(async ({
     challengeToken = null,
     requestError = null,
+    background = false,
   } = {}) => {
     if (refreshOperation.current || checkOperation.current) return false;
     if (!STATIC_MODE) return checkForUpdates();
@@ -425,7 +430,7 @@ export function MarketProvider({ children }) {
       writeRefreshAttempt(accepted);
 
       const result = await waitForPublishedRefresh({
-        timeoutMs: REFRESH_POLL_TIMEOUT_MS,
+        timeoutMs: background ? BACKGROUND_POLL_TIMEOUT_MS : REFRESH_POLL_TIMEOUT_MS,
         intervalMs: REFRESH_POLL_INTERVAL_MS,
         check: async () => mounted.current
           ? checkRefreshOutcome(response.requestId)
@@ -444,6 +449,18 @@ export function MarketProvider({ children }) {
       if (result.changed) publishFinalNotice(result.payload?.meta);
       return result.changed;
     } catch (requestError) {
+      // A background refresh runs because a page opened, not because the reader
+      // asked: failing it visibly ("Update failed") told visitors the data was
+      // broken when the last valid publication was live and current. Manual
+      // refreshes still report their failure.
+      if (background) {
+        clearRefreshAttempt();
+        if (mounted.current) {
+          setRefreshAttempt(null);
+          setRefreshing(false);
+        }
+        return false;
+      }
       const failed = {
         state: "failed", requestedAt, completedAt: new Date().toISOString(),
         requestId,
@@ -472,7 +489,7 @@ export function MarketProvider({ children }) {
       runAutomaticRefresh({
         load: () => load({ isRefresh: Boolean(initialCache.current) }),
         getChallenge: getRefreshChallenge,
-        refresh: refreshMarketData,
+        refresh: (options = {}) => refreshMarketData({ ...options, background: true }),
         isMounted: () => mounted.current,
       });
     }, 0);
