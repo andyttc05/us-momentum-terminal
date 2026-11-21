@@ -66,10 +66,11 @@ test("heights and leader runways come from the one shared scale", () => {
 });
 
 test("the leader is a stub on one line and a single curve otherwise", () => {
-  assert.equal(leaderPath(100, 50, 120, 50), "M 100 50 L 119 50");
+  // It ends on the pill's left edge; the pill is painted over it afterwards.
+  assert.equal(leaderPath(100, 50, 120, 50), "M 100 50 L 120 50");
   const curve = leaderPath(100, 50, 120, 90);
   assert.match(curve, /^M 100 50 C /);
-  assert.match(curve, / 119 90$/);
+  assert.match(curve, / 120 90$/);
 });
 
 test("both charts size their pills with the shared rule", () => {

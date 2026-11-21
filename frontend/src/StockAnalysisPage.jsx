@@ -24,6 +24,7 @@ import {
   sideForMovement,
 } from "./utils/priceTooltip.js";
 import { getRankTier } from "./utils/rankTier.js";
+import { leaderGapFor, leaderPath, pillHeightFor, valuePillWidth } from "./utils/valuePill.js";
 import {
   DEFAULT_RANGE,
   formatAxisPrice,
@@ -130,9 +131,15 @@ function PriceChart({ stock, range, logScale = false }) {
 
   // Phones drop the endpoint price pill so the plot can use the full width.
   const compact = width > 0 && width < 520;
+  // The pill is the same end-value pill the Overview and Backtesting charts
+  // use: sized from its own label, one height and one padding across pages.
+  const lastPriceLabel = visible.length ? formatMoney(visible.at(-1)) : null;
+  const pillWidth = valuePillWidth([lastPriceLabel], { compact });
+  const pillHeight = pillHeightFor(compact);
+  const leaderGap = leaderGapFor(compact);
   // Gutters keep the axis labels and the value pill inside the measured box.
   const gutterLeft = compact ? 46 : 54;
-  const gutterRight = compact ? 10 : 98;
+  const gutterRight = compact ? 10 : leaderGap + pillWidth + 10;
   const top = compact ? 10 : 14;
   const bottom = compact ? 26 : 30;
   const plot = {
@@ -170,10 +177,8 @@ function PriceChart({ stock, range, logScale = false }) {
   const ticks = timeTicks(visibleDates, range);
 
   // The price pill sits right beside the last point, clamped inside the box.
-  const pillWidth = 84;
-  const pillHeight = 26;
   const endPoint = points.at(-1);
-  const pillX = Math.min(plotRight + 12, width - pillWidth - 4);
+  const pillX = Math.min(plotRight + leaderGap, width - pillWidth - 4);
   const pillY = endPoint
     ? Math.min(Math.max(endPoint.y - pillHeight / 2, top), height - bottom - pillHeight)
     : top;
@@ -273,8 +278,11 @@ function PriceChart({ stock, range, logScale = false }) {
               <circle cx={endPoint.x} cy={endPoint.y} r="5.5" className="stock-price-endpoint" />
               {!compact && (
                 <>
-                  <rect x={pillX} y={pillY} width={pillWidth} height={pillHeight} rx={pillHeight / 2} className="stock-price-value-pill" />
-                  <text x={pillX + pillWidth / 2} y={pillY + pillHeight / 2} dominantBaseline="central" textAnchor="middle" className="stock-price-value-label">{formatMoney(visible.at(-1))}</text>
+                  {/* Same leader as the two series charts: a stub when the pill
+                      sits on the endpoint, a single curve when it was nudged. */}
+                  <path d={leaderPath(endPoint.x + 6.5, endPoint.y, pillX, pillY + pillHeight / 2)} className="stock-price-leader" />
+                  <rect x={pillX} y={pillY} width={pillWidth} height={pillHeight} rx={pillHeight / 2} className="value-pill stock-price-value-pill" />
+                  <text x={pillX + pillWidth / 2} y={pillY + pillHeight / 2} dominantBaseline="central" textAnchor="middle" className="value-pill-label">{lastPriceLabel}</text>
                 </>
               )}
             </>

@@ -82,10 +82,13 @@ export function leaderGapFor(compact) {
 /**
  * Short connector from a series endpoint to its value pill: a straight stub
  * when the pill already sits on the endpoint, a single soft curve otherwise.
+ *
+ * The path ends exactly on the pill's left edge. The pill is painted after the
+ * leader in all three charts, so the join is clean instead of showing a gap.
  */
 export function leaderPath(startX, startY, pillX, labelY) {
   const dy = labelY - startY;
-  if (Math.abs(dy) < 1) return `M ${startX} ${startY} L ${pillX - 1} ${startY}`;
-  const midX = startX + (pillX - 1 - startX) * 0.55;
-  return `M ${startX} ${startY} C ${midX} ${startY} ${midX} ${labelY} ${pillX - 1} ${labelY}`;
+  if (Math.abs(dy) < 1) return `M ${startX} ${startY} L ${pillX} ${startY}`;
+  const midX = startX + (pillX - startX) * 0.55;
+  return `M ${startX} ${startY} C ${midX} ${startY} ${midX} ${labelY} ${pillX} ${labelY}`;
 }
